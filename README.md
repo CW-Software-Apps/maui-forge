@@ -8,10 +8,10 @@ Managing version numbers across iOS, Android, and the `.csproj` is tedious — y
 
 MAUI Forge automates all of that from a single interactive terminal UI. Point it at your projects folder, pick an app, and manage versions, run builds, deploy to devices, and handle git — without leaving the terminal or touching a single file manually.
 
-![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)
-![NuGet](https://img.shields.io/badge/nuget-v1.1.0-004880?logo=nuget)
-![License](https://img.shields.io/github/license/CW-Software-Apps/maui-forge)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/download)
+[![NuGet](https://img.shields.io/badge/nuget-v1.2.0-004880?logo=nuget)](https://www.nuget.org/packages/maui-forge)
+[![License](https://img.shields.io/github/license/CW-Software-Apps/maui-forge)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/CW-Software-Apps/maui-forge)
 
 ---
 
