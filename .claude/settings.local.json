@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet publish *)",
+      "PowerShell(Get-Command *)",
+      "Bash(.\\\\install.ps1)",
+      "Bash(Select-Object -Last 2)",
+      "Bash(dotnet pack *)",
+      "Bash(git filter-branch *)",
+      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --msg-filter 'sed \"/^Co-Authored-By:/d\" | sed \"/^[[:space:]]*$/d\"' -- --all)",
+      "Bash(python3 *)"
+    ]
+  }
+}
