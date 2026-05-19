@@ -94,8 +94,8 @@ maui-forge/
 - [x] Self-contained binary via `install.sh` (macOS arm64/x64)
 - [x] Auto-publish to NuGet via GitHub Actions on `v*` tag
 
-**Pending**
-- [ ] Auto-update check against NuGet (compare installed vs latest version)
+**Pending / Features**
+- [x] Auto-update check against NuGet (compare installed vs latest version)
 
 ## Design decisions
 

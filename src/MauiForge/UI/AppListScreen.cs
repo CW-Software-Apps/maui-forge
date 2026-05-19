@@ -98,10 +98,28 @@ public static class AppListScreen
         AnsiConsole.WriteLine();
         AnsiConsole.Write(new Rule().RuleStyle(new Style(Color.Cyan1, decoration: Decoration.Dim)));
         AnsiConsole.Write(new FigletText("MAUIForge").Color(Color.Cyan1));
-        AnsiConsole.MarkupLine("  [bold cyan1]>>>[/] [bold white]by CW Software[/]  [grey46]|[/]  [dim].NET MAUI Version & Build Manager[/]");
+        
+        var version = typeof(AppListScreen).Assembly.GetName().Version?.ToString(3) ?? "1.4.1";
+        AnsiConsole.MarkupLine($"  [bold cyan1]>>>[/] [bold white][link=https://cwsoftware.com.br]by CW Software[/][/] [cyan1]v{version}[/]  [grey46]|[/]  [dim].NET MAUI Version & Build Manager[/]");
         AnsiConsole.WriteLine();
         AnsiConsole.Write(new Rule().RuleStyle(new Style(Color.Cyan1, decoration: Decoration.Dim)));
         AnsiConsole.WriteLine();
+
+        var latestStr = UpdateService.Instance.GetLatestVersion();
+        if (latestStr != null)
+        {
+            var cleanLatestStr = latestStr.Split('-')[0];
+            if (Version.TryParse(cleanLatestStr, out var latestVer))
+            {
+                var currentVer = typeof(AppListScreen).Assembly.GetName().Version;
+                if (currentVer != null && latestVer > currentVer)
+                {
+                    AnsiConsole.MarkupLine($"  [yellow bold](!) Update available:[/] [white]{latestStr}[/] (installed: [dim]{currentVer.ToString(3)}[/])");
+                    AnsiConsole.MarkupLine($"  [yellow]Run:[/] [bold white]dotnet tool update CwSoftware.MauiForge -g[/] [yellow]to update![/]");
+                    AnsiConsole.WriteLine();
+                }
+            }
+        }
     }
 
     // ── Scan bar ─────────────────────────────────────────────────────────────

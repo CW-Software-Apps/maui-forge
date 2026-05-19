@@ -8,6 +8,8 @@ using Spectre.Console;
 Console.OutputEncoding = Encoding.UTF8;
 Console.InputEncoding  = Encoding.UTF8;
 
+UpdateService.Instance.StartCheck();
+
 var services = new ServiceCollection()
     .AddSingleton<GitService>()
     .AddSingleton<VersionService>()
