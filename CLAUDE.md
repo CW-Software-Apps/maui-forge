@@ -5,7 +5,7 @@
 A cross-platform CLI tool written in **C# .NET 10** that replaces the PowerShell script `maui-version.ps1`. It manages versions, builds, and deployments for .NET MAUI apps via an interactive terminal UI.
 
 Repository: `https://github.com/CW-Software-Apps/maui-forge`  
-Distribution: `dotnet tool install -g maui-forge` (NuGet) or self-contained exe via install scripts.
+Distribution: `dotnet tool install -g CwSoftware.MauiForge` (NuGet) or self-contained exe via install scripts.
 
 ## Stack
 
@@ -125,7 +125,7 @@ dotnet run --project src/MauiForge -- --path K:\your\projects --depth 2
 ## How to publish a new release
 
 ```bash
-git tag v1.2.0
+git tag v1.3.0
 git push origin v1.2.0
 # GitHub Actions runs dotnet pack + nuget push automatically
 # Requires NUGET_API_KEY secret in repo settings
