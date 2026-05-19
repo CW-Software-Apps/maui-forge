@@ -128,96 +128,70 @@ public class AppDetailScreen(
         var nextBld = master is not null && int.TryParse(master.Build, out var b) ? (b + 1).ToString() : "—";
 
         var hasSnap  = st.LastVersion?.AppDir == app.Dir;
-        var snapHint = hasSnap ? $"[dim]→ {st.LastVersion!.Version} #{st.LastVersion.Build}[/]" : "[grey46]no snapshot[/]";
+        var snapHint = hasSnap ? $"{st.LastVersion!.Version} #{st.LastVersion.Build}" : "no snapshot";
         var syncWarn = !app.Versions.InSync && app.Versions.iOS is not null && app.Versions.Android is not null;
-        var iosDev   = cfg.iOSDeviceId is not null ? "[dim]device ok[/]" : "[grey46]no device[/]";
-        var andDev   = cfg.AndroidDeviceSerial is not null ? $"[dim]{Markup.Escape(cfg.AndroidDeviceSerial)}[/]" : "[grey46]no device[/]";
-        var iosFw    = cfg.iOSFramework     is { } fw ? $"[dim]{Markup.Escape(fw)}[/]" : "[grey46]—[/]";
-        var andFw    = cfg.AndroidFramework is { } af ? $"[dim]{Markup.Escape(af)}[/]" : "[grey46]—[/]";
-        var sign     = cfg.CodesignKey is { } cs ? $"[dim]{Markup.Escape(cs)}[/]" : "[grey46]—[/]";
+        var iosDev   = cfg.iOSDeviceId is not null ? "device ok" : "no device";
+        var andDev   = cfg.AndroidDeviceSerial ?? "no device";
+        var iosFw    = cfg.iOSFramework  ?? "—";
+        var andFw    = cfg.AndroidFramework ?? "—";
+        var sign     = cfg.CodesignKey ?? "—";
+        var verbosity = st.Verbosity ?? "quiet";
+        var lastAct  = st.LastAction ?? "none";
         var gitClean = !gitStatus.Dirty && gitStatus.Ahead == 0 && gitStatus.Behind == 0;
 
-        var items = new List<(string Label, Act Action)>();
-        void Add(string label, Act act) => items.Add((label, act));
+        var groups = new List<ForgeMenu.KeyGroup>
+        {
+            new("Version", [
+                new('v', "[white]Increment Version + Build[/]",
+                    $"{master?.Version ?? "-"} → {nextVer}  #{master?.Build ?? "-"} → #{nextBld}"),
+                new('b', "[white]Increment Build only[/]",
+                    $"#{master?.Build ?? "-"} → #{nextBld}"),
+                new('m', "[white]Set version manually[/]"),
+                new('s', "[white]Sync iOS ↔ Android[/]",
+                    syncWarn ? "(!) out of sync" : "(ok) in sync"),
+            ]),
+            new("iOS", [
+                new('a', "[skyblue1]Archive iOS[/] [dim](Release)[/]", $"{iosFw}  {sign}"),
+                new('i', "[skyblue1]Run iOS Device[/]", iosDev),
+            ]),
+            new("Android", [
+                new('r', "[green3]Run Android Device[/]", andDev),
+                new('p', "[green3]Publish Android[/] [dim](Release)[/]", andFw),
+            ]),
+            new("Git & Build", [
+                new('u', "[yellow]Git Pull[/]", gitClean ? "clean" : "pending"),
+                new('c', "[yellow]Git Commit[/]", gitStatus.Dirty ? "changes pending" : "clean"),
+                new('h', "[yellow]Git Push[/]", gitStatus.Ahead > 0 ? $"^{gitStatus.Ahead} to push" : "up to date"),
+                new('n', "[yellow]Clean Project[/]"),
+            ]),
+            new("Misc", [
+                new('z', "[dim]Undo last version change[/]", snapHint),
+                new('.', "[dim]Repeat last action[/]", lastAct),
+                new('x', $"[dim]Build verbosity:[/] [cyan1]{verbosity}[/]"),
+            ]),
+        };
 
-        // ── Version
-        Add($"  [bold cyan1]v+[/]   [white]Increment Version + Build[/]" +
-            $"    [dim]{Markup.Escape(master?.Version ?? "-")} -> {Markup.Escape(nextVer)}  " +
-            $"#{Markup.Escape(master?.Build ?? "-")} -> #{Markup.Escape(nextBld)}[/]",
-            Act.IncrementVersion);
+        var key = ForgeMenu.PromptKey("What would you like to do?  [dim](ESC = back)[/]", groups);
 
-        Add($"  [bold cyan1]b+[/]   [white]Increment Build only[/]" +
-            $"          [dim]#{Markup.Escape(master?.Build ?? "-")} -> #{Markup.Escape(nextBld)}[/]",
-            Act.IncrementBuild);
-
-        Add("  [bold cyan1]~~[/]   [white]Set version manually[/]", Act.SetManual);
-
-        Add($"  [bold cyan1]<>[/]   [white]Sync iOS -- Android[/]" +
-            (syncWarn ? "              [yellow](!!) out of sync[/]" : "              [dim](ok) in sync[/]"),
-            Act.Sync);
-
-        // ── iOS
-        Add($"  [bold skyblue1][[#]][/]  [white]Archive iOS[/] [dim](Release)[/]" +
-            $"         {iosFw}  {sign}",
-            Act.ArchiveiOS);
-
-        Add($"  [bold skyblue1][[>]][/]  [white]Run iOS Device[/]" +
-            $"               {iosDev}",
-            Act.RuniOS);
-
-        // ── Android
-        Add($"  [bold green3][[>]][/]  [white]Run Android Device[/]" +
-            $"            {andDev}",
-            Act.RunAndroid);
-
-        Add($"  [bold green3][[#]][/]  [white]Publish Android[/] [dim](Release)[/]" +
-            $"     {andFw}",
-            Act.PublishAndroid);
-
-        // ── Git & Build
-        var gitStatus2 = gitClean ? "[green]clean[/]" : "[yellow]pending[/]";
-        Add($"  [bold yellow]git[/]  [white]Git Pull[/]" +
-            $"                     {gitStatus2}",
-            Act.GitPull);
-
-        var commitHint = gitStatus.Dirty ? "[yellow]changes staged[/]" : "[dim]working tree clean[/]";
-        Add($"  [bold yellow]cmt[/]  [white]Git Commit[/]" +
-            $"                   {commitHint}",
-            Act.GitCommit);
-
-        var pushHint = gitStatus.Ahead > 0 ? $"[yellow]^{gitStatus.Ahead} to push[/]" : "[dim]up to date[/]";
-        Add($"  [bold yellow]psh[/]  [white]Git Push[/]" +
-            $"                     {pushHint}",
-            Act.GitPush);
-
-        Add("  [bold yellow]clr[/]  [white]Clean Project[/]", Act.Clean);
-
-        // ── Misc
-        var verbosity  = st.Verbosity ?? "quiet";
-        var lastAction = st.LastAction is { Length: > 0 } ? $"[dim]{Markup.Escape(st.LastAction)}[/]" : "[grey46]none[/]";
-        Add($"  [bold grey53]<<[/]   [white]Undo last version change[/]      {snapHint}", Act.Undo);
-        Add($"  [bold grey53]>>|[/]  [white]Repeat last action[/]            {lastAction}", Act.RepeatLast);
-        Add($"  [bold grey53]~~~[/]  [white]Build verbosity:[/] [cyan1]{Markup.Escape(verbosity)}[/]", Act.SetVerbosity);
-        Add("  [bold grey53] x[/]   [white]Back[/]", Act.Back);
-
-        var verItems  = items.Where(x => x.Action is Act.IncrementVersion or Act.IncrementBuild or Act.SetManual or Act.Sync).ToList();
-        var iosItems  = items.Where(x => x.Action is Act.ArchiveiOS or Act.RuniOS).ToList();
-        var andItems  = items.Where(x => x.Action is Act.RunAndroid or Act.PublishAndroid).ToList();
-        var gitItems  = items.Where(x => x.Action is Act.GitPull or Act.GitCommit or Act.GitPush or Act.Clean).ToList();
-        var miscItems = items.Where(x => x.Action is Act.Undo or Act.RepeatLast or Act.SetVerbosity or Act.Back).ToList();
-
-        var prompt = new SelectionPrompt<string>()
-            .Title("[cyan1]What would you like to do?[/]")
-            .PageSize(20)
-            .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
-            .AddChoiceGroup(Markup.Escape("-- Version " + new string('-', 57)), verItems.Select(x => x.Label).ToList())
-            .AddChoiceGroup(Markup.Escape("-- iOS " + new string('-', 61)), iosItems.Select(x => x.Label).ToList())
-            .AddChoiceGroup(Markup.Escape("-- Android " + new string('-', 57)), andItems.Select(x => x.Label).ToList())
-            .AddChoiceGroup(Markup.Escape("-- Git & Build " + new string('-', 53)), gitItems.Select(x => x.Label).ToList())
-            .AddChoiceGroup(Markup.Escape(new string('-', 68)), miscItems.Select(x => x.Label).ToList());
-
-        var chosen = AnsiConsole.Prompt(prompt);
-        return items.First(x => x.Label == chosen).Action;
+        return key switch
+        {
+            'v'  => Act.IncrementVersion,
+            'b'  => Act.IncrementBuild,
+            'm'  => Act.SetManual,
+            's'  => Act.Sync,
+            'a'  => Act.ArchiveiOS,
+            'i'  => Act.RuniOS,
+            'r'  => Act.RunAndroid,
+            'p'  => Act.PublishAndroid,
+            'u'  => Act.GitPull,
+            'c'  => Act.GitCommit,
+            'h'  => Act.GitPush,
+            'n'  => Act.Clean,
+            'z'  => Act.Undo,
+            '.'  => Act.RepeatLast,
+            'x'  => Act.SetVerbosity,
+            _    => Act.Back,  // ESC or unknown
+        };
     }
 
     // ── Handlers ─────────────────────────────────────────────────────────────
@@ -321,16 +295,14 @@ public class AppDetailScreen(
             Pause(); return;
         }
         AnsiConsole.WriteLine();
-        var source = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("  [cyan1]Use which version as source?[/]")
-                .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
-                .AddChoices(
-                    $"(iOS)     [skyblue1]{Markup.Escape(v.iOS.Version)}[/] [dim]#{v.iOS.Build}[/]",
-                    $"(Android) [green3]{Markup.Escape(v.Android.Version)}[/] [dim]#{v.Android.Build}[/]"
-                )
-        );
-        var (ver, bld) = source.StartsWith("(iOS)") ? (v.iOS.Version, v.iOS.Build) : (v.Android.Version, v.Android.Build);
+        var items = new List<ForgeMenu.ListItem<string>>
+        {
+            new($"[skyblue1](iOS)[/]     {Markup.Escape(v.iOS.Version)} [dim]#{v.iOS.Build}[/]",     "ios"),
+            new($"[green3](Android)[/]  {Markup.Escape(v.Android.Version)} [dim]#{v.Android.Build}[/]", "android"),
+        };
+        var source = ForgeMenu.PromptList("Use which version as source?", items);
+        if (source is null) return;
+        var (ver, bld) = source == "ios" ? (v.iOS.Version, v.iOS.Build) : (v.Android.Version, v.Android.Build);
         SaveSnapshot(app, v.Master!, st);
         ApplyVersion(app, ver, bld);
         AnsiConsole.MarkupLine("  [green]ok  Versions synchronized.[/]");
@@ -388,22 +360,22 @@ public class AppDetailScreen(
 
         if (providers.Count > 1)
         {
-            var choices = providers.Select(p => $"  {p.Icon}  {p.Name}").ToList();
-            choices.Add("  ✎  Write manually");
+            const string ManualKey = "__manual__";
+            var aiItems = providers
+                .Select(p => new ForgeMenu.ListItem<string>($"{p.Icon}  {p.Name}", p.Name))
+                .ToList();
+            aiItems.Add(new ForgeMenu.ListItem<string>("✎  Write manually", ManualKey));
 
-            var pick = AnsiConsole.Prompt(
-                new SelectionPrompt<string>()
-                    .Title("  [cyan1]Generate commit message with:[/]")
-                    .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
-                    .AddChoices(choices));
+            var pick = ForgeMenu.PromptList("Generate commit message with:", aiItems);
+            if (pick is null) { Pause(); return; }
 
-            if (pick.Contains("Write manually"))
+            if (pick == ManualKey)
             {
                 message = AnsiConsole.Ask<string>("  [cyan1]Commit message:[/]");
             }
             else
             {
-                var provider = providers[choices.IndexOf(pick)];
+                var provider = providers.First(p => p.Name == pick);
                 string? generated = null;
                 AnsiConsole.Status().Spinner(Spinner.Known.Dots).SpinnerStyle(Style.Parse("cyan1"))
                     .Start($"  [dim]Generating with {Markup.Escape(provider.Name)}...[/]", _ =>
@@ -506,26 +478,28 @@ public class AppDetailScreen(
         var physical   = deviceList.Where(d => d.Type == "Device").ToList();
         var simulators = deviceList.Where(d => d.Type == "Simulator").ToList();
 
-        var choices = new SelectionPrompt<string>()
-            .Title("  [cyan1]Select iOS device:[/]")
-            .HighlightStyle(new Style(foreground: Color.SkyBlue1, background: Color.Grey11))
-            .PageSize(18);
+        var listItems = new List<ForgeMenu.ListItem<iOSDevice>>();
+        if (physical.Count > 0)
+        {
+            listItems.Add(new("Physical devices", null!, IsSeparator: true));
+            listItems.AddRange(physical.Select(d =>
+                new ForgeMenu.ListItem<iOSDevice>($"[skyblue1](iOS)[/] {Markup.Escape(d.Name)}  [dim]{d.Udid[..8]}...[/]", d)));
+        }
+        if (simulators.Count > 0)
+        {
+            listItems.Add(new("Simulators", null!, IsSeparator: true));
+            listItems.AddRange(simulators.Select(d =>
+                new ForgeMenu.ListItem<iOSDevice>($"[grey53](sim)[/] {Markup.Escape(d.Name)}  [dim]{d.Udid[..8]}...[/]", d)));
+        }
 
-        if (physical.Count   > 0) choices.AddChoiceGroup(
-            Markup.Escape("-- Physical device " + new string('-', 39)),
-            physical.Select(d => $"  [skyblue1](iOS)[/] {Markup.Escape(d.Name)}  [dim]{d.Udid[..8]}...[/]").ToList());
+        var found = ForgeMenu.PromptList("Select iOS device:", listItems);
+        if (found is null) return;
 
-        if (simulators.Count > 0) choices.AddChoiceGroup(
-            Markup.Escape("-- Simulator " + new string('-', 45)),
-            simulators.Select(d => $"  [grey53](sim)[/] {Markup.Escape(d.Name)}  [dim]{d.Udid[..8]}...[/]").ToList());
-
-        var picked = AnsiConsole.Prompt(choices);
-        var found  = deviceList.FirstOrDefault(d => picked.Contains(d.Udid[..8]));
-        if (found is null) { AnsiConsole.MarkupLine("  [red]x  Device not identified.[/]"); Pause(); return; }
-
-        cfg.iOSDeviceId        = found.Udid;
+        cfg.iOSDeviceId        = found!.Udid;
         cfg.BuildConfiguration = PickBuildConfig(csproj, "Debug", "Debug");
+        if (cfg.BuildConfiguration is null) return;
         cfg.iOSFramework       = PickFramework(csproj, "ios", cfg.iOSFramework ?? "net9.0-ios");
+        if (cfg.iOSFramework is null) return;
         state.Save(st);
 
         var args = new List<string>
@@ -533,7 +507,7 @@ public class AppDetailScreen(
             "build", csproj, "-t:Run",
             "-f", cfg.iOSFramework,
             "-c", cfg.BuildConfiguration,
-            $"-p:_DeviceId={found.Udid}",
+            $"-p:_DeviceId={found!.Udid}",
         };
         if (!st.UseLocalMac)
         {
@@ -553,15 +527,21 @@ public class AppDetailScreen(
         if (!ConfigureMac(st)) return;
 
         cfg.BuildConfiguration = PickBuildConfig(csproj, "Release", "Release");
+        if (cfg.BuildConfiguration is null) return;
         cfg.iOSFramework       = PickFramework(csproj, "ios", cfg.iOSFramework ?? "net9.0-ios");
+        if (cfg.iOSFramework is null) return;
 
-        var sign = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("  [cyan1]Code Sign key:[/]")
-                .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
-                .AddChoices("Apple Development", "Apple Distribution", "Custom…")
-        );
-        if (sign == "Custom…") sign = AnsiConsole.Ask<string>("  [cyan1]Code Sign key:[/]", cfg.CodesignKey ?? "Apple Distribution");
+        var signOptions = new List<ForgeMenu.ListItem<string>>
+        {
+            new("Apple Development",  "Apple Development"),
+            new("Apple Distribution", "Apple Distribution"),
+            new("Custom…",            "Custom…"),
+        };
+        var signPick = ForgeMenu.PromptList("Code Sign key:", signOptions);
+        if (signPick is null) return;
+        var sign = signPick == "Custom…"
+            ? AnsiConsole.Ask<string>("  [cyan1]Code Sign key:[/]", cfg.CodesignKey ?? "Apple Distribution")
+            : signPick;
         cfg.CodesignKey = sign;
         state.Save(st);
 
@@ -616,37 +596,34 @@ public class AppDetailScreen(
             Pause(); return;
         }
 
-        var choices = new SelectionPrompt<string>()
-            .Title("  [cyan1]Select Android device or emulator:[/]")
-            .HighlightStyle(new Style(foreground: Color.Green3, background: Color.Grey11))
-            .PageSize(20);
+        var andListItems = new List<ForgeMenu.ListItem<string>>();
+        if (physical.Count > 0)
+        {
+            andListItems.Add(new("Physical devices", null!, IsSeparator: true));
+            andListItems.AddRange(physical.Select(d =>
+                new ForgeMenu.ListItem<string>($"[green3](droid)[/] {Markup.Escape(d.Model)}  [dim]{Markup.Escape(d.Serial)}[/]", d.Serial)));
+        }
+        if (running.Count > 0)
+        {
+            andListItems.Add(new("Running emulator", null!, IsSeparator: true));
+            andListItems.AddRange(running.Select(d =>
+                new ForgeMenu.ListItem<string>($"[grey53](emu ▶)[/] {Markup.Escape(d.Model)}  [dim]{Markup.Escape(d.Serial)}[/]", d.Serial)));
+        }
+        if (avds.Count > 0)
+        {
+            andListItems.Add(new("Available AVDs (will start)", null!, IsSeparator: true));
+            andListItems.AddRange(avds.Select(a =>
+                new ForgeMenu.ListItem<string>($"[grey53](avd)[/] {Markup.Escape(a)}", "avd:" + a)));
+        }
 
-        if (physical.Count > 0) choices.AddChoiceGroup(
-            Markup.Escape("-- Physical device " + new string('-', 39)),
-            physical.Select(d => $"  [green3](droid)[/] {Markup.Escape(d.Model)}  [dim]{Markup.Escape(d.Serial)}[/]").ToList());
+        var picked = ForgeMenu.PromptList("Select Android device or emulator:", andListItems);
+        if (picked is null) return;
 
-        if (running.Count > 0) choices.AddChoiceGroup(
-            Markup.Escape("-- Running emulator " + new string('-', 39)),
-            running.Select(d => $"  [grey53](emu ▶)[/] {Markup.Escape(d.Model)}  [dim]{Markup.Escape(d.Serial)}[/]").ToList());
-
-        if (avds.Count > 0) choices.AddChoiceGroup(
-            Markup.Escape("-- Available AVDs (will start) " + new string('-', 28)),
-            avds.Select(a => $"  [grey53](avd)[/] {Markup.Escape(a)}").ToList());
-
-        var picked   = AnsiConsole.Prompt(choices);
         string? serial = null;
 
-        // Check if picked is a running device
-        var foundDevice = online.FirstOrDefault(d => picked.Contains(d.Serial));
-        if (foundDevice is not null)
+        if (picked.StartsWith("avd:"))
         {
-            serial = foundDevice.Serial;
-            cfg.AndroidDeviceSerial = serial;
-        }
-        else
-        {
-            // It's an AVD — start it
-            var avdName = avds.FirstOrDefault(a => picked.Contains(a));
+            var avdName = picked[4..];
             if (avdName is null) { AnsiConsole.MarkupLine("  [red]x  Could not identify selection.[/]"); Pause(); return; }
 
             AnsiConsole.MarkupLine($"  [dim]Starting emulator: {Markup.Escape(avdName)}[/]");
@@ -658,9 +635,16 @@ public class AppDetailScreen(
             }
             cfg.AndroidDeviceSerial = serial;
         }
+        else
+        {
+            serial = picked;
+            cfg.AndroidDeviceSerial = serial;
+        }
 
         cfg.BuildConfiguration = PickBuildConfig(csproj, "Debug", "Debug");
+        if (cfg.BuildConfiguration is null) return;
         cfg.AndroidFramework   = PickFramework(csproj, "android", cfg.AndroidFramework ?? "net9.0-android");
+        if (cfg.AndroidFramework is null) return;
         state.Save(st);
 
         var args = new List<string> { "build", csproj, "-t:Run", "-f", cfg.AndroidFramework, "-c", cfg.BuildConfiguration };
@@ -727,7 +711,9 @@ public class AppDetailScreen(
         if (csproj is null) { NoCsproj(); return; }
 
         cfg.BuildConfiguration = PickBuildConfig(csproj, "Release", "Release");
+        if (cfg.BuildConfiguration is null) return;
         cfg.AndroidFramework   = PickFramework(csproj, "android", cfg.AndroidFramework ?? "net9.0-android");
+        if (cfg.AndroidFramework is null) return;
         state.Save(st);
 
         var outDir = Path.Combine(app.Dir, "bin", cfg.BuildConfiguration, cfg.AndroidFramework, "publish");
@@ -782,11 +768,10 @@ public class AppDetailScreen(
     private void SetVerbosityAction(PersistentState st)
     {
         AnsiConsole.WriteLine();
-        var chosen = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("  [cyan1]Build verbosity (dotnet -v):[/]")
-                .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
-                .AddChoices("quiet", "minimal", "normal", "detailed", "diagnostic"));
+        var options  = new[] { "quiet", "minimal", "normal", "detailed", "diagnostic" };
+        var listItems = options.Select(o => new ForgeMenu.ListItem<string>(o, o)).ToList();
+        var chosen = ForgeMenu.PromptList("Build verbosity (dotnet -v):", listItems);
+        if (chosen is null) return;
         st.Verbosity = chosen;
         _verbosity   = chosen;
         state.Save(st);
@@ -805,7 +790,7 @@ public class AppDetailScreen(
         Pause(); return false;
     }
 
-    private string PickBuildConfig(string csproj, string typeFilter, string fallback)
+    private string? PickBuildConfig(string csproj, string typeFilter, string fallback)
     {
         var all      = versions.GetBuildConfigurations(csproj);
         var filtered = all.Where(c => c.Contains(typeFilter, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -813,25 +798,18 @@ public class AppDetailScreen(
 
         if (list.Count == 1) return list[0];
 
-        return AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title($"  [cyan1]Build Configuration[/] [dim]({Markup.Escape(typeFilter)}):[/]")
-                .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
-                .AddChoices(list)
-        );
+        return ForgeMenu.PromptList("Build Configuration:",
+            list.Select(c => new ForgeMenu.ListItem<string>(c, c)).ToList());
     }
 
-    private string PickFramework(string csproj, string filter, string fallback)
+    private string? PickFramework(string csproj, string filter, string fallback)
     {
         var list = versions.GetTargetFrameworks(csproj, filter);
         if (list.Count == 0) return fallback;
         if (list.Count == 1) return list[0];
-        return AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("  [cyan1]Target Framework:[/]")
-                .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
-                .AddChoices(list)
-        );
+
+        return ForgeMenu.PromptList("Target Framework:",
+            list.Select(f => new ForgeMenu.ListItem<string>(f, f)).ToList());
     }
 
     private void ApplyVersion(AppEntry app, string version, string bld)
