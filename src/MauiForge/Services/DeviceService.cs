@@ -32,14 +32,94 @@ public class DeviceService
         catch { return []; }
     }
 
-    public List<AndroidDevice> GetAndroidDevices()
+    public (List<AndroidDevice> Running, List<string> Avds, string? AdbPath) GetAndroidDevicesAndAvds()
     {
+        var adbPath = FindAdb();
+        if (adbPath is null) return ([], [], null);
+
+        List<AndroidDevice> running = [];
+        List<string> avds = [];
+
         try
         {
-            var output = RunProcess("adb", "devices -l");
-            return ParseAdbDevices(output);
+            var output = RunProcessFull(adbPath, ["devices", "-l"]);
+            running = ParseAdbDevices(output);
         }
-        catch { return []; }
+        catch { }
+
+        try
+        {
+            var emulatorPath = FindEmulator();
+            if (emulatorPath is not null)
+            {
+                var avdOutput = RunProcessFull(emulatorPath, ["-list-avds"]);
+                avds = avdOutput.Split('\n')
+                    .Select(l => l.Trim())
+                    .Where(l => l.Length > 0 && !l.StartsWith("INFO") && !l.StartsWith("WARNING"))
+                    .ToList();
+            }
+        }
+        catch { }
+
+        return (running, avds, adbPath);
+    }
+
+    public static string? FindAdb()
+    {
+        // Check PATH first
+        var fromPath = TryFindInPath("adb");
+        if (fromPath is not null) return fromPath;
+
+        // Common Android SDK locations
+        var candidates = new List<string>();
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var androidHome = Environment.GetEnvironmentVariable("ANDROID_HOME")
+                       ?? Environment.GetEnvironmentVariable("ANDROID_SDK_ROOT");
+
+        if (androidHome is not null)
+            candidates.Add(Path.Combine(androidHome, "platform-tools", "adb"));
+
+        // Windows paths
+        candidates.Add(Path.Combine(localAppData, "Android", "Sdk", "platform-tools", "adb.exe"));
+        candidates.Add(Path.Combine(home, "AppData", "Local", "Android", "Sdk", "platform-tools", "adb.exe"));
+
+        // macOS/Linux paths
+        candidates.Add(Path.Combine(home, "Library", "Android", "sdk", "platform-tools", "adb"));
+        candidates.Add("/usr/local/share/android-sdk/platform-tools/adb");
+        candidates.Add("/opt/android-sdk/platform-tools/adb");
+
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
+    public static string? FindEmulator()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var androidHome = Environment.GetEnvironmentVariable("ANDROID_HOME")
+                       ?? Environment.GetEnvironmentVariable("ANDROID_SDK_ROOT");
+
+        var candidates = new List<string>();
+        if (androidHome is not null)
+            candidates.Add(Path.Combine(androidHome, "emulator", "emulator"));
+
+        candidates.Add(Path.Combine(localAppData, "Android", "Sdk", "emulator", "emulator.exe"));
+        candidates.Add(Path.Combine(home, "AppData", "Local", "Android", "Sdk", "emulator", "emulator.exe"));
+        candidates.Add(Path.Combine(home, "Library", "Android", "sdk", "emulator", "emulator"));
+
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
+    private static string? TryFindInPath(string exe)
+    {
+        var exeName = OperatingSystem.IsWindows() ? exe + ".exe" : exe;
+        var pathVar = Environment.GetEnvironmentVariable("PATH") ?? "";
+        foreach (var dir in pathVar.Split(Path.PathSeparator))
+        {
+            var full = Path.Combine(dir.Trim(), exeName);
+            if (File.Exists(full)) return full;
+        }
+        return null;
     }
 
     private static string RunSsh(string host, string user, string command)
@@ -69,6 +149,21 @@ public class DeviceService
             RedirectStandardError  = true,
             UseShellExecute        = false,
         };
+        using var proc = System.Diagnostics.Process.Start(psi)!;
+        var output = proc.StandardOutput.ReadToEnd();
+        proc.WaitForExit(10_000);
+        return output;
+    }
+
+    private static string RunProcessFull(string exe, string[] args)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo(exe)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError  = true,
+            UseShellExecute        = false,
+        };
+        foreach (var a in args) psi.ArgumentList.Add(a);
         using var proc = System.Diagnostics.Process.Start(psi)!;
         var output = proc.StandardOutput.ReadToEnd();
         proc.WaitForExit(10_000);
@@ -112,12 +207,22 @@ public class DeviceService
 
         foreach (var line in output.Split('\n').Skip(1))
         {
-            var parts = line.Trim().Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length < 2) continue;
+            var trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
 
-            var serial = parts[0];
-            var state  = parts[1];
-            var model  = parts.FirstOrDefault(p => p.StartsWith("model:"))?.Substring(6) ?? serial;
+            // Split on first whitespace to get serial and rest
+            var tabIdx = trimmed.IndexOfAny([' ', '\t']);
+            if (tabIdx < 0) continue;
+
+            var serial = trimmed[..tabIdx].Trim();
+            var rest   = trimmed[tabIdx..].Trim();
+            var parts  = rest.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) continue;
+
+            var state = parts[0];
+            var model = parts.FirstOrDefault(p => p.StartsWith("model:"))?.Substring(6)
+                     ?? parts.FirstOrDefault(p => p.StartsWith("product:"))?.Substring(8)
+                     ?? serial;
 
             devices.Add(new AndroidDevice(serial, model.Replace('_', ' '), state));
         }

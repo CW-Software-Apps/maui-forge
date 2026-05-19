@@ -17,6 +17,7 @@ var services = new ServiceCollection()
     .AddSingleton<DeviceService>()
     .AddSingleton<StateService>()
     .AddSingleton<AppDiscoveryService>()
+    .AddSingleton<AiCommitService>()
     .AddSingleton<AppDetailScreen>()
     .BuildServiceProvider();
 

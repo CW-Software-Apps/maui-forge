@@ -44,11 +44,62 @@ public class GitService
     public (bool Success, string Output) Pull(string dir) =>
         RunGitWithResult(dir, "pull");
 
+    public (bool Success, string Output) Commit(string dir, string message)
+    {
+        RunGit(dir, "add", "-A");
+        return RunGitWithResult(dir, "commit", "-m", message);
+    }
+
     public (bool Success, string Output) Push(string dir, string message)
     {
         RunGit(dir, "add", "-A");
         RunGit(dir, "commit", "-m", message);
         return RunGitWithResult(dir, "push");
+    }
+
+    public (bool Success, string Output) PushOnly(string dir) =>
+        RunGitWithResult(dir, "push");
+
+    public string GetDiffStat(string dir) =>
+        RunGit(dir, "diff", "--staged", "--stat");
+
+    public string GetUnstagedDiffStat(string dir) =>
+        RunGit(dir, "diff", "--stat");
+
+    public string GetChangedFilesSummary(string dir)
+    {
+        var staged   = RunGit(dir, "diff", "--cached", "--name-status");
+        var unstaged = RunGit(dir, "diff", "--name-status");
+        var untracked = RunGit(dir, "ls-files", "--others", "--exclude-standard");
+        return string.Join('\n', new[] { staged, unstaged, untracked }.Where(s => s.Length > 0));
+    }
+
+    public string SuggestCommitMessage(string dir)
+    {
+        var summary = GetChangedFilesSummary(dir);
+        if (string.IsNullOrWhiteSpace(summary)) return "chore: update files";
+
+        var lines  = summary.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var added  = lines.Count(l => l.StartsWith('A') || l.StartsWith('?'));
+        var modified = lines.Count(l => l.StartsWith('M'));
+        var deleted = lines.Count(l => l.StartsWith('D'));
+
+        // Detect common patterns
+        var files = lines.Select(l => l.Split('\t').Last().Trim()).ToList();
+        var hasVersion = files.Any(f => f.Contains("Info.plist") || f.Contains("AndroidManifest") || f.EndsWith(".csproj"));
+        var hasCs      = files.Any(f => f.EndsWith(".cs"));
+        var hasXaml    = files.Any(f => f.EndsWith(".xaml"));
+
+        if (hasVersion && modified > 0 && added == 0)
+            return "chore: bump version";
+
+        var parts = new List<string>();
+        if (added > 0)    parts.Add($"add {added} file(s)");
+        if (modified > 0) parts.Add($"update {modified} file(s)");
+        if (deleted > 0)  parts.Add($"remove {deleted} file(s)");
+
+        var type = hasCs || hasXaml ? "feat" : "chore";
+        return $"{type}: {string.Join(", ", parts)}";
     }
 
     private static string RunGit(string dir, params string[] args)

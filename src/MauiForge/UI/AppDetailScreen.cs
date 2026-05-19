@@ -9,14 +9,15 @@ public class AppDetailScreen(
     GitService git,
     BuildService build,
     DeviceService devices,
-    StateService state)
+    StateService state,
+    AiCommitService aiCommit)
 {
     private enum Act
     {
         IncrementVersion, IncrementBuild, SetManual, Sync,
         ArchiveiOS, RuniOS,
         RunAndroid, PublishAndroid,
-        GitPull, Clean, Undo, SetVerbosity, RepeatLast, Back
+        GitPull, GitCommit, GitPush, Clean, Undo, SetVerbosity, RepeatLast, Back
     }
 
     // ── Show ─────────────────────────────────────────────────────────────────
@@ -179,6 +180,16 @@ public class AppDetailScreen(
             $"                     {gitStatus2}",
             Act.GitPull);
 
+        var commitHint = gitStatus.Dirty ? "[yellow]changes staged[/]" : "[dim]working tree clean[/]";
+        Add($"  [bold yellow]cmt[/]  [white]Git Commit[/]" +
+            $"                   {commitHint}",
+            Act.GitCommit);
+
+        var pushHint = gitStatus.Ahead > 0 ? $"[yellow]^{gitStatus.Ahead} to push[/]" : "[dim]up to date[/]";
+        Add($"  [bold yellow]psh[/]  [white]Git Push[/]" +
+            $"                     {pushHint}",
+            Act.GitPush);
+
         Add("  [bold yellow]clr[/]  [white]Clean Project[/]", Act.Clean);
 
         // ── Misc
@@ -192,7 +203,7 @@ public class AppDetailScreen(
         var verItems  = items.Where(x => x.Action is Act.IncrementVersion or Act.IncrementBuild or Act.SetManual or Act.Sync).ToList();
         var iosItems  = items.Where(x => x.Action is Act.ArchiveiOS or Act.RuniOS).ToList();
         var andItems  = items.Where(x => x.Action is Act.RunAndroid or Act.PublishAndroid).ToList();
-        var gitItems  = items.Where(x => x.Action is Act.GitPull or Act.Clean).ToList();
+        var gitItems  = items.Where(x => x.Action is Act.GitPull or Act.GitCommit or Act.GitPush or Act.Clean).ToList();
         var miscItems = items.Where(x => x.Action is Act.Undo or Act.RepeatLast or Act.SetVerbosity or Act.Back).ToList();
 
         var prompt = new SelectionPrompt<string>()
@@ -231,6 +242,12 @@ public class AppDetailScreen(
                 st.LastAction = "Git Pull";
                 state.Save(st);
                 Pause();
+                break;
+            case Act.GitCommit:
+                GitCommitAction(app, ref gitStatus, st);
+                break;
+            case Act.GitPush:
+                GitPushAction(app, ref gitStatus, st);
                 break;
             case Act.Clean:
                 RunBuild(app.Dir, ["clean"]);
@@ -344,6 +361,119 @@ public class AppDetailScreen(
         Pause();
     }
 
+    // ── Git Commit / Push ────────────────────────────────────────────────────
+
+    private void GitCommitAction(AppEntry app, ref GitStatus gitStatus, PersistentState st)
+    {
+        AnsiConsole.WriteLine();
+
+        var diffStat = git.GetUnstagedDiffStat(app.Dir);
+        if (string.IsNullOrWhiteSpace(diffStat))
+            diffStat = git.GetDiffStat(app.Dir);
+
+        if (string.IsNullOrWhiteSpace(diffStat))
+        {
+            AnsiConsole.MarkupLine("  [yellow](!) Working tree is clean — nothing to commit.[/]");
+            Pause(); return;
+        }
+
+        AnsiConsole.MarkupLine("  [dim]Changed files:[/]");
+        foreach (var line in diffStat.Split('\n').Take(20))
+            AnsiConsole.MarkupLine($"  [grey53]{Markup.Escape(line)}[/]");
+        AnsiConsole.WriteLine();
+
+        // Let user pick how to generate the message
+        var providers = AiCommitService.DetectAvailable(git, app.Dir);
+        string message;
+
+        if (providers.Count > 1)
+        {
+            var choices = providers.Select(p => $"  {p.Icon}  {p.Name}").ToList();
+            choices.Add("  ✎  Write manually");
+
+            var pick = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title("  [cyan1]Generate commit message with:[/]")
+                    .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
+                    .AddChoices(choices));
+
+            if (pick.Contains("Write manually"))
+            {
+                message = AnsiConsole.Ask<string>("  [cyan1]Commit message:[/]");
+            }
+            else
+            {
+                var provider = providers[choices.IndexOf(pick)];
+                string? generated = null;
+                AnsiConsole.Status().Spinner(Spinner.Known.Dots).SpinnerStyle(Style.Parse("cyan1"))
+                    .Start($"  [dim]Generating with {Markup.Escape(provider.Name)}...[/]", _ =>
+                        generated = aiCommit.Generate(provider, diffStat, git, app.Dir));
+
+                message = generated ?? git.SuggestCommitMessage(app.Dir);
+                AnsiConsole.MarkupLine($"  [dim]Suggested:[/] [cyan1]{Markup.Escape(message)}[/]");
+                var edited = AnsiConsole.Ask<string>("  [cyan1]Message (Enter to accept):[/]", message);
+                if (!string.IsNullOrWhiteSpace(edited)) message = edited;
+            }
+        }
+        else
+        {
+            var suggested = git.SuggestCommitMessage(app.Dir);
+            AnsiConsole.MarkupLine($"  [dim]Suggested:[/] [cyan1]{Markup.Escape(suggested)}[/]");
+            message = AnsiConsole.Ask<string>("  [cyan1]Commit message:[/]", suggested);
+        }
+
+        if (string.IsNullOrWhiteSpace(message)) { Pause(); return; }
+
+        var (commitOk, commitOut) = git.Commit(app.Dir, message);
+        AnsiConsole.MarkupLine(commitOk
+            ? "  [green]ok  Committed.[/]"
+            : $"  [red]x  {Markup.Escape(commitOut)}[/]");
+
+        if (commitOk)
+        {
+            gitStatus = git.GetStatus(app.Dir);
+            st.LastAction = "Git Commit";
+            state.Save(st);
+
+            if (AnsiConsole.Confirm("  Push now?", defaultValue: false))
+            {
+                var (pushOk, pushOut) = git.PushOnly(app.Dir);
+                AnsiConsole.MarkupLine(pushOk ? "  [green]ok  Pushed.[/]" : $"  [red]x  {Markup.Escape(pushOut)}[/]");
+                gitStatus = git.GetStatus(app.Dir);
+            }
+        }
+        Pause();
+    }
+
+    private void GitPushAction(AppEntry app, ref GitStatus gitStatus, PersistentState st)
+    {
+        AnsiConsole.WriteLine();
+
+        // If there are uncommitted changes, offer to commit first
+        if (gitStatus.Dirty)
+        {
+            AnsiConsole.MarkupLine("  [yellow](!) You have uncommitted changes.[/]");
+            if (AnsiConsole.Confirm("  Commit first?", defaultValue: true))
+            {
+                GitCommitAction(app, ref gitStatus, st);
+                return;
+            }
+        }
+
+        if (gitStatus.Ahead == 0)
+        {
+            AnsiConsole.MarkupLine("  [dim]Nothing to push — already up to date.[/]");
+            Pause(); return;
+        }
+
+        var (pushOk, pushOut) = git.PushOnly(app.Dir);
+        AnsiConsole.MarkupLine(pushOk ? "  [green]ok  Pushed.[/]" : $"  [red]x  {Markup.Escape(pushOut)}[/]");
+        gitStatus = git.GetStatus(app.Dir);
+        st.LastAction = "Git Push";
+        state.Save(st);
+        Pause();
+    }
+
     // ── iOS ──────────────────────────────────────────────────────────────────
 
     private void RunIOSAction(AppEntry app, PersistentState st, AppBuildConfig cfg)
@@ -453,51 +583,142 @@ public class AppDetailScreen(
         var csproj = FindCsproj(app.Dir);
         if (csproj is null) { NoCsproj(); return; }
 
-        List<AndroidDevice> deviceList = [];
-        AnsiConsole.Status().Spinner(Spinner.Known.Dots).SpinnerStyle(Style.Parse("green3"))
-            .Start("  [dim]Listing Android devices (adb)...[/]", _ =>
-                deviceList = devices.GetAndroidDevices());
+        List<AndroidDevice> runningDevices = [];
+        List<string> avds = [];
+        string? adbPath = null;
 
-        var online = deviceList.Where(d => d.State == "device").ToList();
-        if (online.Count == 0)
+        AnsiConsole.Status().Spinner(Spinner.Known.Dots).SpinnerStyle(Style.Parse("green3"))
+            .Start("  [dim]Listing Android devices and emulators...[/]", _ =>
+                (runningDevices, avds, adbPath) = devices.GetAndroidDevicesAndAvds());
+
+        if (adbPath is null)
         {
-            AnsiConsole.MarkupLine("  [red]x  No Android devices online (adb devices).[/]");
-            AnsiConsole.MarkupLine("  [dim]Connect a device or start an emulator and try again.[/]");
+            AnsiConsole.MarkupLine("  [red]x  adb not found.[/]");
+            AnsiConsole.MarkupLine("  [dim]Install Android SDK Platform-Tools or set ANDROID_HOME.[/]");
+            AnsiConsole.MarkupLine($"  [dim]Checked PATH and common SDK locations.[/]");
             Pause(); return;
         }
 
-        var physical  = online.Where(d => !d.Serial.StartsWith("emulator-", StringComparison.OrdinalIgnoreCase)).ToList();
-        var emulators = online.Where(d =>  d.Serial.StartsWith("emulator-", StringComparison.OrdinalIgnoreCase)).ToList();
+        var online   = runningDevices.Where(d => d.State == "device").ToList();
+        var physical = online.Where(d => !d.Serial.StartsWith("emulator-", StringComparison.OrdinalIgnoreCase)).ToList();
+        var running  = online.Where(d =>  d.Serial.StartsWith("emulator-", StringComparison.OrdinalIgnoreCase)).ToList();
+
+        // Show offline/unauthorized devices as info
+        var problem = runningDevices.Where(d => d.State != "device").ToList();
+        foreach (var d in problem)
+            AnsiConsole.MarkupLine($"  [yellow](!) {Markup.Escape(d.Serial)} — {Markup.Escape(d.State)} (skipped)[/]");
+
+        if (online.Count == 0 && avds.Count == 0)
+        {
+            AnsiConsole.MarkupLine("  [red]x  No Android devices or emulators available.[/]");
+            AnsiConsole.MarkupLine($"  [dim]adb: {Markup.Escape(adbPath)}[/]");
+            AnsiConsole.MarkupLine("  [dim]Connect a device (enable USB debugging) or create an AVD in Android Studio.[/]");
+            Pause(); return;
+        }
 
         var choices = new SelectionPrompt<string>()
-            .Title("  [cyan1]Select Android device:[/]")
+            .Title("  [cyan1]Select Android device or emulator:[/]")
             .HighlightStyle(new Style(foreground: Color.Green3, background: Color.Grey11))
-            .PageSize(18);
+            .PageSize(20);
 
-        if (physical.Count  > 0) choices.AddChoiceGroup(
+        if (physical.Count > 0) choices.AddChoiceGroup(
             Markup.Escape("-- Physical device " + new string('-', 39)),
             physical.Select(d => $"  [green3](droid)[/] {Markup.Escape(d.Model)}  [dim]{Markup.Escape(d.Serial)}[/]").ToList());
 
-        if (emulators.Count > 0) choices.AddChoiceGroup(
-            Markup.Escape("-- Emulator " + new string('-', 46)),
-            emulators.Select(d => $"  [grey53](emu)[/] {Markup.Escape(d.Model)}  [dim]{Markup.Escape(d.Serial)}[/]").ToList());
+        if (running.Count > 0) choices.AddChoiceGroup(
+            Markup.Escape("-- Running emulator " + new string('-', 39)),
+            running.Select(d => $"  [grey53](emu ▶)[/] {Markup.Escape(d.Model)}  [dim]{Markup.Escape(d.Serial)}[/]").ToList());
 
-        var picked = AnsiConsole.Prompt(choices);
-        var found  = online.FirstOrDefault(d => picked.Contains(d.Serial));
-        if (found is null) { AnsiConsole.MarkupLine("  [red]x  Device not identified.[/]"); Pause(); return; }
+        if (avds.Count > 0) choices.AddChoiceGroup(
+            Markup.Escape("-- Available AVDs (will start) " + new string('-', 28)),
+            avds.Select(a => $"  [grey53](avd)[/] {Markup.Escape(a)}").ToList());
 
-        string? serial = found.Serial;
-        cfg.AndroidDeviceSerial = serial;
-        cfg.BuildConfiguration  = PickBuildConfig(csproj, "Debug", "Debug");
-        cfg.AndroidFramework    = PickFramework(csproj, "android", cfg.AndroidFramework ?? "net9.0-android");
+        var picked   = AnsiConsole.Prompt(choices);
+        string? serial = null;
+
+        // Check if picked is a running device
+        var foundDevice = online.FirstOrDefault(d => picked.Contains(d.Serial));
+        if (foundDevice is not null)
+        {
+            serial = foundDevice.Serial;
+            cfg.AndroidDeviceSerial = serial;
+        }
+        else
+        {
+            // It's an AVD — start it
+            var avdName = avds.FirstOrDefault(a => picked.Contains(a));
+            if (avdName is null) { AnsiConsole.MarkupLine("  [red]x  Could not identify selection.[/]"); Pause(); return; }
+
+            AnsiConsole.MarkupLine($"  [dim]Starting emulator: {Markup.Escape(avdName)}[/]");
+            serial = StartAvdAndWait(avdName, adbPath);
+            if (serial is null)
+            {
+                AnsiConsole.MarkupLine("  [red]x  Emulator did not come online in time.[/]");
+                Pause(); return;
+            }
+            cfg.AndroidDeviceSerial = serial;
+        }
+
+        cfg.BuildConfiguration = PickBuildConfig(csproj, "Debug", "Debug");
+        cfg.AndroidFramework   = PickFramework(csproj, "android", cfg.AndroidFramework ?? "net9.0-android");
         state.Save(st);
 
         var args = new List<string> { "build", csproj, "-t:Run", "-f", cfg.AndroidFramework, "-c", cfg.BuildConfiguration };
-        if (serial is not null) { args.Add("-p:AdbTarget=-s"); args.Add($"-p:AdbArguments=-s {serial}"); }
+        if (serial is not null) args.Add($"-p:AdbTarget=-s {serial}");
         AnsiConsole.WriteLine();
         st.LastAction = "Run Android Device";
         state.Save(st);
         RunBuild(app.Dir, [.. args]);
+    }
+
+    private static string? StartAvdAndWait(string avdName, string adbPath)
+    {
+        var emulatorPath = DeviceService.FindEmulator();
+        if (emulatorPath is null)
+        {
+            AnsiConsole.MarkupLine("  [red]x  emulator binary not found.[/]");
+            return null;
+        }
+
+        var psi = new System.Diagnostics.ProcessStartInfo(emulatorPath)
+        {
+            UseShellExecute = false,
+        };
+        psi.ArgumentList.Add("-avd");
+        psi.ArgumentList.Add(avdName);
+        System.Diagnostics.Process.Start(psi);
+
+        string? found = null;
+        AnsiConsole.Status().Spinner(Spinner.Known.Dots).SpinnerStyle(Style.Parse("green3"))
+            .Start("  [dim]Waiting for emulator to boot...[/]", _ =>
+            {
+                for (var i = 0; i < 30 && found is null; i++)
+                {
+                    System.Threading.Thread.Sleep(2000);
+                    var adbPsi = new System.Diagnostics.ProcessStartInfo(adbPath)
+                    {
+                        RedirectStandardOutput = true,
+                        RedirectStandardError  = true,
+                        UseShellExecute        = false,
+                    };
+                    adbPsi.ArgumentList.Add("devices");
+                    using var proc = System.Diagnostics.Process.Start(adbPsi)!;
+                    var output = proc.StandardOutput.ReadToEnd();
+                    proc.WaitForExit(5000);
+
+                    var emLine = output.Split('\n').Skip(1)
+                        .FirstOrDefault(l =>
+                        {
+                            var parts = l.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+                            return parts.Length >= 2 && parts[0].StartsWith("emulator-") && parts[1] == "device";
+                        });
+
+                    if (emLine is not null)
+                        found = emLine.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries)[0];
+                }
+            });
+
+        return found;
     }
 
     private void PublishAndroidAction(AppEntry app, PersistentState st, AppBuildConfig cfg)
@@ -544,6 +765,7 @@ public class AppDetailScreen(
             "Run Android Device"        => Act.RunAndroid,
             "Publish Android"           => Act.PublishAndroid,
             "Git Pull"                  => Act.GitPull,
+            "Git Push"                  => Act.GitPush,
             "Clean Project"             => Act.Clean,
             _                           => Act.Back,
         };
