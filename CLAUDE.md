@@ -125,8 +125,8 @@ dotnet run --project src/MauiForge -- --path K:\your\projects --depth 2
 ## How to publish a new release
 
 ```bash
-git tag v1.4.0
-git push origin v1.4.0
+git tag v1.4.1
+git push origin v1.4.1
 # GitHub Actions runs dotnet pack + nuget push automatically
 # Requires NUGET_API_KEY secret in repo settings
 ```

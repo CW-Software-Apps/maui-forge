@@ -9,7 +9,7 @@ Managing version numbers across iOS, Android, and the `.csproj` is tedious — y
 MAUI Forge automates all of that from a single interactive terminal UI. Point it at your projects folder, pick an app, and manage versions, run builds, deploy to devices, and handle git — without leaving the terminal or touching a single file manually.
 
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/download)
-[![NuGet](https://img.shields.io/badge/nuget-v1.4.0-004880?logo=nuget)](https://www.nuget.org/packages/CwSoftware.MauiForge)
+[![NuGet](https://img.shields.io/badge/nuget-v1.4.1-004880?logo=nuget)](https://www.nuget.org/packages/CwSoftware.MauiForge)
 [![License](https://img.shields.io/github/license/CW-Software-Apps/maui-forge)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/CW-Software-Apps/maui-forge)
 
@@ -314,8 +314,8 @@ git pull && ./install.sh
 Tags trigger automatic publishing to NuGet.org via GitHub Actions:
 
 ```bash
-git tag v1.4.0
-git push origin v1.4.0
+git tag v1.4.1
+git push origin v1.4.1
 ```
 
 The workflow runs `dotnet pack -p:Version=1.2.0` and pushes to NuGet. Requires a `NUGET_API_KEY` secret in the repository settings (`Settings → Secrets → Actions`).
