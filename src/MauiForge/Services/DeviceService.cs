@@ -64,50 +64,152 @@ public class DeviceService
         return (running, avds, adbPath);
     }
 
-    public static string? FindAdb()
+    public static string? FindAdb() => FindAndroidTool("adb", "adb.exe");
+
+    public static string? FindEmulator() => FindAndroidTool("emulator", "emulator.exe");
+
+    private static string? FindAndroidTool(string toolUnix, string toolWin)
     {
-        // Check PATH first
-        var fromPath = TryFindInPath("adb");
+        var tool = OperatingSystem.IsWindows() ? toolWin : toolUnix;
+
+        // 1. PATH
+        var fromPath = TryFindInPath(toolUnix);
         if (fromPath is not null) return fromPath;
 
-        // Common Android SDK locations
         var candidates = new List<string>();
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var androidHome = Environment.GetEnvironmentVariable("ANDROID_HOME")
-                       ?? Environment.GetEnvironmentVariable("ANDROID_SDK_ROOT");
 
-        if (androidHome is not null)
-            candidates.Add(Path.Combine(androidHome, "platform-tools", "adb"));
+        // 2. Environment variables
+        var sdkRoot = Environment.GetEnvironmentVariable("ANDROID_HOME")
+                   ?? Environment.GetEnvironmentVariable("ANDROID_SDK_ROOT");
+        if (sdkRoot is not null)
+        {
+            candidates.Add(Path.Combine(sdkRoot, "platform-tools", tool));
+            candidates.Add(Path.Combine(sdkRoot, "emulator", tool));
+        }
 
-        // Windows paths
-        candidates.Add(Path.Combine(localAppData, "Android", "Sdk", "platform-tools", "adb.exe"));
-        candidates.Add(Path.Combine(home, "AppData", "Local", "Android", "Sdk", "platform-tools", "adb.exe"));
+        if (OperatingSystem.IsWindows())
+        {
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var progFiles86  = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            var progFiles    = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
 
-        // macOS/Linux paths
-        candidates.Add(Path.Combine(home, "Library", "Android", "sdk", "platform-tools", "adb"));
-        candidates.Add("/usr/local/share/android-sdk/platform-tools/adb");
-        candidates.Add("/opt/android-sdk/platform-tools/adb");
+            // 3. Registry — Android SDK path stored by Android Studio / Visual Studio
+            var sdkFromRegistry = ReadAndroidSdkFromRegistry();
+            if (sdkFromRegistry is not null)
+            {
+                candidates.Add(Path.Combine(sdkFromRegistry, "platform-tools", tool));
+                candidates.Add(Path.Combine(sdkFromRegistry, "emulator", tool));
+            }
+
+            // 4. Visual Studio bundled Android SDK (MAUI/Xamarin workload)
+            // VS installs to: C:\Program Files (x86)\Android\android-sdk
+            candidates.Add(Path.Combine(progFiles86, "Android", "android-sdk", "platform-tools", tool));
+            candidates.Add(Path.Combine(progFiles86, "Android", "android-sdk", "emulator", tool));
+            // Hardcoded fallback in case SpecialFolder resolves differently in 64-bit process
+            candidates.Add(@"C:\Program Files (x86)\Android\android-sdk\platform-tools\" + tool);
+            candidates.Add(@"C:\Program Files (x86)\Android\android-sdk\emulator\" + tool);
+            // Also check env var ProgramFiles(x86) directly
+            var pf86env = Environment.GetEnvironmentVariable("ProgramFiles(x86)");
+            if (pf86env is not null)
+            {
+                candidates.Add(Path.Combine(pf86env, "Android", "android-sdk", "platform-tools", tool));
+                candidates.Add(Path.Combine(pf86env, "Android", "android-sdk", "emulator", tool));
+            }
+
+            // 5. Visual Studio installation directories (search editions)
+            foreach (var vsBase in new[] { progFiles, Path.Combine(progFiles, "Microsoft Visual Studio") })
+            {
+                if (!Directory.Exists(vsBase)) continue;
+                foreach (var year in new[] { "2022", "2019" })
+                {
+                    foreach (var edition in new[] { "Community", "Professional", "Enterprise", "Preview", "BuildTools" })
+                    {
+                        // MAUI Android SDK path inside VS
+                        var vsAndroid = Path.Combine(vsBase, year, edition, "MSBuild", "Xamarin", "Android");
+                        // platform-tools is typically alongside the SDK root
+                        // VS also exposes it via: ...\Common7\IDE\Extensions\Xamarin\AndroidPlatformTools
+                        var vsXamarin = Path.Combine(vsBase, year, edition, "Common7", "IDE", "Extensions", "Xamarin", "AndroidPlatformTools");
+                        candidates.Add(Path.Combine(vsXamarin, tool));
+                    }
+                }
+            }
+
+            // 6. User-level Android SDK (Android Studio default on Windows)
+            candidates.Add(Path.Combine(localAppData, "Android", "Sdk", "platform-tools", tool));
+            candidates.Add(Path.Combine(localAppData, "Android", "sdk", "platform-tools", tool));
+
+            // 7. Android Studio installed SDK (reads from studio config)
+            var studioSdk = ReadAndroidStudioSdkPath();
+            if (studioSdk is not null)
+            {
+                candidates.Add(Path.Combine(studioSdk, "platform-tools", tool));
+                candidates.Add(Path.Combine(studioSdk, "emulator", tool));
+            }
+        }
+        else
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            candidates.Add(Path.Combine(home, "Library", "Android", "sdk", "platform-tools", toolUnix));
+            candidates.Add(Path.Combine(home, "Library", "Android", "sdk", "emulator", toolUnix));
+            candidates.Add("/usr/local/share/android-sdk/platform-tools/" + toolUnix);
+            candidates.Add("/opt/android-sdk/platform-tools/" + toolUnix);
+        }
 
         return candidates.FirstOrDefault(File.Exists);
     }
 
-    public static string? FindEmulator()
+    private static string? ReadAndroidSdkFromRegistry()
     {
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var androidHome = Environment.GetEnvironmentVariable("ANDROID_HOME")
-                       ?? Environment.GetEnvironmentVariable("ANDROID_SDK_ROOT");
+        if (!OperatingSystem.IsWindows()) return null;
+        try
+        {
+            // Android Studio stores SDK path here
+            using var key = Microsoft.Win32.Registry.CurrentUser
+                .OpenSubKey(@"Software\AndroidStudio")
+                ?? Microsoft.Win32.Registry.CurrentUser
+                .OpenSubKey(@"Software\Google\Android Studio");
+            var path = key?.GetValue("SdkPath") as string;
+            if (path is { Length: > 0 } && Directory.Exists(path)) return path;
 
-        var candidates = new List<string>();
-        if (androidHome is not null)
-            candidates.Add(Path.Combine(androidHome, "emulator", "emulator"));
+            // Visual Studio / Xamarin stores it here
+            using var vsKey = Microsoft.Win32.Registry.CurrentUser
+                .OpenSubKey(@"Software\Microsoft\VisualStudio\Xamarin");
+            var vsPath = vsKey?.GetValue("AndroidSdkDirectory") as string;
+            if (vsPath is { Length: > 0 } && Directory.Exists(vsPath)) return vsPath;
+        }
+        catch { }
+        return null;
+    }
 
-        candidates.Add(Path.Combine(localAppData, "Android", "Sdk", "emulator", "emulator.exe"));
-        candidates.Add(Path.Combine(home, "AppData", "Local", "Android", "Sdk", "emulator", "emulator.exe"));
-        candidates.Add(Path.Combine(home, "Library", "Android", "sdk", "emulator", "emulator"));
+    private static string? ReadAndroidStudioSdkPath()
+    {
+        // Android Studio writes the SDK path to its properties file
+        try
+        {
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var roaming = Path.Combine(appData, "Google");
+            if (!Directory.Exists(roaming)) return null;
 
-        return candidates.FirstOrDefault(File.Exists);
+            foreach (var dir in Directory.GetDirectories(roaming, "AndroidStudio*"))
+            {
+                var props = Path.Combine(dir, "options", "jdk.table.xml");
+                if (!File.Exists(props)) continue;
+                // Simple string search — avoid XML dependency
+                var content = File.ReadAllText(props);
+                var marker = "android.sdk.path";
+                var idx = content.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+                if (idx < 0) continue;
+                var valueStart = content.IndexOf('>', idx) + 1;
+                var valueEnd   = content.IndexOf('<', valueStart);
+                if (valueStart > 0 && valueEnd > valueStart)
+                {
+                    var path = content[valueStart..valueEnd].Trim();
+                    if (Directory.Exists(path)) return path;
+                }
+            }
+        }
+        catch { }
+        return null;
     }
 
     private static string? TryFindInPath(string exe)

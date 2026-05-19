@@ -574,8 +574,11 @@ public class AppDetailScreen(
         if (adbPath is null)
         {
             AnsiConsole.MarkupLine("  [red]x  adb not found.[/]");
-            AnsiConsole.MarkupLine("  [dim]Install Android SDK Platform-Tools or set ANDROID_HOME.[/]");
-            AnsiConsole.MarkupLine($"  [dim]Checked PATH and common SDK locations.[/]");
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("  [dim]Checked PATH, registry, Visual Studio, Android Studio, and common SDK locations.[/]");
+            AnsiConsole.MarkupLine("  [dim]To fix, set the environment variable:[/]");
+            AnsiConsole.MarkupLine("  [cyan1]  ANDROID_HOME=C:\\path\\to\\android-sdk[/]");
+            AnsiConsole.MarkupLine("  [dim]Or run from the [bold]Visual Studio Android ADB Command Prompt[/] which sets PATH automatically.[/]");
             Pause(); return;
         }
 
