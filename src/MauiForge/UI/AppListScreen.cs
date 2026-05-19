@@ -93,7 +93,7 @@ public static class AppListScreen
 
     // ── Header ───────────────────────────────────────────────────────────────
 
-    private static void RenderHeader()
+    public static void RenderHeader()
     {
         AnsiConsole.WriteLine();
         AnsiConsole.Write(new Rule().RuleStyle(new Style(Color.Cyan1, decoration: Decoration.Dim)));
@@ -215,6 +215,9 @@ public static class AppListScreen
             if (choice.Contains("Platform"))    return new FilterChanged(nameFilter, nextPlat);
             if (choice.Contains("Search"))
             {
+                AnsiConsole.Clear();
+                RenderHeader();
+                RenderScanBar(scanPath, st, nameFilter, platformFilter);
                 var newFilter = AnsiConsole.Ask<string>(
                     "  [cyan1]Filter by name[/] [dim](empty = show all):[/]", nameFilter ?? "");
                 return new FilterChanged(newFilter.Length == 0 ? null : newFilter, platformFilter);

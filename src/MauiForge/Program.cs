@@ -44,6 +44,8 @@ while (true)
 {
     if (needsScan)
     {
+        AnsiConsole.Clear();
+        AppListScreen.RenderHeader();
         AnsiConsole.Status()
             .Spinner(Spinner.Known.Dots)
             .SpinnerStyle(Style.Parse("cyan1"))
