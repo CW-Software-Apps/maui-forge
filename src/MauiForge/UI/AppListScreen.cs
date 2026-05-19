@@ -33,33 +33,38 @@ public static class AppListScreen
             AnsiConsole.MarkupLine($"  [dim]Current:[/] [bold white]{Markup.Escape(current)}[/]");
             AnsiConsole.WriteLine();
 
-            const string kSelect = "[OK] Select this folder";
+            const string kSelect = "[[OK]] Select this folder";
             const string kUp     = " ^  .. (go up)";
-            const string kCancel = "[X] Cancel";
+            const string kCancel = "[[X]] Cancel";
 
-            var subdirs = new List<string>();
+            // map label -> real dir name to handle special chars in folder names
+            var subdirMap = new Dictionary<string, string>();
             try
             {
-                subdirs = Directory.GetDirectories(current)
-                    .Select(Path.GetFileName)
-                    .Where(n => n is not null && !n!.StartsWith('.'))
-                    .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
-                    .Select(n => $"  {n}")
-                    .ToList()!;
+                foreach (var dir in Directory.GetDirectories(current))
+                {
+                    var name = Path.GetFileName(dir);
+                    if (name is null || name.StartsWith('.')) continue;
+                    var label = $"  {Markup.Escape(name)}";
+                    subdirMap[label] = name;
+                }
             }
             catch { }
 
-            var choices = new List<string> { kSelect };
-            if (Directory.GetParent(current) is not null) choices.Add(kUp);
-            choices.Add(kCancel);
-            choices.AddRange(subdirs);
+            var subdirs = subdirMap.Keys
+                .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var actions = new List<string> { kSelect };
+            if (Directory.GetParent(current) is not null) actions.Add(kUp);
+            actions.Add(kCancel);
 
             var prompt = new SelectionPrompt<string>()
                 .Title("[dim]  Use arrows to navigate  ·  Enter to open  ·  Select to confirm[/]")
                 .PageSize(22)
                 .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
-                .AddChoiceGroup("[bold grey53]── Actions ──────────────────────[/]", [kSelect, kUp, kCancel])
-                .AddChoiceGroup("[bold grey53]── Subfolders ────────────────────[/]", subdirs.Count > 0 ? subdirs : ["[grey46](no subfolders)[/]"]);
+                .AddChoiceGroup("[bold grey53]── Actions ──────────────────────[/]", actions)
+                .AddChoiceGroup("[bold grey53]── Subfolders ────────────────────[/]", subdirs.Count > 0 ? subdirs : ["[dim](no subfolders)[/]"]);
 
             var choice = AnsiConsole.Prompt(prompt);
 
@@ -71,9 +76,11 @@ public static class AppListScreen
                 continue;
             }
 
-            var name = choice.Trim();
-            var next = Path.Combine(current, name);
-            if (Directory.Exists(next)) current = next;
+            if (subdirMap.TryGetValue(choice, out var realName))
+            {
+                var next = Path.Combine(current, realName);
+                if (Directory.Exists(next)) current = next;
+            }
         }
     }
 
@@ -217,7 +224,7 @@ public static class AppListScreen
             .Title(header)
             .PageSize(26)
             .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
-            .AddChoiceGroup(appGroupHeader,    appLabels.Count > 0 ? appLabels : ["[grey46]  (no apps found)[/]"])
+            .AddChoiceGroup(appGroupHeader,    appLabels.Count > 0 ? appLabels : ["[dim]  (no apps found)[/]"])
             .AddChoiceGroup(globalGroupHeader, globalLabels);
 
         var choice = AnsiConsole.Prompt(prompt);
