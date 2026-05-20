@@ -150,75 +150,122 @@ public class AppDetailScreen(
 
     private Act PromptAction(AppEntry app, GitStatus gitStatus, AppBuildConfig cfg, PersistentState st)
     {
-        var master  = app.Versions.Master;
-        var nextVer = master is not null ? VersionService.IncrementVersion(master.Version) : "—";
-        var nextBld = master is not null && int.TryParse(master.Build, out var b) ? (b + 1).ToString() : "—";
-
+        var master   = app.Versions.Master;
+        var nextVer  = master is not null ? VersionService.IncrementVersion(master.Version) : "—";
+        var nextBld  = master is not null && int.TryParse(master.Build, out var b) ? (b + 1).ToString() : "—";
         var hasSnap  = st.LastVersion?.AppDir == app.Dir;
-        var snapHint = hasSnap ? $"{st.LastVersion!.Version} #{st.LastVersion.Build}" : "no snapshot";
         var syncWarn = !app.Versions.InSync && app.Versions.iOS is not null && app.Versions.Android is not null;
-        var iosDev   = cfg.iOSDeviceId is not null ? "device ok" : "no device";
-        var andDev   = cfg.AndroidDeviceSerial ?? "no device";
-        var iosFw    = cfg.iOSFramework  ?? "—";
-        var andFw    = cfg.AndroidFramework ?? "—";
-        var sign     = cfg.CodesignKey ?? "—";
-        var verbosity = st.Verbosity ?? "quiet";
-        var lastAct  = st.LastAction ?? "none";
         var gitClean = !gitStatus.Dirty && gitStatus.Ahead == 0 && gitStatus.Behind == 0;
+        var verbosity = st.Verbosity ?? "quiet";
+        var lastAct  = st.LastAction is { Length: > 0 } ? st.LastAction : "none";
 
-        var groups = new List<ForgeMenu.KeyGroup>
+        string H(string s)  => $"[grey46]{s}[/]";                       // hint
+        string V(string s)  => $"[dim]{s}[/]";                          // version dim
+        string OK(string s) => $"[dim green]{s}[/]";
+        string WA(string s) => $"[yellow]{s}[/]";
+
+        // Build items: (label, act)
+        var items = new List<(string Label, Act Action)>();
+
+        void Group(string header) =>
+            items.Add(($"[grey23]── {header} [/]", Act.Back)); // separator placeholder
+
+        void Add(Act act, string label) => items.Add((label, act));
+
+        // ── Version
+        Group("Version");
+        Add(Act.IncrementVersion,
+            $"[cyan1]v+[/]  [white]Increment Version + Build[/]  " +
+            V($"{master?.Version ?? "-"} → {nextVer}  #{master?.Build ?? "-"} → #{nextBld}"));
+        Add(Act.IncrementBuild,
+            $"[cyan1]b+[/]  [white]Increment Build only[/]  " +
+            V($"#{master?.Build ?? "-"} → #{nextBld}"));
+        Add(Act.SetManual,
+            "[cyan1]m~[/]  [white]Set version manually[/]");
+        Add(Act.Sync,
+            $"[cyan1]<>[/]  [white]Sync iOS ↔ Android[/]  " +
+            (syncWarn ? WA("(!!) out of sync") : OK("(ok) in sync")));
+
+        // ── iOS
+        Group("iOS");
+        Add(Act.ArchiveiOS,
+            $"[skyblue1]ar[/]  [white]Archive iOS[/] [dim](Release)[/]  " +
+            H(cfg.iOSFramework ?? "—"));
+        Add(Act.RuniOS,
+            $"[skyblue1]ri[/]  [white]Run iOS on Device[/]  " +
+            H(cfg.iOSDeviceId is not null ? "device configured" : "no device"));
+
+        // ── Android
+        Group("Android");
+        Add(Act.RunAndroid,
+            $"[green3]rd[/]  [white]Run Android on Device[/]  " +
+            H(cfg.AndroidDeviceSerial ?? "no device"));
+        Add(Act.PublishAndroid,
+            $"[green3]pa[/]  [white]Publish Android[/] [dim](Release)[/]  " +
+            H(cfg.AndroidFramework ?? "—"));
+
+        // ── Git & Build
+        Group("Git & Build");
+        Add(Act.GitPull,
+            $"[yellow]pu[/]  [white]Git Pull[/]  " +
+            (gitClean ? OK("clean") : WA("pending")));
+        Add(Act.GitCommit,
+            $"[yellow]cm[/]  [white]Git Commit[/]  " +
+            (gitStatus.Dirty ? WA("changes pending") : OK("clean")));
+        Add(Act.GitPush,
+            $"[yellow]ps[/]  [white]Git Push[/]  " +
+            (gitStatus.Ahead > 0 ? WA($"↑{gitStatus.Ahead} to push") : OK("up to date")));
+        Add(Act.Clean,
+            "[yellow]cl[/]  [white]Clean Project[/]");
+
+        // ── Misc
+        Group("Misc");
+        Add(Act.Undo,
+            $"[dim]un[/]  [white]Undo last version change[/]  " +
+            H(hasSnap ? $"{st.LastVersion!.Version} #{st.LastVersion.Build}" : "no snapshot"));
+        Add(Act.RepeatLast,
+            $"[dim]..[/]  [white]Repeat last action[/]  " + H(lastAct));
+        Add(Act.SetVerbosity,
+            $"[dim]vb[/]  [white]Build verbosity:[/] [cyan1]{verbosity}[/]");
+        Add(Act.Back,
+            "[dim]←[/]   [dim]Back[/]");
+
+        // Separate groups from selectables
+        var separators = items.Where(x => x.Action == Act.Back && x.Label.StartsWith("[grey23]")).ToList();
+        var selectables = items.Where(x => !(x.Action == Act.Back && x.Label.StartsWith("[grey23]"))).ToList();
+
+        // Build SelectionPrompt with choice groups
+        var prompt = new SelectionPrompt<string>()
+            .Title("\n  [cyan1]What would you like to do?[/]  [dim](↑↓ navigate, Enter select)[/]")
+            .PageSize(24)
+            .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11));
+
+        var currentGroupItems = new List<string>();
+        string? currentGroupHeader = null;
+        var labelOrder = new List<string>();
+
+        foreach (var item in items)
         {
-            new("Version", [
-                new('v', "[white]Increment Version + Build[/]",
-                    $"{master?.Version ?? "-"} → {nextVer}  #{master?.Build ?? "-"} → #{nextBld}"),
-                new('b', "[white]Increment Build only[/]",
-                    $"#{master?.Build ?? "-"} → #{nextBld}"),
-                new('m', "[white]Set version manually[/]"),
-                new('s', "[white]Sync iOS ↔ Android[/]",
-                    syncWarn ? "(!) out of sync" : "(ok) in sync"),
-            ]),
-            new("iOS", [
-                new('a', "[skyblue1]Archive iOS[/] [dim](Release)[/]", $"{iosFw}  {sign}"),
-                new('i', "[skyblue1]Run iOS Device[/]", iosDev),
-            ]),
-            new("Android", [
-                new('r', "[green3]Run Android Device[/]", andDev),
-                new('p', "[green3]Publish Android[/] [dim](Release)[/]", andFw),
-            ]),
-            new("Git & Build", [
-                new('u', "[yellow]Git Pull[/]", gitClean ? "clean" : "pending"),
-                new('c', "[yellow]Git Commit[/]", gitStatus.Dirty ? "changes pending" : "clean"),
-                new('h', "[yellow]Git Push[/]", gitStatus.Ahead > 0 ? $"^{gitStatus.Ahead} to push" : "up to date"),
-                new('n', "[yellow]Clean Project[/]"),
-            ]),
-            new("Misc", [
-                new('z', "[dim]Undo last version change[/]", snapHint),
-                new('.', "[dim]Repeat last action[/]", lastAct),
-                new('x', $"[dim]Build verbosity:[/] [cyan1]{verbosity}[/]"),
-            ]),
-        };
+            bool isSep = item.Action == Act.Back && item.Label.StartsWith("[grey23]");
+            if (isSep)
+            {
+                if (currentGroupHeader is not null && currentGroupItems.Count > 0)
+                    prompt.AddChoiceGroup(currentGroupHeader, currentGroupItems);
+                currentGroupItems = [];
+                currentGroupHeader = item.Label;
+            }
+            else
+            {
+                currentGroupItems.Add(item.Label);
+                labelOrder.Add(item.Label);
+            }
+        }
+        if (currentGroupHeader is not null && currentGroupItems.Count > 0)
+            prompt.AddChoiceGroup(currentGroupHeader, currentGroupItems);
 
-        var key = ForgeMenu.PromptKey("What would you like to do?  [dim](ESC = back)[/]", groups);
-
-        return key switch
-        {
-            'v'  => Act.IncrementVersion,
-            'b'  => Act.IncrementBuild,
-            'm'  => Act.SetManual,
-            's'  => Act.Sync,
-            'a'  => Act.ArchiveiOS,
-            'i'  => Act.RuniOS,
-            'r'  => Act.RunAndroid,
-            'p'  => Act.PublishAndroid,
-            'u'  => Act.GitPull,
-            'c'  => Act.GitCommit,
-            'h'  => Act.GitPush,
-            'n'  => Act.Clean,
-            'z'  => Act.Undo,
-            '.'  => Act.RepeatLast,
-            'x'  => Act.SetVerbosity,
-            _    => Act.Back,  // ESC or unknown
-        };
+        var chosen = AnsiConsole.Prompt(prompt);
+        var found  = selectables.FirstOrDefault(x => x.Label == chosen);
+        return found.Label is not null ? found.Action : Act.Back;
     }
 
     // ── Handlers ─────────────────────────────────────────────────────────────

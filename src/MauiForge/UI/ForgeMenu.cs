@@ -4,132 +4,95 @@ namespace MauiForge.UI;
 
 public static class ForgeMenu
 {
-    // ── Single-key action menu ────────────────────────────────────────────────
-
-    public record KeyItem(char Key, string Label, string? Hint = null);
-    public record KeyGroup(string Header, List<KeyItem> Items);
-
-    /// <summary>
-    /// Renders a grouped key-shortcut menu and waits for a single keypress.
-    /// Returns the char pressed, or '\0' for ESC.
-    /// </summary>
-    public static char PromptKey(string title, List<KeyGroup> groups)
-    {
-        AnsiConsole.MarkupLine($"  [bold cyan1]{Markup.Escape(title)}[/]");
-        AnsiConsole.WriteLine();
-
-        foreach (var group in groups)
-        {
-            AnsiConsole.Write(
-                new Rule($"[grey46]{Markup.Escape(group.Header)}[/]")
-                    .RuleStyle(Style.Parse("grey23"))
-                    .LeftJustified());
-
-            foreach (var item in group.Items)
-            {
-                var hint = item.Hint is { Length: > 0 }
-                    ? $"  [grey46]{Markup.Escape(item.Hint)}[/]"
-                    : "";
-                AnsiConsole.MarkupLine($"  [bold cyan1 on grey7] {item.Key} [/]  {item.Label}{hint}");
-            }
-            AnsiConsole.WriteLine();
-        }
-
-        AnsiConsole.MarkupLine("[grey46]  Press a key — ESC to go back[/]");
-        Console.CursorVisible = false;
-        try
-        {
-            while (true)
-            {
-                var k = Console.ReadKey(intercept: true);
-                if (k.Key == ConsoleKey.Escape) return '\0';
-
-                var ch  = char.ToLower(k.KeyChar);
-                var all = groups.SelectMany(g => g.Items);
-                if (all.Any(i => i.Key == ch)) return ch;
-            }
-        }
-        finally
-        {
-            Console.CursorVisible = true;
-        }
-    }
-
-    // ── Arrow-key list backed by Spectre SelectionPrompt ─────────────────────
+    // ── Generic SelectionPrompt with optional "Back" ──────────────────────────
 
     public record ListItem<T>(string Label, T Value, bool IsSeparator = false);
 
-    private const string BackSentinel = "\x00__BACK__";
-
     /// <summary>
-    /// Arrow-key list using Spectre SelectionPrompt. Returns null if the user
-    /// picks "← Back" (or if the list is empty).
+    /// Arrow-key list. Returns null when the user picks "← Back".
     /// </summary>
-    public static T? PromptList<T>(string title, List<ListItem<T>> items, int pageSize = 20) where T : class
+    public static T? PromptList<T>(string title, List<ListItem<T>> items, int pageSize = 22) where T : class
     {
         if (items.Count == 0) return null;
 
-        // Build Spectre prompt. We use the Label as the display string and
-        // recover the value by index after selection.
         var selectables = items.Where(i => !i.IsSeparator).ToList();
         if (selectables.Count == 0) return null;
 
-        // Map label → index (labels might not be unique, so we track order)
-        var labelList = new List<string>();
-        var backLabel = $"  [grey46]← Back  [dim](ESC)[/][/]";
+        const string BackLabel = "  [grey46]← Back[/]";
 
-        labelList.Add(backLabel);
-
-        // Build the prompt with groups
         var prompt = new SelectionPrompt<string>()
-            .Title($"  [cyan1]{Markup.Escape(title)}[/]")
+            .Title($"\n  [cyan1]{Markup.Escape(title)}[/]")
             .PageSize(pageSize)
             .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11));
 
-        // Add "back" as first group
-        prompt.AddChoices(backLabel);
+        prompt.AddChoices(BackLabel);
 
         bool hasGroups = items.Any(i => i.IsSeparator);
+        var orderedLabels = new List<string>(); // parallel to selectables
+
         if (hasGroups)
         {
-            var currentGroupItems = new List<string>();
-            string? currentHeader = null;
+            var groupItems  = new List<string>();
+            string? groupHeader = null;
 
             foreach (var item in items)
             {
                 if (item.IsSeparator)
                 {
-                    if (currentHeader is not null && currentGroupItems.Count > 0)
-                        prompt.AddChoiceGroup(currentHeader, currentGroupItems);
-                    currentGroupItems = [];
-                    currentHeader = $"[grey46]{Markup.Escape(item.Label)}[/]";
+                    if (groupHeader is not null && groupItems.Count > 0)
+                        prompt.AddChoiceGroup($"[grey46]{Markup.Escape(groupHeader)}[/]", groupItems);
+                    groupItems  = [];
+                    groupHeader = item.Label;
                 }
                 else
                 {
                     var lbl = "  " + item.Label;
-                    currentGroupItems.Add(lbl);
-                    labelList.Add(lbl);
+                    groupItems.Add(lbl);
+                    orderedLabels.Add(lbl);
                 }
             }
-            if (currentHeader is not null && currentGroupItems.Count > 0)
-                prompt.AddChoiceGroup(currentHeader, currentGroupItems);
+            if (groupHeader is not null && groupItems.Count > 0)
+                prompt.AddChoiceGroup($"[grey46]{Markup.Escape(groupHeader)}[/]", groupItems);
         }
         else
         {
-            var flat = selectables.Select(i => "  " + i.Label).ToList();
-            prompt.AddChoices(flat);
-            labelList.AddRange(flat);
+            foreach (var item in selectables)
+            {
+                var lbl = "  " + item.Label;
+                prompt.AddChoices(lbl);
+                orderedLabels.Add(lbl);
+            }
         }
 
         var chosen = AnsiConsole.Prompt(prompt);
-        if (chosen == backLabel) return null;
+        if (chosen == BackLabel) return null;
 
-        // Recover value by matching label index
-        var chosenIdx = labelList.IndexOf(chosen);
-        if (chosenIdx <= 0) return null; // 0 = backLabel, -1 = not found
+        var idx = orderedLabels.IndexOf(chosen);
+        return idx >= 0 && idx < selectables.Count ? selectables[idx].Value : null;
+    }
 
-        // labelList[0] = back, labelList[1..] = selectables in order
-        var valueIdx = chosenIdx - 1;
-        return valueIdx < selectables.Count ? selectables[valueIdx].Value : null;
+    /// <summary>
+    /// Arrow-key list for value types. Returns (false, default) when the user picks "← Back".
+    /// </summary>
+    public static (bool Ok, T Value) PromptListValue<T>(string title, List<ListItem<T>> items, int pageSize = 22) where T : struct
+    {
+        if (items.Count == 0) return (false, default);
+
+        const string BackLabel = "  [grey46]← Back[/]";
+
+        var selectables = items.Where(i => !i.IsSeparator).ToList();
+        var labels      = selectables.Select(i => "  " + i.Label).ToList();
+
+        var prompt = new SelectionPrompt<string>()
+            .Title($"\n  [cyan1]{Markup.Escape(title)}[/]")
+            .PageSize(pageSize)
+            .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
+            .AddChoices([BackLabel, .. labels]);
+
+        var chosen = AnsiConsole.Prompt(prompt);
+        if (chosen == BackLabel) return (false, default);
+
+        var idx = labels.IndexOf(chosen);
+        return idx >= 0 ? (true, selectables[idx].Value) : (false, default);
     }
 }
