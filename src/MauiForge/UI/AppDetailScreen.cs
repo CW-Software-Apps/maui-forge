@@ -64,54 +64,81 @@ public class AppDetailScreen(
     {
         var v = app.Versions;
 
-        var iosLine = v.iOS is { } ios
-            ? $"[skyblue1](iOS)[/]     [bold white]{Markup.Escape(ios.Version)}[/]  [dim]build #{ios.Build}[/]"
-            : "[grey46](iOS)[/]     [dim]not detected[/]";
+        // ── version grid ────────────────────────────────
+        var table = new Table()
+            .Border(TableBorder.None)
+            .HideHeaders()
+            .AddColumn(new TableColumn("").Width(10))
+            .AddColumn(new TableColumn("").Width(14))
+            .AddColumn(new TableColumn("").Width(8))
+            .AddColumn(new TableColumn(""));
 
-        var andLine = v.Android is { } and
-            ? $"[green3](Android)[/]  [bold white]{Markup.Escape(and.Version)}[/]  [dim]build #{and.Build}[/]"
-            : "[grey46](Android)[/]  [dim]not detected[/]";
+        if (v.iOS is { } ios)
+            table.AddRow(
+                "[skyblue1]iOS[/]",
+                $"[bold white]{Markup.Escape(ios.Version)}[/]",
+                $"[dim]#{Markup.Escape(ios.Build)}[/]",
+                cfg.iOSFramework is { } fw ? $"[dim]{Markup.Escape(fw)}[/]" : "[grey23]—[/]");
+        else
+            table.AddRow("[grey23]iOS[/]", "[grey23]—[/]", "", "");
 
+        if (v.Android is { } and)
+            table.AddRow(
+                "[green3]Android[/]",
+                $"[bold white]{Markup.Escape(and.Version)}[/]",
+                $"[dim]#{Markup.Escape(and.Build)}[/]",
+                cfg.AndroidFramework is { } af ? $"[dim]{Markup.Escape(af)}[/]" : "[grey23]—[/]");
+        else
+            table.AddRow("[grey23]Android[/]", "[grey23]—[/]", "", "");
+
+        // ── sync status ────────────────────────────────
         var syncLine = (v.iOS, v.Android) switch
         {
-            (not null, not null) when  v.InSync => "  [green](ok) iOS and Android in sync[/]",
-            (not null, not null) when !v.InSync => "  [yellow](!!) iOS and Android out of sync[/]",
+            (not null, not null) when  v.InSync => "[green]✓ in sync[/]",
+            (not null, not null) when !v.InSync => "[yellow bold]!! out of sync[/]",
             _ => ""
         };
 
-        var bc       = app.Branch is "main" or "master" ? "green" : "fuchsia";
-        var gitIcon  = gitStatus.Dirty ? "[yellow]~[/]" : "[green]✓[/]";
-        var gitExtra = new List<string>();
-        if (gitStatus.Ahead  > 0) gitExtra.Add($"[yellow]^{gitStatus.Ahead} to push[/]");
-        if (gitStatus.Behind > 0) gitExtra.Add($"[red]v{gitStatus.Behind} to pull[/]");
-        var gitDetail = gitExtra.Count > 0 ? "  " + string.Join("  ", gitExtra) : "";
+        // ── git ────────────────────────────────────────
+        var bc        = app.Branch is "main" or "master" ? "green3" : "fuchsia";
+        var gitBadges = new List<string>();
+        if (gitStatus.Dirty)     gitBadges.Add("[yellow]~ dirty[/]");
+        if (gitStatus.Ahead > 0) gitBadges.Add($"[yellow]↑{gitStatus.Ahead} ahead[/]");
+        if (gitStatus.Behind > 0) gitBadges.Add($"[red]↓{gitStatus.Behind} behind[/]");
+        var gitStr = gitBadges.Count > 0
+            ? string.Join("  ", gitBadges)
+            : "[dim green]clean[/]";
 
-        var buildCfg = cfg.BuildConfiguration is { } bc2 ? $"[cyan1]{Markup.Escape(bc2)}[/]" : "[grey46]not set[/]";
-        var iosFw    = cfg.iOSFramework        is { } fw  ? $"[skyblue1]{Markup.Escape(fw)}[/]"  : "[grey46]—[/]";
-        var andFw    = cfg.AndroidFramework    is { } af  ? $"[green3]{Markup.Escape(af)}[/]"    : "[grey46]—[/]";
-        var iosDev   = cfg.iOSDeviceId         is not null ? "[skyblue1]device configured[/]"    : "[grey46]none[/]";
-        var andDev   = cfg.AndroidDeviceSerial is { } s   ? $"[green3]{Markup.Escape(s)}[/]"    : "[grey46]none[/]";
+        // ── build config ───────────────────────────────
+        var buildCfg = cfg.BuildConfiguration is { } bc2 ? $"[cyan1]{Markup.Escape(bc2)}[/]" : "[grey46]—[/]";
+        var iosDev   = cfg.iOSDeviceId is not null ? "[skyblue1]✓ configured[/]" : "[grey46]none[/]";
+        var andDev   = cfg.AndroidDeviceSerial is { } s  ? $"[green3]{Markup.Escape(s)}[/]" : "[grey46]none[/]";
         var macMode  = st.UseLocalMac
-            ? "[green]local Mac[/]"
-            : (st.MacHost is { } h ? $"[cyan1]{Markup.Escape(h)}[/]" : "[grey46]not configured[/]");
+            ? "[green3]local Mac[/]"
+            : st.MacHost is { } h ? $"[skyblue1]{Markup.Escape(h)}[/]" : "[grey46]not configured[/]";
 
-        var content = string.Join("\n",
-            iosLine,
-            andLine,
-            syncLine.Length > 0 ? syncLine : null,
-            "",
-            $"  [dim]branch[/]    [{bc}]{Markup.Escape(app.Branch)}[/]   {gitIcon}{gitDetail}",
-            "",
-            $"  [dim]config[/]    {buildCfg}   [dim]ios fw[/] {iosFw}   [dim]droid fw[/] {andFw}",
-            $"  [dim]ios dev[/]   {iosDev}   [dim]android dev[/]  {andDev}",
-            $"  [dim]mac[/]       {macMode}",
-            "",
-            $"  [dim]{Markup.Escape(app.Dir)}[/]"
-        );
+        // ── assemble panel ─────────────────────────────
+        var grid = new Grid().AddColumn().AddColumn();
+        grid.AddRow("[dim]branch[/]",  $"[{bc}]{Markup.Escape(app.Branch)}[/]");
+        grid.AddRow("[dim]git[/]",     gitStr);
+        grid.AddRow("[dim]config[/]",  buildCfg);
+        grid.AddRow("[dim]ios dev[/]", iosDev);
+        grid.AddRow("[dim]droid dev[/]", andDev);
+        grid.AddRow("[dim]mac[/]",     macMode);
+
+        var rows = new List<Spectre.Console.Rendering.IRenderable>
+        {
+            table,
+        };
+        if (syncLine.Length > 0) rows.Add(new Markup("  " + syncLine));
+        rows.Add(new Text(""));
+        rows.Add(grid);
+        rows.Add(new Text(""));
+        rows.Add(new Markup($"[grey23]{Markup.Escape(app.Dir)}[/]"));
 
         AnsiConsole.Write(
-            new Panel(content)
-                .Header($"[bold cyan1]  >>> {Markup.Escape(app.Name)}  [/]")
+            new Panel(new Rows(rows))
+                .Header($"[bold cyan1]  {Markup.Escape(app.Name)}  [/]")
                 .Border(BoxBorder.Rounded)
                 .BorderColor(Color.Cyan1)
                 .Padding(1, 0)

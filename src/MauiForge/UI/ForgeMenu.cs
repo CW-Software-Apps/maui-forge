@@ -2,9 +2,6 @@ using Spectre.Console;
 
 namespace MauiForge.UI;
 
-/// <summary>
-/// Single-keypress action menu and ESC-aware list selector.
-/// </summary>
 public static class ForgeMenu
 {
     // ── Single-key action menu ────────────────────────────────────────────────
@@ -18,32 +15,38 @@ public static class ForgeMenu
     /// </summary>
     public static char PromptKey(string title, List<KeyGroup> groups)
     {
-        AnsiConsole.MarkupLine($"[cyan1]{Markup.Escape(title)}[/]");
+        AnsiConsole.MarkupLine($"  [bold cyan1]{Markup.Escape(title)}[/]");
         AnsiConsole.WriteLine();
 
         foreach (var group in groups)
         {
-            AnsiConsole.Write(new Rule($"[dim]{Markup.Escape(group.Header)}[/]").RuleStyle(Style.Parse("grey23 dim")));
+            AnsiConsole.Write(
+                new Rule($"[grey46]{Markup.Escape(group.Header)}[/]")
+                    .RuleStyle(Style.Parse("grey23"))
+                    .LeftJustified());
+
             foreach (var item in group.Items)
             {
-                var hint = item.Hint is { Length: > 0 } ? $"  [grey46]{Markup.Escape(item.Hint)}[/]" : "";
-                AnsiConsole.MarkupLine($"  [bold cyan1][[{item.Key}]][/]  {item.Label}{hint}");
+                var hint = item.Hint is { Length: > 0 }
+                    ? $"  [grey46]{Markup.Escape(item.Hint)}[/]"
+                    : "";
+                AnsiConsole.MarkupLine($"  [bold cyan1 on grey7] {item.Key} [/]  {item.Label}{hint}");
             }
             AnsiConsole.WriteLine();
         }
 
-        AnsiConsole.Markup("[dim]Key > [/]");
+        AnsiConsole.MarkupLine("[grey46]  Press a key — ESC to go back[/]");
         Console.CursorVisible = false;
         try
         {
             while (true)
             {
                 var k = Console.ReadKey(intercept: true);
-                if (k.Key == ConsoleKey.Escape) { AnsiConsole.WriteLine(); return '\0'; }
+                if (k.Key == ConsoleKey.Escape) return '\0';
 
-                var ch = char.ToLower(k.KeyChar);
+                var ch  = char.ToLower(k.KeyChar);
                 var all = groups.SelectMany(g => g.Items);
-                if (all.Any(i => i.Key == ch)) { AnsiConsole.WriteLine(); return ch; }
+                if (all.Any(i => i.Key == ch)) return ch;
             }
         }
         finally
@@ -52,160 +55,81 @@ public static class ForgeMenu
         }
     }
 
-    // ── Arrow-key list with ESC support ──────────────────────────────────────
+    // ── Arrow-key list backed by Spectre SelectionPrompt ─────────────────────
 
     public record ListItem<T>(string Label, T Value, bool IsSeparator = false);
 
+    private const string BackSentinel = "\x00__BACK__";
+
     /// <summary>
-    /// Arrow-key selection list. Returns null if ESC is pressed.
+    /// Arrow-key list using Spectre SelectionPrompt. Returns null if the user
+    /// picks "← Back" (or if the list is empty).
     /// </summary>
     public static T? PromptList<T>(string title, List<ListItem<T>> items, int pageSize = 20) where T : class
     {
-        var result = PromptListStruct<T?>(title,
-            items.Select(i => new ListItem<T?>(i.Label, i.Value, i.IsSeparator)).ToList(),
-            pageSize, hasCancel: true);
-        return result;
-    }
+        if (items.Count == 0) return null;
 
-    /// <summary>
-    /// Arrow-key selection list for value types. Returns (false, default) if ESC is pressed.
-    /// </summary>
-    public static (bool Ok, T Value) PromptListValue<T>(string title, List<ListItem<T>> items, int pageSize = 20) where T : struct
-    {
-        var selectable = items.Where(i => !i.IsSeparator).ToList();
-        if (selectable.Count == 0) return (false, default);
+        // Build Spectre prompt. We use the Label as the display string and
+        // recover the value by index after selection.
+        var selectables = items.Where(i => !i.IsSeparator).ToList();
+        if (selectables.Count == 0) return null;
 
-        var cursor = 0;
-        Render(title, items, selectable, cursor, pageSize);
+        // Map label → index (labels might not be unique, so we track order)
+        var labelList = new List<string>();
+        var backLabel = $"  [grey46]← Back  [dim](ESC)[/][/]";
 
-        Console.CursorVisible = false;
-        try
+        labelList.Add(backLabel);
+
+        // Build the prompt with groups
+        var prompt = new SelectionPrompt<string>()
+            .Title($"  [cyan1]{Markup.Escape(title)}[/]")
+            .PageSize(pageSize)
+            .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11));
+
+        // Add "back" as first group
+        prompt.AddChoices(backLabel);
+
+        bool hasGroups = items.Any(i => i.IsSeparator);
+        if (hasGroups)
         {
-            while (true)
+            var currentGroupItems = new List<string>();
+            string? currentHeader = null;
+
+            foreach (var item in items)
             {
-                var k = Console.ReadKey(intercept: true);
-
-                if (k.Key == ConsoleKey.Escape)
+                if (item.IsSeparator)
                 {
-                    ClearMenu(title, items, pageSize);
-                    return (false, default);
+                    if (currentHeader is not null && currentGroupItems.Count > 0)
+                        prompt.AddChoiceGroup(currentHeader, currentGroupItems);
+                    currentGroupItems = [];
+                    currentHeader = $"[grey46]{Markup.Escape(item.Label)}[/]";
                 }
-                if (k.Key == ConsoleKey.Enter)
-                {
-                    ClearMenu(title, items, pageSize);
-                    return (true, selectable[cursor].Value);
-                }
-
-                var prev = cursor;
-                cursor = Navigate(k, cursor, selectable.Count, pageSize);
-                if (cursor != prev) Rerender(title, items, selectable, cursor, pageSize);
-            }
-        }
-        finally { Console.CursorVisible = true; }
-    }
-
-    private static T? PromptListStruct<T>(string title, List<ListItem<T>> items, int pageSize, bool hasCancel)
-    {
-        var selectable = items.Where(i => !i.IsSeparator).ToList();
-        if (selectable.Count == 0) return default;
-
-        var cursor = 0;
-        Render(title, items, selectable, cursor, pageSize);
-
-        Console.CursorVisible = false;
-        try
-        {
-            while (true)
-            {
-                var k = Console.ReadKey(intercept: true);
-
-                if (k.Key == ConsoleKey.Escape)
-                {
-                    ClearMenu(title, items, pageSize);
-                    return default;
-                }
-                if (k.Key == ConsoleKey.Enter)
-                {
-                    ClearMenu(title, items, pageSize);
-                    return selectable[cursor].Value;
-                }
-
-                var prev = cursor;
-                cursor = Navigate(k, cursor, selectable.Count, pageSize);
-                if (cursor != prev) Rerender(title, items, selectable, cursor, pageSize);
-            }
-        }
-        finally { Console.CursorVisible = true; }
-    }
-
-    private static int Navigate(ConsoleKeyInfo k, int cursor, int count, int pageSize) => k.Key switch
-    {
-        ConsoleKey.UpArrow   => Math.Max(0, cursor - 1),
-        ConsoleKey.DownArrow => Math.Min(count - 1, cursor + 1),
-        ConsoleKey.PageUp    => Math.Max(0, cursor - pageSize),
-        ConsoleKey.PageDown  => Math.Min(count - 1, cursor + pageSize),
-        ConsoleKey.Home      => 0,
-        ConsoleKey.End       => count - 1,
-        _ => cursor,
-    };
-
-    // ── Rendering ─────────────────────────────────────────────────────────────
-
-    private static int _lastLineCount;
-
-    private static void Render<T>(string title, List<ListItem<T>> items, List<ListItem<T>> selectable, int cursor, int pageSize)
-    {
-        _lastLineCount = 0;
-
-        // Title
-        AnsiConsole.MarkupLine($"[cyan1]{Markup.Escape(title)}[/]  [dim](↑↓ navigate · Enter select · ESC cancel)[/]");
-        _lastLineCount++;
-
-        // Paging
-        var visibleStart = Math.Max(0, cursor - pageSize / 2);
-        var visibleEnd   = Math.Min(items.Count, visibleStart + pageSize + 5);
-
-        foreach (var item in items.Skip(visibleStart).Take(visibleEnd - visibleStart))
-        {
-            if (item.IsSeparator)
-            {
-                AnsiConsole.Write(new Rule($"[dim]{StripMarkup(item.Label)}[/]").RuleStyle(Style.Parse("grey23 dim")));
-            }
-            else
-            {
-                var isSelected = selectable.IndexOf(item) == cursor;
-                if (isSelected)
-                    AnsiConsole.MarkupLine($"[bold cyan1 on grey11]▶ {item.Label}[/]");
                 else
-                    AnsiConsole.MarkupLine($"  {item.Label}");
+                {
+                    var lbl = "  " + item.Label;
+                    currentGroupItems.Add(lbl);
+                    labelList.Add(lbl);
+                }
             }
-            _lastLineCount++;
+            if (currentHeader is not null && currentGroupItems.Count > 0)
+                prompt.AddChoiceGroup(currentHeader, currentGroupItems);
         }
-    }
+        else
+        {
+            var flat = selectables.Select(i => "  " + i.Label).ToList();
+            prompt.AddChoices(flat);
+            labelList.AddRange(flat);
+        }
 
-    private static void Rerender<T>(string title, List<ListItem<T>> items, List<ListItem<T>> selectable, int cursor, int pageSize)
-    {
-        // Move cursor up
-        Console.Write($"\x1b[{_lastLineCount}A");
-        // Clear each line down
-        for (var i = 0; i < _lastLineCount; i++)
-            Console.Write($"\x1b[2K\n");
-        Console.Write($"\x1b[{_lastLineCount}A");
+        var chosen = AnsiConsole.Prompt(prompt);
+        if (chosen == backLabel) return null;
 
-        Render(title, items, selectable, cursor, pageSize);
-    }
+        // Recover value by matching label index
+        var chosenIdx = labelList.IndexOf(chosen);
+        if (chosenIdx <= 0) return null; // 0 = backLabel, -1 = not found
 
-    private static void ClearMenu<T>(string title, List<ListItem<T>> items, int pageSize)
-    {
-        Console.Write($"\x1b[{_lastLineCount}A");
-        for (var i = 0; i < _lastLineCount; i++)
-            Console.Write($"\x1b[2K\n");
-        Console.Write($"\x1b[{_lastLineCount}A");
-    }
-
-    private static string StripMarkup(string s)
-    {
-        // Remove [tag] and [/tag] patterns
-        return System.Text.RegularExpressions.Regex.Replace(s, @"\[/?[^\]]*\]", "");
+        // labelList[0] = back, labelList[1..] = selectables in order
+        var valueIdx = chosenIdx - 1;
+        return valueIdx < selectables.Count ? selectables[valueIdx].Value : null;
     }
 }
