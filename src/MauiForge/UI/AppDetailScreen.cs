@@ -718,6 +718,58 @@ public class AppDetailScreen(
             cfg.AndroidDeviceSerial = serial;
         }
 
+        // Quick Launch vs Build & Run
+        var launchMode = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("  [cyan1]How would you like to run?[/]")
+                .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
+                .AddChoices(
+                    "[bold]Build & Run[/]  [dim]recompile then deploy[/]",
+                    "[bold]Quick Launch[/]  [dim]launch already-installed app (skip build)[/]",
+                    "[grey46]← Back[/]"));
+
+        if (launchMode.Contains("Back")) return;
+
+        if (launchMode.Contains("Quick Launch"))
+        {
+            var packageId = versions.ReadAndroidApplicationId(csproj);
+            if (packageId is null)
+            {
+                AnsiConsole.MarkupLine("  [red]x  Could not determine package ID from csproj or AndroidManifest.xml.[/]");
+                Pause(); return;
+            }
+
+            var adbExe = DeviceService.FindAdb()!;
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine($"  [dim]Launching [/][white]{Markup.Escape(packageId)}[/][dim] on {Markup.Escape(serial!)}...[/]");
+
+            var psi = new System.Diagnostics.ProcessStartInfo(adbExe)
+            {
+                UseShellExecute        = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+            };
+            psi.ArgumentList.Add("-s"); psi.ArgumentList.Add(serial!);
+            psi.ArgumentList.Add("shell");
+            psi.ArgumentList.Add("monkey");
+            psi.ArgumentList.Add("-p"); psi.ArgumentList.Add(packageId);
+            psi.ArgumentList.Add("-c"); psi.ArgumentList.Add("android.intent.category.LAUNCHER");
+            psi.ArgumentList.Add("1");
+
+            using var proc = System.Diagnostics.Process.Start(psi)!;
+            var output = proc.StandardOutput.ReadToEnd() + proc.StandardError.ReadToEnd();
+            proc.WaitForExit(10000);
+
+            if (proc.ExitCode == 0 && output.Contains("Events injected: 1"))
+                AnsiConsole.MarkupLine("  [green]ok  App launched.[/]");
+            else
+                AnsiConsole.MarkupLine($"  [yellow](!) adb monkey output: {Markup.Escape(output.Trim())}[/]");
+
+            st.LastAction = "Quick Launch Android";
+            state.Save(st);
+            Pause(); return;
+        }
+
         cfg.BuildConfiguration = PickBuildConfig(csproj, "Debug", "Debug");
         if (cfg.BuildConfiguration is null) return;
         cfg.AndroidFramework   = PickFramework(csproj, "android", cfg.AndroidFramework ?? "net9.0-android");
