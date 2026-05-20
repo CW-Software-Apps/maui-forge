@@ -8,6 +8,24 @@ using Spectre.Console;
 Console.OutputEncoding = Encoding.UTF8;
 Console.InputEncoding  = Encoding.UTF8;
 
+// On macOS/Linux, dotnet tool install prints a broken pt-BR PATH warning.
+// Show the correct instructions once if the tools dir is not in PATH yet.
+if (!OperatingSystem.IsWindows())
+{
+    var toolsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotnet", "tools");
+    var pathEnv  = Environment.GetEnvironmentVariable("PATH") ?? "";
+    if (!pathEnv.Split(':').Any(p => p.TrimEnd('/') == toolsDir.TrimEnd('/')))
+    {
+        var profile = Environment.GetEnvironmentVariable("SHELL")?.EndsWith("zsh") == true
+            ? "~/.zprofile" : "~/.bash_profile";
+        AnsiConsole.MarkupLine($"[yellow]maui-forge is installed but [bold]~/.dotnet/tools[/] is not in your PATH.[/]");
+        AnsiConsole.MarkupLine($"[grey]Run this once to fix it permanently:[/]");
+        AnsiConsole.MarkupLine($"[cyan]echo 'export PATH=\"$PATH:{toolsDir}\"' >> {profile} && source {profile}[/]");
+        AnsiConsole.MarkupLine($"[grey]Then reopen your terminal.[/]");
+        Console.WriteLine();
+    }
+}
+
 UpdateService.Instance.StartCheck();
 
 var services = new ServiceCollection()
