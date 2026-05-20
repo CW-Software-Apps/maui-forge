@@ -531,6 +531,22 @@ public class AppDetailScreen(
         if (csproj is null) { NoCsproj(); return; }
         if (!ConfigureMac(st)) return;
 
+        if (cfg.iOSDeviceId is { Length: > 0 })
+        {
+            var lastDevice = new iOSDevice(
+                cfg.iOSDeviceName ?? "Last iOS device",
+                cfg.iOSDeviceId,
+                cfg.iOSDeviceType ?? InferIosDeviceType(cfg.iOSDeviceId));
+
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine($"  [dim]Last iOS device:[/] [skyblue1]{Markup.Escape(lastDevice.Name)}[/] [dim]{Markup.Escape(ShortDeviceId(lastDevice.Udid))}[/]");
+            if (AnsiConsole.Confirm("  Use this device?", defaultValue: true))
+            {
+                RunSelectedIOSDevice(app, st, cfg, csproj, lastDevice);
+                return;
+            }
+        }
+
         List<iOSDevice> deviceList = [];
         if (st.UseLocalMac)
         {
@@ -560,19 +576,26 @@ public class AppDetailScreen(
         {
             listItems.Add(new("Physical devices", null!, IsSeparator: true));
             listItems.AddRange(physical.Select(d =>
-                new ForgeMenu.ListItem<iOSDevice>($"[skyblue1](iOS)[/] {Markup.Escape(d.Name)}  [dim]{d.Udid[..8]}...[/]", d)));
+                new ForgeMenu.ListItem<iOSDevice>($"[skyblue1](iOS)[/] {Markup.Escape(d.Name)}  [dim]{Markup.Escape(ShortDeviceId(d.Udid))}[/]", d)));
         }
         if (simulators.Count > 0)
         {
             listItems.Add(new("Simulators", null!, IsSeparator: true));
             listItems.AddRange(simulators.Select(d =>
-                new ForgeMenu.ListItem<iOSDevice>($"[grey53](sim)[/] {Markup.Escape(d.Name)}  [dim]{d.Udid[..8]}...[/]", d)));
+                new ForgeMenu.ListItem<iOSDevice>($"[grey53](sim)[/] {Markup.Escape(d.Name)}  [dim]{Markup.Escape(ShortDeviceId(d.Udid))}[/]", d)));
         }
 
         var found = ForgeMenu.PromptList("Select iOS device:", listItems);
         if (found is null) return;
 
-        cfg.iOSDeviceId        = found!.Udid;
+        RunSelectedIOSDevice(app, st, cfg, csproj, found);
+    }
+
+    private void RunSelectedIOSDevice(AppEntry app, PersistentState st, AppBuildConfig cfg, string csproj, iOSDevice device)
+    {
+        cfg.iOSDeviceId        = device.Udid;
+        cfg.iOSDeviceName      = device.Name;
+        cfg.iOSDeviceType      = device.Type;
         cfg.BuildConfiguration = PickBuildConfig(csproj, "Debug", "Debug");
         if (cfg.BuildConfiguration is null) return;
         cfg.iOSFramework       = PickFramework(csproj, "ios", cfg.iOSFramework ?? "net9.0-ios");
@@ -585,7 +608,7 @@ public class AppDetailScreen(
             "-f", cfg.iOSFramework,
             "-c", cfg.BuildConfiguration,
         };
-        AddIosRunDeviceArgs(args, found);
+        AddIosRunDeviceArgs(args, device);
         if (!st.UseLocalMac)
         {
             args.Add($"-p:ServerAddress={st.MacHost}");
@@ -960,6 +983,12 @@ public class AppDetailScreen(
         args.Add($"-p:_DeviceName=:v2:udid={device.Udid}");
     }
 
+    private static string InferIosDeviceType(string udid) =>
+        udid.Contains('-', StringComparison.Ordinal) ? "Simulator" : "Device";
+
+    private static string ShortDeviceId(string udid) =>
+        udid.Length <= 8 ? udid : udid[..8] + "...";
+
     private void ApplyVersion(AppEntry app, string version, string bld)
     {
         var csproj = FindCsproj(app.Dir);
@@ -979,18 +1008,43 @@ public class AppDetailScreen(
         var errorLines = new List<string>();
         var allLines   = new List<string>();
 
-        AnsiConsole.Status()
-            .Spinner(Spinner.Known.Dots)
-            .SpinnerStyle(Style.Parse("cyan1"))
-            .Start($"  [dim]dotnet {string.Join(' ', args.Take(2))}...[/]", _ =>
+        void CaptureLine(string line)
+        {
+            allLines.Add(line);
+            if (line.Contains("error", StringComparison.OrdinalIgnoreCase))
+                errorLines.Add(line);
+        }
+
+        if (ShowsLiveBuildOutput(_verbosity))
+        {
+            AnsiConsole.MarkupLine($"  [dim]dotnet {Markup.Escape(string.Join(' ', allArgs))}[/]");
+            AnsiConsole.WriteLine();
+
+            var consoleLock = new object();
+            exit = build.Run(dir, allArgs, line =>
             {
-                exit = build.Run(dir, allArgs, line =>
+                CaptureLine(line);
+                lock (consoleLock)
                 {
-                    allLines.Add(line);
-                    if (line.Contains("error", StringComparison.OrdinalIgnoreCase))
-                        errorLines.Add(line);
-                });
+                    var style = line.Contains("error", StringComparison.OrdinalIgnoreCase)
+                        ? "red"
+                        : line.Contains("warning", StringComparison.OrdinalIgnoreCase)
+                            ? "yellow"
+                            : "grey70";
+                    AnsiConsole.MarkupLine($"  [{style}]{Markup.Escape(line)}[/]");
+                }
             });
+        }
+        else
+        {
+            AnsiConsole.Status()
+                .Spinner(Spinner.Known.Dots)
+                .SpinnerStyle(Style.Parse("cyan1"))
+                .Start($"  [dim]dotnet {string.Join(' ', args.Take(2))}...[/]", _ =>
+                {
+                    exit = build.Run(dir, allArgs, CaptureLine);
+                });
+        }
         sw.Stop();
 
         var t = sw.Elapsed.TotalMinutes >= 1
@@ -1024,6 +1078,9 @@ public class AppDetailScreen(
         Pause();
         return exit == 0;
     }
+
+    private static bool ShowsLiveBuildOutput(string verbosity) =>
+        verbosity is "normal" or "detailed" or "diagnostic";
 
     private static AppBuildConfig GetOrCreateConfig(PersistentState st, AppEntry app)
     {
