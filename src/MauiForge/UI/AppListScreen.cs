@@ -9,6 +9,7 @@ public record AppSelected(AppEntry App) : ListResult;
 public record ScanRefresh(string NewPath) : ListResult;
 public record MacConfigRequested : ListResult;
 public record DiagnosticsRequested : ListResult;
+public record CheckUpdatesRequested : ListResult;
 public record FilterChanged(string? NameFilter, string PlatformFilter) : ListResult;
 public record ListQuit : ListResult;
 
@@ -227,6 +228,12 @@ public static class AppListScreen
         var platLabel  = platformFilter == "All" ? "[dim]All[/]" : platformFilter == "iOS" ? "[skyblue1]iOS[/]" : "[green3]Android[/]";
         var searchLabel = nameFilter is { Length: > 0 } ? $"[cyan1]{Markup.Escape(nameFilter)}[/]" : "[dim]all[/]";
 
+        var latestVer   = UpdateService.Instance.GetLatestVersion();
+        var currentVer  = typeof(AppListScreen).Assembly.GetName().Version;
+        var updateLabel = latestVer is not null && Version.TryParse(latestVer.Split('-')[0], out var lv) && currentVer is not null && lv > currentVer
+            ? $"[cyan1] >[/]  [white]Check for Updates[/]  [yellow]↑ {Markup.Escape(latestVer)} available[/]"
+            : "[cyan1] >[/]  [white]Check for Updates[/]  [dim]up to date[/]";
+
         var globalLabels = new List<string>
         {
             "[cyan1] >[/]  [white]Change folder[/]",
@@ -235,6 +242,7 @@ public static class AppListScreen
             $"[cyan1] >[/]  [white]Search:[/] {searchLabel}",
             "[cyan1] >[/]  [white]Mac / SSH config[/]",
             "[cyan1] >[/]  [white]Diagnostics[/]",
+            updateLabel,
             "[cyan1] >[/]  [white]Quit[/]",
         };
 
@@ -280,8 +288,9 @@ public static class AppListScreen
                     "  [cyan1]Filter by name[/] [dim](empty = show all):[/]", nameFilter ?? "");
                 return new FilterChanged(newFilter.Length == 0 ? null : newFilter, platformFilter);
             }
-            if (choice.Contains("Mac"))         return new MacConfigRequested();
-            if (choice.Contains("Diagnostics")) return new DiagnosticsRequested();
+            if (choice.Contains("Mac"))              return new MacConfigRequested();
+            if (choice.Contains("Diagnostics"))     return new DiagnosticsRequested();
+            if (choice.Contains("Check for Updates")) return new CheckUpdatesRequested();
             return new ListQuit();
         }
 

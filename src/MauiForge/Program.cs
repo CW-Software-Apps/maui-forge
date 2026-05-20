@@ -87,6 +87,82 @@ while (true)
         continue;
     }
 
+    if (result is CheckUpdatesRequested)
+    {
+        AnsiConsole.Clear();
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule("[bold cyan1]  Check for Updates  [/]").RuleStyle(Style.Parse("cyan1 dim")));
+        AnsiConsole.WriteLine();
+
+        var currentVer = typeof(AppListScreen).Assembly.GetName().Version;
+        AnsiConsole.MarkupLine($"  [dim]Installed:[/] [white]{currentVer?.ToString(3)}[/]");
+
+        string? latestStr = null;
+        AnsiConsole.Status().Spinner(Spinner.Known.Dots).SpinnerStyle(Style.Parse("cyan1"))
+            .Start("  [dim]Checking NuGet...[/]", _ =>
+            {
+                UpdateService.Instance.StartCheck();
+                // Wait up to 5s for fresh result
+                for (var i = 0; i < 50 && UpdateService.Instance.GetLatestVersion() is null; i++)
+                    System.Threading.Thread.Sleep(100);
+                latestStr = UpdateService.Instance.GetLatestVersion();
+            });
+
+        if (latestStr is null)
+        {
+            AnsiConsole.MarkupLine("  [yellow](!) Could not reach NuGet. Check your internet connection.[/]");
+        }
+        else
+        {
+            AnsiConsole.MarkupLine($"  [dim]Latest:[/]    [white]{latestStr}[/]");
+            AnsiConsole.WriteLine();
+
+            var cleanLatest = latestStr.Split('-')[0];
+            if (Version.TryParse(cleanLatest, out var latestVer) && currentVer is not null && latestVer > currentVer)
+            {
+                AnsiConsole.MarkupLine($"  [cyan1 bold]↑ Update available![/]");
+                AnsiConsole.WriteLine();
+
+                if (AnsiConsole.Confirm("  Install update now?", defaultValue: true))
+                {
+                    AnsiConsole.WriteLine();
+                    var psi = new System.Diagnostics.ProcessStartInfo("dotnet")
+                    {
+                        UseShellExecute = false,
+                    };
+                    psi.ArgumentList.Add("tool"); psi.ArgumentList.Add("update");
+                    psi.ArgumentList.Add("CwSoftware.MauiForge"); psi.ArgumentList.Add("-g");
+
+                    using var proc = System.Diagnostics.Process.Start(psi);
+                    proc?.WaitForExit(60_000);
+
+                    if (proc?.ExitCode == 0)
+                    {
+                        AnsiConsole.MarkupLine($"  [green]ok  Updated to {latestStr}. Restarting...[/]");
+                        System.Threading.Thread.Sleep(800);
+                        var restart = new System.Diagnostics.ProcessStartInfo("maui-forge") { UseShellExecute = false };
+                        foreach (var a in System.Environment.GetCommandLineArgs().Skip(1))
+                            restart.ArgumentList.Add(a);
+                        System.Diagnostics.Process.Start(restart);
+                        System.Environment.Exit(0);
+                    }
+                    else
+                    {
+                        AnsiConsole.MarkupLine("  [red]x  Update failed.[/]");
+                    }
+                }
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("  [green]✓ Already up to date.[/]");
+            }
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.Prompt(new TextPrompt<string>("[dim]Press Enter to go back...[/]").AllowEmpty());
+        continue;
+    }
+
     if (result is MacConfigRequested)
     {
         AnsiConsole.Clear();
