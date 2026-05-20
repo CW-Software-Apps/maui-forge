@@ -60,9 +60,10 @@ public partial class VersionService
     public PlatformVersion? ReadCsproj(string csprojPath)
     {
         var doc     = XDocument.Load(csprojPath);
-        var version = doc.Descendants("Version").FirstOrDefault()?.Value
-                   ?? doc.Descendants("ApplicationVersion").FirstOrDefault()?.Value;
-        var build   = doc.Descendants("ApplicationDisplayVersion").FirstOrDefault()?.Value
+        // MAUI uses ApplicationDisplayVersion (human) + ApplicationVersion (build integer)
+        var version = doc.Descendants("ApplicationDisplayVersion").FirstOrDefault()?.Value
+                   ?? doc.Descendants("Version").FirstOrDefault()?.Value;
+        var build   = doc.Descendants("ApplicationVersion").FirstOrDefault()?.Value
                    ?? doc.Descendants("AssemblyVersion").FirstOrDefault()?.Value;
         return version is null ? null : new(version, build ?? "1");
     }
@@ -70,8 +71,8 @@ public partial class VersionService
     public void WriteCsproj(string csprojPath, string version, string build)
     {
         var doc = XDocument.Load(csprojPath);
-        SetOrCreate(doc, "Version", version);
-        SetOrCreate(doc, "ApplicationDisplayVersion", build);
+        SetOrCreate(doc, "ApplicationDisplayVersion", version);
+        SetOrCreate(doc, "ApplicationVersion", build);
         doc.Save(csprojPath);
     }
 
