@@ -113,6 +113,7 @@ public class GitService
                 RedirectStandardError  = true,
                 UseShellExecute        = false,
             };
+            ProcessEnvironment.UseEnglishCliOutput(psi);
             foreach (var a in args) psi.ArgumentList.Add(a);
             using var proc = System.Diagnostics.Process.Start(psi)!;
             var output = proc.StandardOutput.ReadToEnd();
@@ -133,6 +134,7 @@ public class GitService
                 RedirectStandardError  = true,
                 UseShellExecute        = false,
             };
+            ProcessEnvironment.UseEnglishCliOutput(psi);
             foreach (var a in args) psi.ArgumentList.Add(a);
             using var proc = System.Diagnostics.Process.Start(psi)!;
             var output = proc.StandardOutput.ReadToEnd() + proc.StandardError.ReadToEnd();

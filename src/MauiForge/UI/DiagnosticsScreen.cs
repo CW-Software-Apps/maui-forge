@@ -96,6 +96,7 @@ public static class DiagnosticsScreen
             RedirectStandardError  = true,
             UseShellExecute        = false,
         };
+        ProcessEnvironment.UseEnglishCliOutput(psi);
         using var proc = Process.Start(psi)!;
         var output = proc.StandardOutput.ReadToEnd() + proc.StandardError.ReadToEnd();
         proc.WaitForExit(8_000);
@@ -110,6 +111,7 @@ public static class DiagnosticsScreen
             RedirectStandardError  = true,
             UseShellExecute        = false,
         };
+        ProcessEnvironment.UseEnglishCliOutput(psi);
         foreach (var a in args) psi.ArgumentList.Add(a);
         using var proc = Process.Start(psi)!;
         var output = proc.StandardOutput.ReadToEnd() + proc.StandardError.ReadToEnd();

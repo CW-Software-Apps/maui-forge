@@ -4,22 +4,20 @@ public class DeviceService
 {
     public List<iOSDevice> GetiOSDevices(string macHost, string macUser)
     {
-        try
-        {
-            var output = RunSsh(macHost, macUser, "xcrun xctrace list devices 2>&1");
-            return ParseXcrunDevices(output);
-        }
-        catch { return []; }
+        var devices = new List<iOSDevice>();
+        TryAdd(devices, () => ParseXcrunDevices(RunSsh(macHost, macUser, "xcrun xctrace list devices 2>&1")));
+        TryAdd(devices, () => ParseXcdeviceList(RunSsh(macHost, macUser, "xcrun xcdevice list --timeout 5 2>/dev/null")));
+        TryAdd(devices, () => ParseInstrumentsDevices(RunSsh(macHost, macUser, "xcrun instruments -s devices 2>/dev/null")));
+        return DistinctDevices(devices);
     }
 
     public List<iOSDevice> GetiOSDevicesLocal()
     {
-        try
-        {
-            var output = RunProcess("xcrun", "xctrace list devices");
-            return ParseXcrunDevices(output);
-        }
-        catch { return []; }
+        var devices = new List<iOSDevice>();
+        TryAdd(devices, () => ParseXcrunDevices(RunProcessFull("xcrun", ["xctrace", "list", "devices"])));
+        TryAdd(devices, () => ParseXcdeviceList(RunProcessFull("xcrun", ["xcdevice", "list", "--timeout", "5"])));
+        TryAdd(devices, () => ParseInstrumentsDevices(RunProcessFull("xcrun", ["instruments", "-s", "devices"])));
+        return DistinctDevices(devices);
     }
 
     public List<string> FindMacsOnNetwork()
@@ -232,6 +230,7 @@ public class DeviceService
             RedirectStandardError  = true,
             UseShellExecute        = false,
         };
+        ProcessEnvironment.UseEnglishCliOutput(psi);
         psi.ArgumentList.Add("-o"); psi.ArgumentList.Add("StrictHostKeyChecking=no");
         psi.ArgumentList.Add("-o"); psi.ArgumentList.Add("ConnectTimeout=10");
         psi.ArgumentList.Add($"{user}@{host}");
@@ -251,6 +250,7 @@ public class DeviceService
             RedirectStandardError  = true,
             UseShellExecute        = false,
         };
+        ProcessEnvironment.UseEnglishCliOutput(psi);
         using var proc = System.Diagnostics.Process.Start(psi)!;
         var output = proc.StandardOutput.ReadToEnd();
         proc.WaitForExit(10_000);
@@ -265,12 +265,28 @@ public class DeviceService
             RedirectStandardError  = true,
             UseShellExecute        = false,
         };
+        ProcessEnvironment.UseEnglishCliOutput(psi);
         foreach (var a in args) psi.ArgumentList.Add(a);
         using var proc = System.Diagnostics.Process.Start(psi)!;
         var output = proc.StandardOutput.ReadToEnd();
         proc.WaitForExit(10_000);
         return output;
     }
+
+    private static void TryAdd(List<iOSDevice> devices, Func<List<iOSDevice>> readDevices)
+    {
+        try { devices.AddRange(readDevices()); }
+        catch { }
+    }
+
+    private static List<iOSDevice> DistinctDevices(List<iOSDevice> devices) =>
+        devices
+            .Where(d => d.Udid.Length > 0)
+            .GroupBy(d => d.Udid, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.OrderBy(d => d.Type == "Device" ? 0 : 1).First())
+            .OrderBy(d => d.Type == "Device" ? 0 : 1)
+            .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
     // xcrun xctrace list devices output format:
     // == Devices ==
@@ -289,15 +305,79 @@ public class DeviceService
             if (trimmed.StartsWith("==")) { currentSection = "Device"; continue; }
             if (string.IsNullOrWhiteSpace(trimmed)) continue;
 
-            // Format: Name (OS) (UDID)
+            // Format: Name (OS) (UDID). Physical devices may use 40-hex UDIDs,
+            // while simulators use UUID-style identifiers.
             var m = System.Text.RegularExpressions.Regex.Match(trimmed,
-                @"^(.+?)\s+\(([^)]+)\)\s+\(([0-9A-Fa-f-]{36})\)");
+                @"^(.+?)\s+\(([^)]+)\)\s+\(([0-9A-Fa-f]{8,40}(?:-[0-9A-Fa-f]{4,})*)\)");
             if (m.Success)
                 devices.Add(new iOSDevice(m.Groups[1].Value.Trim(), m.Groups[3].Value, currentSection));
         }
 
         return devices;
     }
+
+    private static List<iOSDevice> ParseXcdeviceList(string output)
+    {
+        var devices = new List<iOSDevice>();
+        if (string.IsNullOrWhiteSpace(output)) return devices;
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(output);
+            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Array) return devices;
+
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                var identifier = GetJsonString(item, "identifier");
+                var name = GetJsonString(item, "name") ?? GetJsonString(item, "modelName");
+                if (identifier is null || name is null) continue;
+
+                var isSimulator = GetJsonBool(item, "simulator");
+                var platform = GetJsonString(item, "platform") ?? "";
+                var isIos = platform.Contains("iphoneos", StringComparison.OrdinalIgnoreCase)
+                         || platform.Contains("iphonesimulator", StringComparison.OrdinalIgnoreCase)
+                         || platform.Contains("iOS", StringComparison.OrdinalIgnoreCase);
+                if (!isIos) continue;
+
+                devices.Add(new iOSDevice(name, identifier, isSimulator ? "Simulator" : "Device"));
+            }
+        }
+        catch { }
+
+        return devices;
+    }
+
+    private static List<iOSDevice> ParseInstrumentsDevices(string output)
+    {
+        var devices = new List<iOSDevice>();
+
+        foreach (var line in output.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)
+                || trimmed.StartsWith("Known Devices", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            // Legacy format: iPad (15.8) [0000000000000000000000000000000000000000]
+            var m = System.Text.RegularExpressions.Regex.Match(trimmed,
+                @"^(.+?)\s+\(([^)]+)\)\s+\[([0-9A-Fa-f]{8,40}(?:-[0-9A-Fa-f]{4,})*)\](.*)$");
+            if (!m.Success) continue;
+
+            var tail = m.Groups[4].Value;
+            var type = tail.Contains("Simulator", StringComparison.OrdinalIgnoreCase) ? "Simulator" : "Device";
+            devices.Add(new iOSDevice(m.Groups[1].Value.Trim(), m.Groups[3].Value, type));
+        }
+
+        return devices;
+    }
+
+    private static string? GetJsonString(System.Text.Json.JsonElement element, string propertyName) =>
+        element.TryGetProperty(propertyName, out var property) && property.ValueKind == System.Text.Json.JsonValueKind.String
+            ? property.GetString()
+            : null;
+
+    private static bool GetJsonBool(System.Text.Json.JsonElement element, string propertyName) =>
+        element.TryGetProperty(propertyName, out var property) && property.ValueKind == System.Text.Json.JsonValueKind.True;
 
     // adb devices -l output:
     // List of devices attached

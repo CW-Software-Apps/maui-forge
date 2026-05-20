@@ -48,6 +48,9 @@ public class AppDetailScreen(
 
         while (true)
         {
+            app = RefreshApp(app);
+            gitStatus = app.Git;
+
             AnsiConsole.Clear();
             var cfg = GetOrCreateConfig(st, app);
             RenderDetail(app, gitStatus, cfg, st);
@@ -621,8 +624,12 @@ public class AppDetailScreen(
 
         var outDir = Path.Combine(app.Dir, "bin", "Release", "archive");
         var args   = new List<string> { "publish", csproj, "-f", cfg.iOSFramework, "-c", cfg.BuildConfiguration,
-            $"-p:ServerAddress={st.MacHost}", $"-p:ServerUser={st.MacUser}",
             "-p:ArchiveOnBuild=true", $"-p:CodesignKey={sign}", "-o", outDir };
+        if (!st.UseLocalMac)
+        {
+            args.Add($"-p:ServerAddress={st.MacHost}");
+            args.Add($"-p:ServerUser={st.MacUser}");
+        }
         AnsiConsole.MarkupLine($"  [dim]Output: {Markup.Escape(outDir)}[/]");
         AnsiConsole.WriteLine();
         st.LastAction = "Archive iOS";
@@ -1014,6 +1021,21 @@ public class AppDetailScreen(
             st.AppBuildConfigs[app.Dir] = cfg;
         }
         return cfg;
+    }
+
+    private AppEntry RefreshApp(AppEntry app)
+    {
+        var csproj = FindCsproj(app.Dir);
+        var ios = versions.ReadiOS(app.Dir);
+        var android = versions.ReadAndroid(app.Dir);
+        var csprojVersion = csproj is not null ? versions.ReadCsproj(csproj) : null;
+
+        return app with
+        {
+            Branch = git.GetBranch(app.Dir),
+            Versions = new AppVersions(ios, android, csprojVersion),
+            Git = git.GetStatus(app.Dir),
+        };
     }
 
     private static string? FindCsproj(string dir) =>

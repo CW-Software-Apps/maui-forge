@@ -21,6 +21,7 @@ public class BuildService
                 RedirectStandardError = true,
                 UseShellExecute = false,
             };
+            ProcessEnvironment.UseEnglishCliOutput(psi);
             foreach (var a in args) psi.ArgumentList.Add(a);
 
             using var proc = System.Diagnostics.Process.Start(psi)!;

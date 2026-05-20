@@ -63,6 +63,11 @@ public class UpdateService
             var script = Path.Combine(Path.GetTempPath(), "maui-forge-update.cmd");
             File.WriteAllText(script,
                 "@echo off\r\n" +
+                "set DOTNET_CLI_UI_LANGUAGE=en\r\n" +
+                "set LANG=en_US.UTF-8\r\n" +
+                "set LC_ALL=en_US.UTF-8\r\n" +
+                "set LC_MESSAGES=en_US.UTF-8\r\n" +
+                "set LANGUAGE=en\r\n" +
                 "ping 127.0.0.1 -n 3 > nul\r\n" +
                 "dotnet tool update CwSoftware.MauiForge -g\r\n" +
                 $"if %errorlevel% == 0 start maui-forge {restartArgs}\r\n" +
@@ -80,6 +85,11 @@ public class UpdateService
             var script = Path.Combine(Path.GetTempPath(), "maui-forge-update.sh");
             File.WriteAllText(script,
                 "#!/bin/sh\n" +
+                "export DOTNET_CLI_UI_LANGUAGE=en\n" +
+                "export LANG=en_US.UTF-8\n" +
+                "export LC_ALL=en_US.UTF-8\n" +
+                "export LC_MESSAGES=en_US.UTF-8\n" +
+                "export LANGUAGE=en\n" +
                 "sleep 2\n" +
                 "dotnet tool update CwSoftware.MauiForge -g\n" +
                 $"if [ $? -eq 0 ]; then maui-forge {restartArgs} & fi\n" +

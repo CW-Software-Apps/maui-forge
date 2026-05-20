@@ -137,6 +137,26 @@ public partial class VersionService
         return string.Join('.', parts);
     }
 
+    // ── Android ApplicationId ────────────────────────────────────────────────
+
+    public string? ReadAndroidApplicationId(string csproj)
+    {
+        try
+        {
+            var doc = XDocument.Load(csproj);
+            // ApplicationId in csproj
+            var id = doc.Descendants("ApplicationId").FirstOrDefault()?.Value;
+            if (id is { Length: > 0 }) return id;
+
+            // Fallback: read from AndroidManifest.xml package attribute
+            var manifest = FindFile(Path.GetDirectoryName(csproj)!, "AndroidManifest.xml");
+            if (manifest is null) return null;
+            var mdoc = XDocument.Load(manifest);
+            return mdoc.Root?.Attribute("package")?.Value;
+        }
+        catch { return null; }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     // Busca Info.plist no path fixo do MAUI primeiro; fallback recursivo excluindo bin/obj

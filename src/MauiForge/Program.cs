@@ -38,6 +38,12 @@ var deviceSvc    = services.GetRequiredService<DeviceService>();
 var st       = stateService.Load();
 var scanPath = cliPath ?? st.ScanRootPath ?? Directory.GetCurrentDirectory();
 
+if (OperatingSystem.IsMacOS() && !st.UseLocalMac)
+{
+    st.UseLocalMac = true;
+    stateService.Save(st);
+}
+
 var nameFilter     = (string?)null;
 var platformFilter = "All";
 var needsScan      = true;
