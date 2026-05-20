@@ -130,9 +130,17 @@ while (true)
 
                 if (AnsiConsole.Confirm("  Install update now?", defaultValue: true))
                 {
-                    AnsiConsole.MarkupLine("  [dim]Closing and updating in background. Run maui-forge again when it finishes.[/]");
-                    System.Threading.Thread.Sleep(500);
-                    UpdateService.LaunchDeferredUpdate(latestStr, System.Environment.GetCommandLineArgs().Skip(1).ToArray());
+                    AnsiConsole.MarkupLine("  [dim]Closing and updating. If it does not update, check maui-forge-update.log in your temp folder.[/]");
+                    try
+                    {
+                        System.Threading.Thread.Sleep(500);
+                        UpdateService.LaunchDeferredUpdate(latestStr, System.Environment.GetCommandLineArgs().Skip(1).ToArray());
+                    }
+                    catch (Exception ex)
+                    {
+                        AnsiConsole.MarkupLine($"  [red]x  Could not start updater:[/] {Markup.Escape(ex.Message)}");
+                        AnsiConsole.MarkupLine($"  [dim]Run manually:[/] [cyan1]{Markup.Escape(UpdateService.GetManualUpdateCommand(latestStr))}[/]");
+                    }
                 }
             }
             else

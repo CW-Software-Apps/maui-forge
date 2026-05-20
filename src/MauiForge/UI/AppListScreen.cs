@@ -123,9 +123,17 @@ public static class AppListScreen
                 if (currentVer != null && latestVer > currentVer)
                 {
                     AnsiConsole.MarkupLine($"  [cyan1 bold]↑ New version available:[/] [white]{latestStr}[/]  [dim](installed: {currentVer.ToString(3)})[/]");
-                    AnsiConsole.MarkupLine("  [dim]Updating in background. Run maui-forge again after it closes.[/]");
+                    AnsiConsole.MarkupLine("  [dim]Closing and updating. If it does not update, check maui-forge-update.log in your temp folder.[/]");
                     AnsiConsole.WriteLine();
-                    UpdateService.LaunchDeferredUpdate(latestStr, System.Environment.GetCommandLineArgs().Skip(1).ToArray());
+                    try
+                    {
+                        UpdateService.LaunchDeferredUpdate(latestStr, System.Environment.GetCommandLineArgs().Skip(1).ToArray());
+                    }
+                    catch (Exception ex)
+                    {
+                        AnsiConsole.MarkupLine($"  [red]x  Could not start updater:[/] {Markup.Escape(ex.Message)}");
+                        AnsiConsole.MarkupLine($"  [dim]Run manually:[/] [cyan1]{Markup.Escape(UpdateService.GetManualUpdateCommand(latestStr))}[/]");
+                    }
                     return; // unreachable — LaunchDeferredUpdate calls Environment.Exit
                 }
             }
