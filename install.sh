@@ -1,54 +1,59 @@
 #!/usr/bin/env bash
-# Builds maui-forge as a self-contained binary and installs it to ~/.local/bin
+# Installs maui-forge from NuGet and ensures ~/.dotnet/tools is on PATH
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT="$SCRIPT_DIR/src/MauiForge/MauiForge.csproj"
-OUT_DIR="$SCRIPT_DIR/dist"
-BIN_DIR="$HOME/.local/bin"
+TOOLS_DIR="$HOME/.dotnet/tools"
 
-# Detect architecture
-ARCH="$(uname -m)"
-if [[ "$ARCH" == "arm64" ]]; then
-    RID="osx-arm64"
-else
-    RID="osx-x64"
-fi
+echo "Installing maui-forge..."
+DOTNET_CLI_UI_LANGUAGE=en-US dotnet tool install -g CWSoftware.MauiForge 2>&1 | grep -v "^$" || \
+DOTNET_CLI_UI_LANGUAGE=en-US dotnet tool update -g CWSoftware.MauiForge
 
-echo "Building maui-forge for $RID..."
-
-dotnet publish "$PROJECT" \
-    --configuration Release \
-    --runtime "$RID" \
-    --self-contained true \
-    --output "$OUT_DIR" \
-    -p:PublishSingleFile=true \
-    -p:IncludeNativeLibrariesForSelfExtract=true
-
-if [[ ! -f "$OUT_DIR/maui-forge" ]]; then
-    echo "Build failed — binary not found."
-    exit 1
-fi
-
-chmod +x "$OUT_DIR/maui-forge"
-
-# Symlink into ~/.local/bin (no sudo needed)
-mkdir -p "$BIN_DIR"
-ln -sf "$OUT_DIR/maui-forge" "$BIN_DIR/maui-forge"
-
-# Add to PATH if not already there
-SHELL_RC=""
+# Detect shell profile
 if [[ "$SHELL" == */zsh ]]; then
-    SHELL_RC="$HOME/.zshrc"
+    PROFILES=("$HOME/.zprofile" "$HOME/.zshrc")
 elif [[ "$SHELL" == */bash ]]; then
-    SHELL_RC="$HOME/.bash_profile"
+    PROFILES=("$HOME/.bash_profile" "$HOME/.bashrc")
+else
+    PROFILES=("$HOME/.profile")
 fi
 
-if [[ -n "$SHELL_RC" ]] && ! grep -q 'local/bin' "$SHELL_RC" 2>/dev/null; then
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"
-    echo "Added ~/.local/bin to PATH in $SHELL_RC"
+# Check if tools dir is already in PATH
+if echo "$PATH" | grep -q "$TOOLS_DIR"; then
+    echo ""
+    echo "✓ maui-forge installed. Run: maui-forge"
+    exit 0
 fi
 
-echo "Done. Run: maui-forge"
-echo "(Restart terminal or: source $SHELL_RC)"
+# Check if any profile already exports it
+PROFILE_HAS_TOOLS=false
+for f in "${PROFILES[@]}"; do
+    if [[ -f "$f" ]] && grep -q "$TOOLS_DIR" "$f" 2>/dev/null; then
+        PROFILE_HAS_TOOLS=true
+        break
+    fi
+done
+
+TARGET_PROFILE="${PROFILES[0]}"
+
+if ! $PROFILE_HAS_TOOLS; then
+    echo ""
+    echo "Adding ~/.dotnet/tools to PATH in $TARGET_PROFILE ..."
+    cat >> "$TARGET_PROFILE" << EOF
+
+# .NET tools
+export PATH="\$PATH:$TOOLS_DIR"
+EOF
+    echo "Done."
+fi
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo " maui-forge installed successfully!"
+echo ""
+echo " To use it now, run:"
+echo "   source $TARGET_PROFILE"
+echo ""
+echo " Or open a new terminal and type:"
+echo "   maui-forge"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
