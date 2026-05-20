@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Spectre.Console;
 
 namespace MauiForge.Services;
 
@@ -53,10 +54,10 @@ public class UpdateService
         $"dotnet tool update {PackageId} -g --version {latestVer}";
 
     /// <summary>
-    /// Launches a deferred update: writes a temp script that runs AFTER the
-    /// current process exits (avoids the file-lock problem on Windows), then
-    /// exits the current process. The updater does not restart MAUI Forge
-    /// because a background child process is not attached to an interactive TTY.
+    /// Launches a deferred update on Windows or runs a synchronous update on macOS/Linux.
+    /// On Windows, it writes a temp batch script and launches it using ShellExecute to bypass
+    /// the Job Object process termination limit, then exits.
+    /// On macOS/Linux, it runs the update synchronously with visual feedback.
     /// </summary>
     public static void LaunchDeferredUpdate(string latestVer, string[] originalArgs)
     {
@@ -66,96 +67,162 @@ public class UpdateService
 
         if (OperatingSystem.IsWindows())
         {
-            var script = Path.Combine(Path.GetTempPath(), "maui-forge-update.ps1");
+            var script = Path.Combine(Path.GetTempPath(), "maui-forge-update.bat");
             var log = Path.Combine(Path.GetTempPath(), "maui-forge-update.log");
-            File.WriteAllText(script,
-                "$ErrorActionPreference = 'Continue'\r\n" +
-                "$env:DOTNET_CLI_UI_LANGUAGE = 'en'\r\n" +
-                "$env:LANG = 'en_US.UTF-8'\r\n" +
-                "$env:LC_ALL = 'en_US.UTF-8'\r\n" +
-                "$env:LC_MESSAGES = 'en_US.UTF-8'\r\n" +
-                "$env:LANGUAGE = 'en'\r\n" +
-                $"$log = '{EscapePowerShellSingleQuoted(log)}'\r\n" +
-                $"$pidToWait = {currentPid}\r\n" +
-                $"$dotnet = '{EscapePowerShellSingleQuoted(dotnetPath)}'\r\n" +
-                $"$version = '{EscapePowerShellSingleQuoted(latestVer)}'\r\n" +
-                "\"=== MAUI Forge updater started $(Get-Date -Format o) ===\" | Out-File -FilePath $log -Encoding utf8\r\n" +
-                $"\"Manual fallback: {EscapePowerShellSingleQuoted(manualCommand)}\" | Tee-Object -FilePath $log -Append\r\n" +
-                "try { Wait-Process -Id $pidToWait -Timeout 60 -ErrorAction SilentlyContinue } catch { }\r\n" +
-                "Start-Sleep -Seconds 1\r\n" +
-                "for ($i = 1; $i -le 8; $i++) {\r\n" +
-                "  \"Attempt $i: $dotnet tool update CwSoftware.MauiForge -g --version $version\" | Tee-Object -FilePath $log -Append\r\n" +
-                "  & $dotnet tool update CwSoftware.MauiForge -g --version $version *>&1 | Tee-Object -FilePath $log -Append\r\n" +
-                "  if ($LASTEXITCODE -eq 0) { break }\r\n" +
-                "  Start-Sleep -Seconds 2\r\n" +
-                "}\r\n" +
-                "\"Updater finished with exit code $LASTEXITCODE\" | Tee-Object -FilePath $log -Append\r\n" +
-                "Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue\r\n");
 
-            var shell = FindWindowsPowerShell();
-            if (shell is null)
-                throw new InvalidOperationException($"PowerShell not found. Run manually: {manualCommand}");
+            try { if (File.Exists(script)) File.Delete(script); } catch { }
+            try { if (File.Exists(log)) File.Delete(log); } catch { }
 
-            var updater = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(shell)
+            var batchContent =
+                "@echo off\r\n" +
+                "setlocal enabledelayedexpansion\r\n" +
+                $"set \"PID_TO_WAIT={currentPid}\"\r\n" +
+                $"set \"DOTNET_CMD={dotnetPath}\"\r\n" +
+                $"set \"VERSION={latestVer}\"\r\n" +
+                $"set \"LOG_FILE={log}\"\r\n" +
+                "\r\n" +
+                "echo === MAUI Forge updater started %DATE% %TIME% === > \"!LOG_FILE!\"\r\n" +
+                "echo Waiting for parent process %PID_TO_WAIT% to exit... >> \"!LOG_FILE!\"\r\n" +
+                "\r\n" +
+                ":wait_loop\r\n" +
+                "tasklist /FI \"PID eq %PID_TO_WAIT%\" 2>NUL | find \"%PID_TO_WAIT%\" >NUL\r\n" +
+                "if %ERRORLEVEL% == 0 (\r\n" +
+                "    timeout /t 1 /nobreak >nul\r\n" +
+                "    goto wait_loop\r\n" +
+                ")\r\n" +
+                "\r\n" +
+                "echo Parent process exited. Starting update... >> \"!LOG_FILE!\"\r\n" +
+                "\r\n" +
+                "for /L %%i in (1,1,8) do (\r\n" +
+                "    echo Attempt %%i: \"!DOTNET_CMD!\" tool update CwSoftware.MauiForge -g --version !VERSION! >> \"!LOG_FILE!\"\r\n" +
+                "    \"!DOTNET_CMD!\" tool update CwSoftware.MauiForge -g --version !VERSION! >> \"!LOG_FILE!\" 2>&1\r\n" +
+                "    if !ERRORLEVEL! == 0 (\r\n" +
+                "        echo Update successful. >> \"!LOG_FILE!\"\r\n" +
+                "        goto success\r\n" +
+                "    )\r\n" +
+                "    timeout /t 2 /nobreak >nul\r\n" +
+                ")\r\n" +
+                "\r\n" +
+                "echo Update failed after 8 attempts. >> \"!LOG_FILE!\"\r\n" +
+                "exit /b 1\r\n" +
+                "\r\n" +
+                ":success\r\n" +
+                "del \"%~f0\"\r\n" +
+                "exit /b 0\r\n";
+
+            File.WriteAllText(script, batchContent);
+
+            var updater = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe")
             {
-                Arguments      = $"-NoProfile -ExecutionPolicy Bypass -File \"{script}\"",
-                UseShellExecute = false,
+                Arguments      = $"/c \"{script}\"",
+                UseShellExecute = true,
                 CreateNoWindow  = true,
+                WindowStyle     = System.Diagnostics.ProcessWindowStyle.Hidden,
             });
+
             if (updater is null)
                 throw new InvalidOperationException($"Could not start updater. Run manually: {manualCommand}");
+
+            Environment.Exit(0);
         }
         else
         {
-            var script = Path.Combine(Path.GetTempPath(), "maui-forge-update.sh");
-            var log = Path.Combine(Path.GetTempPath(), "maui-forge-update.log");
-            File.WriteAllText(script,
-                "#!/bin/sh\n" +
-                "export DOTNET_CLI_UI_LANGUAGE=en\n" +
-                "export LANG=en_US.UTF-8\n" +
-                "export LC_ALL=en_US.UTF-8\n" +
-                "export LC_MESSAGES=en_US.UTF-8\n" +
-                "export LANGUAGE=en\n" +
-                $"log='{EscapeShellSingleQuoted(log)}'\n" +
-                $"pid_to_wait='{currentPid}'\n" +
-                $"dotnet_cmd='{EscapeShellSingleQuoted(dotnetPath)}'\n" +
-                $"version='{EscapeShellSingleQuoted(latestVer)}'\n" +
-                "printf '=== MAUI Forge updater started %s ===\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" > \"$log\"\n" +
-                $"printf 'Manual fallback: {EscapeShellSingleQuoted(manualCommand)}\\n' >> \"$log\"\n" +
-                "while kill -0 \"$pid_to_wait\" 2>/dev/null; do sleep 0.2; done\n" +
-                "sleep 1\n" +
-                "i=1\n" +
-                "while [ \"$i\" -le 8 ]; do\n" +
-                "  printf 'Attempt %s: %s tool update CwSoftware.MauiForge -g --version %s\\n' \"$i\" \"$dotnet_cmd\" \"$version\" >> \"$log\"\n" +
-                "  \"$dotnet_cmd\" tool update CwSoftware.MauiForge -g --version \"$version\" >> \"$log\" 2>&1 && break\n" +
-                "  i=$((i + 1))\n" +
-                "  sleep 2\n" +
-                "done\n" +
-                "printf 'Updater finished with exit code %s\\n' \"$?\" >> \"$log\"\n" +
-                "rm -- \"$0\"\n");
-            System.IO.File.SetUnixFileMode(script,
-                UnixFileMode.UserExecute | UnixFileMode.UserRead | UnixFileMode.UserWrite);
-            var updater = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("/bin/sh")
-            {
-                Arguments      = script,
-                UseShellExecute = false,
-                CreateNoWindow  = true,
-            });
-            if (updater is null)
-                throw new InvalidOperationException($"Could not start updater. Run manually: {manualCommand}");
-        }
+            AnsiConsole.Clear();
+            AnsiConsole.WriteLine();
+            AnsiConsole.Write(new Rule("[bold cyan1]  Update in Progress  [/]").RuleStyle(Style.Parse("cyan1 dim")));
+            AnsiConsole.WriteLine();
 
-        Environment.Exit(0);
+            AnsiConsole.Status()
+                .Spinner(Spinner.Known.Dots)
+                .SpinnerStyle(Style.Parse("cyan1"))
+                .Start($"  [dim]Updating CwSoftware.MauiForge to version {latestVer}...[/]", ctx =>
+                {
+                    try
+                    {
+                        var processInfo = new System.Diagnostics.ProcessStartInfo(dotnetPath)
+                        {
+                            Arguments = $"tool update {PackageId} -g --version {latestVer}",
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
+
+                        processInfo.EnvironmentVariables["DOTNET_CLI_UI_LANGUAGE"] = "en";
+                        processInfo.EnvironmentVariables["LANG"] = "en_US.UTF-8";
+                        processInfo.EnvironmentVariables["LC_ALL"] = "en_US.UTF-8";
+                        processInfo.EnvironmentVariables["LC_MESSAGES"] = "en_US.UTF-8";
+                        processInfo.EnvironmentVariables["LANGUAGE"] = "en";
+
+                        using var process = System.Diagnostics.Process.Start(processInfo);
+                        if (process == null)
+                        {
+                            AnsiConsole.MarkupLine($"  [red]x  Could not start update process.[/]");
+                            AnsiConsole.MarkupLine($"  [dim]Run manually:[/] [cyan1]{manualCommand}[/]");
+                            return;
+                        }
+
+                        var output = process.StandardOutput.ReadToEnd();
+                        var error = process.StandardError.ReadToEnd();
+                        process.WaitForExit();
+
+                        if (process.ExitCode == 0)
+                        {
+                            AnsiConsole.MarkupLine("  [green]✓ Update completed successfully![/]");
+                            AnsiConsole.MarkupLine("  [dim]Please restart maui-forge to run the new version.[/]");
+                        }
+                        else
+                        {
+                            AnsiConsole.MarkupLine($"  [red]x  Update failed with exit code {process.ExitCode}.[/]");
+                            if (!string.IsNullOrWhiteSpace(output))
+                                AnsiConsole.MarkupLine($"  [dim]Output:[/] {Markup.Escape(output.Trim())}");
+                            if (!string.IsNullOrWhiteSpace(error))
+                                AnsiConsole.MarkupLine($"  [red]Error:[/] {Markup.Escape(error.Trim())}");
+                            AnsiConsole.MarkupLine($"  [dim]Run manually:[/] [cyan1]{manualCommand}[/]");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AnsiConsole.MarkupLine($"  [red]x  Error during update:[/] {Markup.Escape(ex.Message)}");
+                        AnsiConsole.MarkupLine($"  [dim]Run manually:[/] [cyan1]{manualCommand}[/]");
+                    }
+                });
+
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("  Press any key to exit...");
+            Console.ReadKey(true);
+            Environment.Exit(0);
+        }
     }
 
     private static string? FindDotnet()
     {
+        // 1. Check if the current process is dotnet (common on macOS/Linux dotnet tool run)
         var processPath = Environment.ProcessPath;
         if (processPath is not null
             && Path.GetFileNameWithoutExtension(processPath).Equals("dotnet", StringComparison.OrdinalIgnoreCase)
             && File.Exists(processPath))
             return processPath;
 
+        // 2. Search in system PATH environment variable
+        var pathVar = Environment.GetEnvironmentVariable("PATH");
+        if (!string.IsNullOrEmpty(pathVar))
+        {
+            var exeName = OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet";
+            var paths = pathVar.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var path in paths)
+            {
+                try
+                {
+                    var fullPath = Path.Combine(path.Trim(), exeName);
+                    if (File.Exists(fullPath))
+                        return fullPath;
+                }
+                catch { }
+            }
+        }
+
+        // 3. Fallback to candidate paths
         var candidates = OperatingSystem.IsWindows()
             ? new[]
             {
@@ -172,23 +239,4 @@ public class UpdateService
 
         return candidates.FirstOrDefault(File.Exists);
     }
-
-    private static string? FindWindowsPowerShell()
-    {
-        if (!OperatingSystem.IsWindows()) return null;
-
-        var candidates = new[]
-        {
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "pwsh.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe"),
-        };
-
-        return candidates.FirstOrDefault(File.Exists) ?? "powershell.exe";
-    }
-
-    private static string EscapePowerShellSingleQuoted(string value) =>
-        value.Replace("'", "''", StringComparison.Ordinal);
-
-    private static string EscapeShellSingleQuoted(string value) =>
-        value.Replace("'", "'\"'\"'", StringComparison.Ordinal);
 }
