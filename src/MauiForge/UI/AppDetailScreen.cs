@@ -602,22 +602,47 @@ public class AppDetailScreen(
         if (cfg.iOSFramework is null) return;
         state.Save(st);
 
-        var args = new List<string>
+        var buildArgs = new List<string>
+        {
+            "build", csproj,
+            "-f", cfg.iOSFramework,
+            "-c", cfg.BuildConfiguration,
+            "--no-incremental",
+        };
+        AddIosRunDeviceArgs(buildArgs, device);
+        AddMacBuildArgs(buildArgs, st);
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("  [dim]Building iOS app before launch...[/]");
+        if (!RunBuild(app.Dir, [.. buildArgs], pauseWhenDone: false))
+        {
+            Pause();
+            return;
+        }
+
+        var runArgs = new List<string>
         {
             "build", csproj, "-t:Run",
             "-f", cfg.iOSFramework,
             "-c", cfg.BuildConfiguration,
         };
-        AddIosRunDeviceArgs(args, device);
+        AddIosRunDeviceArgs(runArgs, device);
+        AddMacBuildArgs(runArgs, st);
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("  [dim]Launching iOS app...[/]");
+        st.LastAction = "Run iOS Device";
+        state.Save(st);
+        RunBuild(app.Dir, [.. runArgs]);
+    }
+
+    private static void AddMacBuildArgs(List<string> args, PersistentState st)
+    {
         if (!st.UseLocalMac)
         {
             args.Add($"-p:ServerAddress={st.MacHost}");
             args.Add($"-p:ServerUser={st.MacUser}");
         }
-        AnsiConsole.WriteLine();
-        st.LastAction = "Run iOS Device";
-        state.Save(st);
-        RunBuild(app.Dir, [.. args]);
     }
 
     private void ArchiveIOSAction(AppEntry app, PersistentState st, AppBuildConfig cfg)
@@ -999,7 +1024,7 @@ public class AppDetailScreen(
 
     private string _verbosity = "quiet";
 
-    private bool RunBuild(string dir, string[] args)
+    private bool RunBuild(string dir, string[] args, bool pauseWhenDone = true)
     {
         var allArgs = args.Concat(["-v", _verbosity]).ToArray();
 
@@ -1075,7 +1100,7 @@ public class AppDetailScreen(
             : $"[red]x  Build failed in {t} (exit {exit})[/]")
             .RuleStyle(exit == 0 ? Style.Parse("green dim") : Style.Parse("red dim")));
 
-        Pause();
+        if (pauseWhenDone) Pause();
         return exit == 0;
     }
 
