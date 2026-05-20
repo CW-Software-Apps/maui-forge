@@ -584,8 +584,8 @@ public class AppDetailScreen(
             "build", csproj, "-t:Run",
             "-f", cfg.iOSFramework,
             "-c", cfg.BuildConfiguration,
-            $"-p:_DeviceId={found!.Udid}",
         };
+        AddIosRunDeviceArgs(args, found);
         if (!st.UseLocalMac)
         {
             args.Add($"-p:ServerAddress={st.MacHost}");
@@ -946,6 +946,18 @@ public class AppDetailScreen(
 
         return ForgeMenu.PromptList("Target Framework:",
             list.Select(f => new ForgeMenu.ListItem<string>(f, f)).ToList());
+    }
+
+    private static void AddIosRunDeviceArgs(List<string> args, iOSDevice device)
+    {
+        if (device.Type == "Device")
+        {
+            args.Add("-p:RuntimeIdentifier=ios-arm64");
+            args.Add($"-p:_DeviceName={device.Udid}");
+            return;
+        }
+
+        args.Add($"-p:_DeviceName=:v2:udid={device.Udid}");
     }
 
     private void ApplyVersion(AppEntry app, string version, string bld)
