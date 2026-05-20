@@ -101,9 +101,8 @@ while (true)
         AnsiConsole.Status().Spinner(Spinner.Known.Dots).SpinnerStyle(Style.Parse("cyan1"))
             .Start("  [dim]Checking NuGet...[/]", _ =>
             {
-                UpdateService.Instance.StartCheck();
-                // Wait up to 5s for fresh result
-                for (var i = 0; i < 50 && UpdateService.Instance.GetLatestVersion() is null; i++)
+                UpdateService.Instance.ForceCheck();
+                for (var i = 0; i < 60 && UpdateService.Instance.GetLatestVersion() is null; i++)
                     System.Threading.Thread.Sleep(100);
                 latestStr = UpdateService.Instance.GetLatestVersion();
             });
@@ -125,31 +124,9 @@ while (true)
 
                 if (AnsiConsole.Confirm("  Install update now?", defaultValue: true))
                 {
-                    AnsiConsole.WriteLine();
-                    var psi = new System.Diagnostics.ProcessStartInfo("dotnet")
-                    {
-                        UseShellExecute = false,
-                    };
-                    psi.ArgumentList.Add("tool"); psi.ArgumentList.Add("update");
-                    psi.ArgumentList.Add("CwSoftware.MauiForge"); psi.ArgumentList.Add("-g");
-
-                    using var proc = System.Diagnostics.Process.Start(psi);
-                    proc?.WaitForExit(60_000);
-
-                    if (proc?.ExitCode == 0)
-                    {
-                        AnsiConsole.MarkupLine($"  [green]ok  Updated to {latestStr}. Restarting...[/]");
-                        System.Threading.Thread.Sleep(800);
-                        var restart = new System.Diagnostics.ProcessStartInfo("maui-forge") { UseShellExecute = false };
-                        foreach (var a in System.Environment.GetCommandLineArgs().Skip(1))
-                            restart.ArgumentList.Add(a);
-                        System.Diagnostics.Process.Start(restart);
-                        System.Environment.Exit(0);
-                    }
-                    else
-                    {
-                        AnsiConsole.MarkupLine("  [red]x  Update failed.[/]");
-                    }
+                    AnsiConsole.MarkupLine("  [dim]Closing and updating in background...[/]");
+                    System.Threading.Thread.Sleep(500);
+                    UpdateService.LaunchDeferredUpdate(latestStr, System.Environment.GetCommandLineArgs().Skip(1).ToArray());
                 }
             }
             else

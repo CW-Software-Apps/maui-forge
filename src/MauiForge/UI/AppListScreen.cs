@@ -125,39 +125,8 @@ public static class AppListScreen
                     AnsiConsole.MarkupLine($"  [cyan1 bold]↑ New version available:[/] [white]{latestStr}[/]  [dim](installed: {currentVer.ToString(3)})[/]");
                     AnsiConsole.MarkupLine("  [dim]Updating automatically...[/]");
                     AnsiConsole.WriteLine();
-
-                    var psi = new System.Diagnostics.ProcessStartInfo("dotnet")
-                    {
-                        UseShellExecute = false,
-                    };
-                    psi.ArgumentList.Add("tool");
-                    psi.ArgumentList.Add("update");
-                    psi.ArgumentList.Add("CwSoftware.MauiForge");
-                    psi.ArgumentList.Add("-g");
-
-                    using var proc = System.Diagnostics.Process.Start(psi);
-                    proc?.WaitForExit(60_000);
-
-                    if (proc?.ExitCode == 0)
-                    {
-                        AnsiConsole.MarkupLine($"  [green]ok  Updated to {latestStr}. Restarting...[/]");
-                        System.Threading.Thread.Sleep(800);
-
-                        // Restart with same args
-                        var restart = new System.Diagnostics.ProcessStartInfo("maui-forge")
-                        {
-                            UseShellExecute = false,
-                        };
-                        foreach (var a in System.Environment.GetCommandLineArgs().Skip(1))
-                            restart.ArgumentList.Add(a);
-                        System.Diagnostics.Process.Start(restart);
-                        System.Environment.Exit(0);
-                    }
-                    else
-                    {
-                        AnsiConsole.MarkupLine("  [yellow](!) Auto-update failed. Run manually:[/] [white]dotnet tool update CwSoftware.MauiForge -g[/]");
-                        AnsiConsole.WriteLine();
-                    }
+                    UpdateService.LaunchDeferredUpdate(latestStr, System.Environment.GetCommandLineArgs().Skip(1).ToArray());
+                    return; // unreachable — LaunchDeferredUpdate calls Environment.Exit
                 }
             }
         }
