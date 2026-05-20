@@ -51,31 +51,41 @@ public class UpdateService
 
     /// <summary>
     /// Launches a deferred update: writes a temp script that runs AFTER the
-    /// current process exits (avoids the file-lock problem on Windows),
-    /// then exits the current process.
+    /// current process exits (avoids the file-lock problem on Windows), then
+    /// exits the current process. The updater does not restart MAUI Forge
+    /// because a background child process is not attached to an interactive TTY.
     /// </summary>
     public static void LaunchDeferredUpdate(string latestVer, string[] originalArgs)
     {
-        var restartArgs = string.Join(" ", originalArgs.Select(a => $"\"{a}\""));
+        var currentPid = Environment.ProcessId;
 
         if (OperatingSystem.IsWindows())
         {
-            var script = Path.Combine(Path.GetTempPath(), "maui-forge-update.cmd");
+            var script = Path.Combine(Path.GetTempPath(), "maui-forge-update.ps1");
+            var log = Path.Combine(Path.GetTempPath(), "maui-forge-update.log");
             File.WriteAllText(script,
-                "@echo off\r\n" +
-                "set DOTNET_CLI_UI_LANGUAGE=en\r\n" +
-                "set LANG=en_US.UTF-8\r\n" +
-                "set LC_ALL=en_US.UTF-8\r\n" +
-                "set LC_MESSAGES=en_US.UTF-8\r\n" +
-                "set LANGUAGE=en\r\n" +
-                "ping 127.0.0.1 -n 3 > nul\r\n" +
-                "dotnet tool update CwSoftware.MauiForge -g\r\n" +
-                $"if %errorlevel% == 0 start maui-forge {restartArgs}\r\n" +
-                $"del \"%~f0\"\r\n");
+                "$ErrorActionPreference = 'Continue'\r\n" +
+                "$env:DOTNET_CLI_UI_LANGUAGE = 'en'\r\n" +
+                "$env:LANG = 'en_US.UTF-8'\r\n" +
+                "$env:LC_ALL = 'en_US.UTF-8'\r\n" +
+                "$env:LC_MESSAGES = 'en_US.UTF-8'\r\n" +
+                "$env:LANGUAGE = 'en'\r\n" +
+                $"$log = '{EscapePowerShellSingleQuoted(log)}'\r\n" +
+                $"$pidToWait = {currentPid}\r\n" +
+                "\"=== MAUI Forge updater started $(Get-Date -Format o) ===\" | Out-File -FilePath $log -Encoding utf8\r\n" +
+                "try { Wait-Process -Id $pidToWait -Timeout 60 -ErrorAction SilentlyContinue } catch { }\r\n" +
+                "Start-Sleep -Seconds 1\r\n" +
+                "for ($i = 1; $i -le 8; $i++) {\r\n" +
+                "  \"Attempt $i: dotnet tool update CwSoftware.MauiForge -g\" | Tee-Object -FilePath $log -Append\r\n" +
+                "  & dotnet tool update CwSoftware.MauiForge -g *>&1 | Tee-Object -FilePath $log -Append\r\n" +
+                "  if ($LASTEXITCODE -eq 0) { break }\r\n" +
+                "  Start-Sleep -Seconds 2\r\n" +
+                "}\r\n" +
+                "Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue\r\n");
 
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe")
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("powershell.exe")
             {
-                Arguments      = $"/c \"{script}\"",
+                Arguments      = $"-NoProfile -ExecutionPolicy Bypass -File \"{script}\"",
                 UseShellExecute = false,
                 CreateNoWindow  = true,
             });
@@ -83,6 +93,7 @@ public class UpdateService
         else
         {
             var script = Path.Combine(Path.GetTempPath(), "maui-forge-update.sh");
+            var log = Path.Combine(Path.GetTempPath(), "maui-forge-update.log");
             File.WriteAllText(script,
                 "#!/bin/sh\n" +
                 "export DOTNET_CLI_UI_LANGUAGE=en\n" +
@@ -90,10 +101,19 @@ public class UpdateService
                 "export LC_ALL=en_US.UTF-8\n" +
                 "export LC_MESSAGES=en_US.UTF-8\n" +
                 "export LANGUAGE=en\n" +
-                "sleep 2\n" +
-                "dotnet tool update CwSoftware.MauiForge -g\n" +
-                $"if [ $? -eq 0 ]; then maui-forge {restartArgs} & fi\n" +
-                $"rm -- \"$0\"\n");
+                $"log='{EscapeShellSingleQuoted(log)}'\n" +
+                $"pid_to_wait='{currentPid}'\n" +
+                "printf '=== MAUI Forge updater started %s ===\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" > \"$log\"\n" +
+                "while kill -0 \"$pid_to_wait\" 2>/dev/null; do sleep 0.2; done\n" +
+                "sleep 1\n" +
+                "i=1\n" +
+                "while [ \"$i\" -le 8 ]; do\n" +
+                "  printf 'Attempt %s: dotnet tool update CwSoftware.MauiForge -g\\n' \"$i\" >> \"$log\"\n" +
+                "  dotnet tool update CwSoftware.MauiForge -g >> \"$log\" 2>&1 && break\n" +
+                "  i=$((i + 1))\n" +
+                "  sleep 2\n" +
+                "done\n" +
+                "rm -- \"$0\"\n");
             System.IO.File.SetUnixFileMode(script,
                 UnixFileMode.UserExecute | UnixFileMode.UserRead | UnixFileMode.UserWrite);
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("/bin/sh")
@@ -106,4 +126,10 @@ public class UpdateService
 
         Environment.Exit(0);
     }
+
+    private static string EscapePowerShellSingleQuoted(string value) =>
+        value.Replace("'", "''", StringComparison.Ordinal);
+
+    private static string EscapeShellSingleQuoted(string value) =>
+        value.Replace("'", "'\"'\"'", StringComparison.Ordinal);
 }

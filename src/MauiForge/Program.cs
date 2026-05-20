@@ -130,7 +130,7 @@ while (true)
 
                 if (AnsiConsole.Confirm("  Install update now?", defaultValue: true))
                 {
-                    AnsiConsole.MarkupLine("  [dim]Closing and updating in background...[/]");
+                    AnsiConsole.MarkupLine("  [dim]Closing and updating in background. Run maui-forge again when it finishes.[/]");
                     System.Threading.Thread.Sleep(500);
                     UpdateService.LaunchDeferredUpdate(latestStr, System.Environment.GetCommandLineArgs().Skip(1).ToArray());
                 }

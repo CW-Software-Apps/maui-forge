@@ -123,7 +123,7 @@ public static class AppListScreen
                 if (currentVer != null && latestVer > currentVer)
                 {
                     AnsiConsole.MarkupLine($"  [cyan1 bold]↑ New version available:[/] [white]{latestStr}[/]  [dim](installed: {currentVer.ToString(3)})[/]");
-                    AnsiConsole.MarkupLine("  [dim]Updating automatically...[/]");
+                    AnsiConsole.MarkupLine("  [dim]Updating in background. Run maui-forge again after it closes.[/]");
                     AnsiConsole.WriteLine();
                     UpdateService.LaunchDeferredUpdate(latestStr, System.Environment.GetCommandLineArgs().Skip(1).ToArray());
                     return; // unreachable — LaunchDeferredUpdate calls Environment.Exit
