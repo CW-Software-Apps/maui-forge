@@ -23,7 +23,6 @@ public partial class VersionService
     {
         var plist = FindPlist(dir) ?? throw new FileNotFoundException("Info.plist not found");
         var content = File.ReadAllText(plist, Encoding.UTF8);
-        content = RepairMalformedPlistValues(content, version, build);
         content = SetPlistValue(content, "CFBundleShortVersionString", version);
         content = SetPlistValue(content, "CFBundleVersion", build);
         // NoNewline + UTF8 sem BOM — igual ao PS1: Set-Content -Encoding UTF8 -NoNewline
@@ -191,32 +190,6 @@ public partial class VersionService
             m => m.Groups[1].Value + value + m.Groups[3].Value,
             RegexOptions.Singleline);
     }
-
-    private static string RepairMalformedPlistValues(string content, string version, string build)
-    {
-        var broken = Regex.Matches(content, @"^\s*\$1.*?</string>\s*$", RegexOptions.Multiline)
-            .Cast<Match>()
-            .Take(2)
-            .ToList();
-
-        if (broken.Count < 2) return content;
-
-        content = ReplaceOnce(content, broken[0],
-            $"    <key>CFBundleShortVersionString</key>{Environment.NewLine}    <string>{version}</string>");
-
-        var offset = content.Length - broken[0].Value.Length;
-        var second = Regex.Matches(content, @"^\s*\$1.*?</string>\s*$", RegexOptions.Multiline)
-            .Cast<Match>()
-            .FirstOrDefault(m => m.Index >= Math.Max(0, broken[1].Index + offset - 20));
-
-        return second is null
-            ? content
-            : ReplaceOnce(content, second,
-                $"    <key>CFBundleVersion</key>{Environment.NewLine}    <string>{build}</string>");
-    }
-
-    private static string ReplaceOnce(string content, Match match, string replacement) =>
-        content[..match.Index] + replacement + content[(match.Index + match.Length)..];
 
     private static void SetOrCreate(XDocument doc, string element, string value)
     {
