@@ -114,8 +114,12 @@ public class AppDetailScreen(
 
         // ── build config ───────────────────────────────
         var buildCfg = cfg.BuildConfiguration is { } bc2 ? $"[cyan1]{Markup.Escape(bc2)}[/]" : "[grey46]—[/]";
-        var iosDev   = cfg.iOSDeviceId is not null ? "[skyblue1]✓ configured[/]" : "[grey46]none[/]";
-        var andDev   = cfg.AndroidDeviceSerial is { } s  ? $"[green3]{Markup.Escape(s)}[/]" : "[grey46]none[/]";
+        var iosDev   = cfg.iOSDeviceName is { } iname ? $"[skyblue1]{Markup.Escape(iname)}[/]"
+                     : cfg.iOSDeviceId  is not null    ? "[skyblue1]✓ configured[/]"
+                     : "[grey46]none[/]";
+        var andDev   = cfg.AndroidDeviceName   is { } aname ? $"[green3]{Markup.Escape(aname)}[/]"
+                     : cfg.AndroidDeviceSerial is { } s     ? $"[green3]{Markup.Escape(s)}[/]"
+                     : "[grey46]none[/]";
         var macMode  = st.UseLocalMac
             ? "[green3]local Mac[/]"
             : st.MacHost is { } h ? $"[skyblue1]{Markup.Escape(h)}[/]" : "[grey46]not configured[/]";
@@ -188,48 +192,48 @@ public class AppDetailScreen(
         Add(Act.Sync,
             $"[cyan1]<>[/]  [white]Sync iOS ↔ Android[/]  " +
             (syncWarn ? WA("(!!) out of sync") : OK("(ok) in sync")));
+        Add(Act.Undo,
+            $"[cyan1]un[/]  [white]Undo last version change[/]  " +
+            H(hasSnap ? $"{st.LastVersion!.Version} #{st.LastVersion.Build}" : "no snapshot"));
 
-        // ── iOS
-        Group("iOS");
-        Add(Act.ArchiveiOS,
-            $"[skyblue1]ar[/]  [white]Archive iOS[/] [dim](Release)[/]  " +
-            H(cfg.iOSFramework ?? "—"));
+        // ── Run on Device
+        Group("Run on Device");
         Add(Act.RuniOS,
-            $"[skyblue1]ri[/]  [white]Run iOS on Device[/]  " +
-            H(cfg.iOSDeviceId is not null ? "device configured" : "no device"));
-
-        // ── Android
-        Group("Android");
+            $"[skyblue1]ri[/]  [white]Run iOS[/]  " +
+            H(cfg.iOSDeviceName ?? (cfg.iOSDeviceId is not null ? "device configured" : "no device")));
         Add(Act.RunAndroid,
-            $"[green3]rd[/]  [white]Run Android on Device[/]  " +
-            H(cfg.AndroidDeviceSerial ?? "no device"));
+            $"[green3]ra[/]  [white]Run Android[/]  " +
+            H(cfg.AndroidDeviceName ?? cfg.AndroidDeviceSerial ?? "no device"));
+
+        // ── Release
+        Group("Release");
+        Add(Act.ArchiveiOS,
+            $"[skyblue1]ai[/]  [white]Archive iOS[/] [dim](Release)[/]  " +
+            H(cfg.iOSFramework ?? "—"));
         Add(Act.PublishAndroid,
             $"[green3]pa[/]  [white]Publish Android[/] [dim](Release)[/]  " +
             H(cfg.AndroidFramework ?? "—"));
 
-        // ── Git & Build
-        Group("Git & Build");
+        // ── Git
+        Group("Git");
         Add(Act.GitPull,
-            $"[yellow]pu[/]  [white]Git Pull[/]  " +
-            (gitClean ? OK("clean") : WA("pending")));
+            $"[yellow]gl[/]  [white]Git Pull[/]  " +
+            (gitStatus.Behind > 0 ? WA($"↓{gitStatus.Behind} to pull") : OK("up to date")));
         Add(Act.GitCommit,
-            $"[yellow]cm[/]  [white]Git Commit[/]  " +
+            $"[yellow]gc[/]  [white]Git Commit[/]  " +
             (gitStatus.Dirty ? WA("changes pending") : OK("clean")));
         Add(Act.GitPush,
-            $"[yellow]ps[/]  [white]Git Push[/]  " +
+            $"[yellow]gp[/]  [white]Git Push[/]  " +
             (gitStatus.Ahead > 0 ? WA($"↑{gitStatus.Ahead} to push") : OK("up to date")));
-        Add(Act.Clean,
-            "[yellow]cl[/]  [white]Clean Project[/]");
 
-        // ── Misc
-        Group("Misc");
-        Add(Act.Undo,
-            $"[dim]un[/]  [white]Undo last version change[/]  " +
-            H(hasSnap ? $"{st.LastVersion!.Version} #{st.LastVersion.Build}" : "no snapshot"));
-        Add(Act.RepeatLast,
-            $"[dim]..[/]  [white]Repeat last action[/]  " + H(lastAct));
+        // ── Build & Tools
+        Group("Build & Tools");
+        Add(Act.Clean,
+            "[dim]cl[/]  [white]Clean Project[/]");
         Add(Act.SetVerbosity,
             $"[dim]vb[/]  [white]Build verbosity:[/] [cyan1]{verbosity}[/]");
+        Add(Act.RepeatLast,
+            $"[dim]..[/]  [white]Repeat last action[/]  " + H(lastAct));
         Add(Act.Back,
             "[dim]←[/]   [dim]Back[/]");
 
@@ -728,49 +732,100 @@ public class AppDetailScreen(
             Pause(); return;
         }
 
-        var andListItems = new List<ForgeMenu.ListItem<string>>();
-        if (physical.Count > 0)
-        {
-            andListItems.Add(new("Physical devices", null!, IsSeparator: true));
-            andListItems.AddRange(physical.Select(d =>
-                new ForgeMenu.ListItem<string>($"[green3](droid)[/] {Markup.Escape(d.Model)}  [dim]{Markup.Escape(d.Serial)}[/]", d.Serial)));
-        }
-        if (running.Count > 0)
-        {
-            andListItems.Add(new("Running emulator", null!, IsSeparator: true));
-            andListItems.AddRange(running.Select(d =>
-                new ForgeMenu.ListItem<string>($"[grey53](emu ▶)[/] {Markup.Escape(d.Model)}  [dim]{Markup.Escape(d.Serial)}[/]", d.Serial)));
-        }
-        if (avds.Count > 0)
-        {
-            andListItems.Add(new("Available AVDs (will start)", null!, IsSeparator: true));
-            andListItems.AddRange(avds.Select(a =>
-                new ForgeMenu.ListItem<string>($"[grey53](avd)[/] {Markup.Escape(a)}", "avd:" + a)));
-        }
-
-        var picked = ForgeMenu.PromptList("Select Android device or emulator:", andListItems);
-        if (picked is null) return;
+        // Filter AVDs that are already running (to avoid showing them twice)
+        var runningAvdNames = running.Select(d => d.Model.Replace(' ', '_')).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var filteredAvds = avds.Where(a => !runningAvdNames.Contains(a.Replace(' ', '_'))).ToList();
 
         string? serial = null;
 
-        if (picked.StartsWith("avd:"))
+        // Offer last used device as quick option
+        if (cfg.AndroidDeviceSerial is not null)
         {
-            var avdName = picked[4..];
-            if (avdName is null) { AnsiConsole.MarkupLine("  [red]x  Could not identify selection.[/]"); Pause(); return; }
+            var lastSerial = cfg.AndroidDeviceSerial;
+            var lastName   = cfg.AndroidDeviceName ?? lastSerial;
+            var isOnline   = online.Any(d => d.Serial == lastSerial);
+            var isAvd      = !isOnline && filteredAvds.Any(a => "avd:" + a == lastSerial || lastSerial.StartsWith("emulator-"));
 
-            AnsiConsole.MarkupLine($"  [dim]Starting emulator: {Markup.Escape(avdName)}[/]");
-            serial = StartAvdAndWait(avdName, adbPath);
-            if (serial is null)
+            var lastLabel = isOnline
+                ? $"[green3]▶  Use last: {Markup.Escape(lastName)}[/]  [dim]{Markup.Escape(lastSerial)} (online)[/]"
+                : $"[yellow]▶  Use last: {Markup.Escape(lastName)}[/]  [dim]{Markup.Escape(lastSerial)} (offline — will try)[/]";
+
+            var quickItems = new List<ForgeMenu.ListItem<string>>
             {
-                AnsiConsole.MarkupLine("  [red]x  Emulator did not come online in time.[/]");
-                Pause(); return;
+                new(lastLabel, "last"),
+                new("[grey46]Choose a different device…[/]", "pick"),
+            };
+
+            var quickPick = ForgeMenu.PromptList($"  Last device: [white]{Markup.Escape(lastName)}[/]", quickItems);
+            if (quickPick is null) return;
+
+            if (quickPick == "last")
+            {
+                if (isOnline)
+                {
+                    serial = lastSerial;
+                }
+                else if (lastSerial.StartsWith("avd:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var avdName = lastSerial[4..];
+                    AnsiConsole.MarkupLine($"  [dim]Starting emulator: {Markup.Escape(avdName)}[/]");
+                    serial = StartAvdAndWait(avdName, adbPath);
+                    if (serial is null) { AnsiConsole.MarkupLine("  [red]x  Emulator did not come online in time.[/]"); Pause(); return; }
+                }
+                else
+                {
+                    // serial was a running emulator last time — check if still online
+                    serial = online.Any(d => d.Serial == lastSerial) ? lastSerial : null;
+                    if (serial is null) { AnsiConsole.MarkupLine("  [red]x  Last device is no longer available. Please choose again.[/]"); Pause(); return; }
+                }
             }
-            cfg.AndroidDeviceSerial = serial;
         }
-        else
+
+        if (serial is null)
         {
-            serial = picked;
-            cfg.AndroidDeviceSerial = serial;
+            var andListItems = new List<ForgeMenu.ListItem<string>>();
+            if (physical.Count > 0)
+            {
+                andListItems.Add(new("Physical devices", null!, IsSeparator: true));
+                andListItems.AddRange(physical.Select(d =>
+                    new ForgeMenu.ListItem<string>($"[green3](droid)[/] {Markup.Escape(d.Model)}  [dim]{Markup.Escape(d.Serial)}[/]", d.Serial)));
+            }
+            if (running.Count > 0)
+            {
+                andListItems.Add(new("Running emulator", null!, IsSeparator: true));
+                andListItems.AddRange(running.Select(d =>
+                    new ForgeMenu.ListItem<string>($"[grey53](emu ▶)[/] {Markup.Escape(d.Model)}  [dim]{Markup.Escape(d.Serial)}[/]", d.Serial)));
+            }
+            if (filteredAvds.Count > 0)
+            {
+                andListItems.Add(new("Available AVDs (will start)", null!, IsSeparator: true));
+                andListItems.AddRange(filteredAvds.Select(a =>
+                    new ForgeMenu.ListItem<string>($"[grey53](avd)[/] {Markup.Escape(a)}", "avd:" + a)));
+            }
+
+            var picked = ForgeMenu.PromptList("Select Android device or emulator:", andListItems);
+            if (picked is null) return;
+
+            if (picked.StartsWith("avd:"))
+            {
+                var avdName = picked[4..];
+                AnsiConsole.MarkupLine($"  [dim]Starting emulator: {Markup.Escape(avdName)}[/]");
+                serial = StartAvdAndWait(avdName, adbPath);
+                if (serial is null)
+                {
+                    AnsiConsole.MarkupLine("  [red]x  Emulator did not come online in time.[/]");
+                    Pause(); return;
+                }
+                cfg.AndroidDeviceName   = avdName;
+                cfg.AndroidDeviceSerial = "avd:" + avdName;
+            }
+            else
+            {
+                serial = picked;
+                var pickedDevice = online.FirstOrDefault(d => d.Serial == picked);
+                cfg.AndroidDeviceName   = pickedDevice?.Model ?? picked;
+                cfg.AndroidDeviceSerial = picked;
+            }
         }
 
         // Quick Launch vs Build & Run
@@ -858,8 +913,9 @@ public class AppDetailScreen(
 
         string? found = null;
         AnsiConsole.Status().Spinner(Spinner.Known.Dots).SpinnerStyle(Style.Parse("green3"))
-            .Start("  [dim]Waiting for emulator to boot...[/]", _ =>
+            .Start("  [dim]Waiting for emulator to boot...[/]", ctx =>
             {
+                // Phase 1: wait for emulator to appear in adb devices (up to 60s)
                 for (var i = 0; i < 30 && found is null; i++)
                 {
                     System.Threading.Thread.Sleep(2000);
@@ -883,6 +939,27 @@ public class AppDetailScreen(
 
                     if (emLine is not null)
                         found = emLine.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries)[0];
+                }
+
+                if (found is null) return;
+
+                // Phase 2: wait for sys.boot_completed=1 so the system is truly ready (up to 90s)
+                ctx.Status("  [dim]Waiting for Android to finish booting...[/]");
+                for (var i = 0; i < 45; i++)
+                {
+                    System.Threading.Thread.Sleep(2000);
+                    var bootPsi = new System.Diagnostics.ProcessStartInfo(adbPath)
+                    {
+                        RedirectStandardOutput = true,
+                        RedirectStandardError  = true,
+                        UseShellExecute        = false,
+                    };
+                    bootPsi.ArgumentList.Add("-s"); bootPsi.ArgumentList.Add(found);
+                    bootPsi.ArgumentList.Add("shell"); bootPsi.ArgumentList.Add("getprop"); bootPsi.ArgumentList.Add("sys.boot_completed");
+                    using var bootProc = System.Diagnostics.Process.Start(bootPsi)!;
+                    var bootOut = bootProc.StandardOutput.ReadToEnd().Trim();
+                    bootProc.WaitForExit(5000);
+                    if (bootOut == "1") break;
                 }
             });
 

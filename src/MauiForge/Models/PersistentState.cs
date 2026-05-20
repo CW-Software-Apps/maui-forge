@@ -30,5 +30,6 @@ public class AppBuildConfig
     public string? iOSDeviceName { get; set; }
     public string? iOSDeviceType { get; set; }
     public string? AndroidDeviceSerial { get; set; }
+    public string? AndroidDeviceName { get; set; }
     public string? CodesignKey { get; set; }
 }
