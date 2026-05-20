@@ -60,6 +60,15 @@ public class GitService
     public (bool Success, string Output) PushOnly(string dir) =>
         RunGitWithResult(dir, "push");
 
+    public List<string> GetUnpushedCommits(string dir, int max = 10)
+    {
+        var output = RunGit(dir, "log", "@{u}..", "--oneline", $"--max-count={max}");
+        return output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                     .Select(l => l.Trim())
+                     .Where(l => l.Length > 0)
+                     .ToList();
+    }
+
     public string GetDiffStat(string dir) =>
         RunGit(dir, "diff", "--staged", "--stat");
 

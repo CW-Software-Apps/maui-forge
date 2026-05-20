@@ -15,9 +15,10 @@ public record ListQuit : ListResult;
 
 public static class AppListScreen
 {
-    private const int ColIOS     = 18;
-    private const int ColAndroid = 18;
-    private const int ColBranch  = 13;
+    private const int ColIOS      = 18;
+    private const int ColAndroid  = 18;
+    private const int ColBranch   = 13;
+    private const int ColLastUsed = 8;
 
     // ── Folder Browser ───────────────────────────────────────────────────────
 
@@ -96,8 +97,7 @@ public static class AppListScreen
     {
         AnsiConsole.Clear();
         RenderHeader();
-        RenderScanBar(scanPath, st, nameFilter, platformFilter);
-        RenderStats(apps);
+        RenderScanBar(scanPath, st, nameFilter, platformFilter, apps);
         return ShowMenu(apps, scanPath, st, nameFilter, platformFilter);
     }
 
@@ -142,10 +142,11 @@ public static class AppListScreen
         }
     }
 
-    // ── Scan bar ─────────────────────────────────────────────────────────────
+    // ── Scan bar + Stats (merged) ─────────────────────────────────────────────
 
-    private static void RenderScanBar(string scanPath, PersistentState st, string? nameFilter, string platformFilter)
+    private static void RenderScanBar(string scanPath, PersistentState st, string? nameFilter, string platformFilter, List<AppEntry>? apps = null)
     {
+        // Line 1: path + mac + filters
         var macInfo = st.MacHost is { Length: > 0 }
             ? $"  [grey46]|[/]  [dim]mac:[/] [skyblue1]{Markup.Escape(st.MacHost)}[/]"
             : "";
@@ -156,36 +157,32 @@ public static class AppListScreen
         var filterStr = filterInfo.Count > 0 ? "  [grey46]|[/]  " + string.Join("  ", filterInfo) : "";
 
         AnsiConsole.MarkupLine($"  [dim]scan:[/] [white]{Markup.Escape(scanPath)}[/]{macInfo}{filterStr}");
-        AnsiConsole.WriteLine();
-    }
 
-    // ── Stats ────────────────────────────────────────────────────────────────
-
-    private static void RenderStats(List<AppEntry> apps)
-    {
-        if (apps.Count == 0)
+        // Line 2: stats inline
+        if (apps is null || apps.Count == 0)
         {
-            AnsiConsole.MarkupLine("[yellow]  (!) No apps found.[/]");
+            AnsiConsole.MarkupLine(apps is null ? "" : "  [yellow](!) No apps found.[/]");
             AnsiConsole.WriteLine();
             return;
         }
+
         var iosC    = apps.Count(a => a.Versions.iOS     is not null);
         var andC    = apps.Count(a => a.Versions.Android is not null);
         var dirtyC  = apps.Count(a => a.Git.Dirty);
         var syncOff = apps.Count(a => !a.Versions.InSync && a.Versions.iOS is not null && a.Versions.Android is not null);
         var aheadC  = apps.Count(a => a.Git.Ahead > 0);
 
-        var parts = new List<string>
+        var stats = new List<string>
         {
             $"[bold white]{apps.Count}[/] [dim]apps[/]",
             $"[skyblue1]{iosC}[/] [dim]iOS[/]",
             $"[green3]{andC}[/] [dim]Android[/]",
         };
-        if (dirtyC  > 0) parts.Add($"[yellow]{dirtyC} dirty[/]");
-        if (aheadC  > 0) parts.Add($"[yellow]{aheadC} ahead[/]");
-        if (syncOff > 0) parts.Add($"[red]{syncOff} out of sync[/]");
+        if (dirtyC  > 0) stats.Add($"[yellow]{dirtyC} dirty[/]");
+        if (aheadC  > 0) stats.Add($"[yellow]{aheadC} ahead[/]");
+        if (syncOff > 0) stats.Add($"[red]{syncOff} out of sync[/]");
 
-        AnsiConsole.MarkupLine("  " + string.Join("  [grey46]·[/]  ", parts));
+        AnsiConsole.MarkupLine("  " + string.Join("  [grey46]·[/]  ", stats));
         AnsiConsole.WriteLine();
     }
 
@@ -229,12 +226,14 @@ public static class AppListScreen
         var hIosPad  = "iOS".PadRight(ColIOS);
         var hAndPad  = "Android".PadRight(ColAndroid);
         var hBrPad   = "Branch".PadRight(ColBranch);
+        var hLastPad = "Last".PadRight(ColLastUsed);
 
         var header =
             $"[bold dim]{Markup.Escape(hNamePad)}[/]" +
             $"[bold skyblue1]{Markup.Escape(hIosPad)}[/]" +
             $"[bold green3]{Markup.Escape(hAndPad)}[/]" +
             $"[bold dim]{Markup.Escape(hBrPad)}[/]" +
+            $"[bold dim]{Markup.Escape(hLastPad)}[/]" +
             $"[bold dim]Git[/]";
 
         var appGroupHeader    = $"[bold grey53]── Apps ({sorted.Count}) ──────────────────────────────────────────────────────────────────[/]";
@@ -330,18 +329,35 @@ public static class AppListScreen
         var brPad    = new string(' ', Math.Max(0, ColBranch - brRaw.Length));
         var brMarkup = $"[{bc}]{Markup.Escape(brRaw)}[/]{brPad}";
 
+        // Last used relative time
+        var lastUsedMarkup = "[grey23]—[/]";
+        if (st.AppUsage.TryGetValue(app.Dir, out var usedTs) && usedTs > 0)
+        {
+            var ago = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - usedTs;
+            var agoStr = ago < 60          ? "now"
+                       : ago < 3600        ? $"{ago / 60}m"
+                       : ago < 86400       ? $"{ago / 3600}h"
+                       : ago < 86400 * 7   ? $"{ago / 86400}d"
+                       : ago < 86400 * 30  ? $"{ago / 86400 / 7}w"
+                       :                     $"{ago / 86400 / 30}mo";
+            var agoColor = ago < 3600 ? "cyan1" : ago < 86400 ? "white" : "grey46";
+            lastUsedMarkup = $"[{agoColor}]{agoStr}[/]";
+        }
+        var lastUsedPad = new string(' ', Math.Max(0, ColLastUsed - (lastUsedMarkup.Length > 10 ? 2 : 4)));
+
+        // Git badge — textual, compact
         var gitMarkup = app.Git switch
         {
-            { Dirty: false, Ahead: 0, Behind: 0 } => "[dim]clean[/]",
+            { Dirty: false, Ahead: 0, Behind: 0 } => "[dim green]ok[/]",
             var g => string.Join(" ", new[]
             {
-                g.Dirty      ? "[yellow]~[/]"               : null,
-                g.Ahead  > 0 ? $"[yellow]+{g.Ahead}[/]"    : null,
-                g.Behind > 0 ? $"[red bold]-{g.Behind}[/]"  : null,
+                g.Dirty      ? "[yellow]dirty[/]"            : null,
+                g.Ahead  > 0 ? $"[yellow]↑{g.Ahead}[/]"    : null,
+                g.Behind > 0 ? $"[red bold]↓{g.Behind}[/]" : null,
             }.Where(x => x is not null))
         };
 
-        return $"  {dotMarkup} {nameMarkup}{namePad}  {iosMarkup}{iosPad}{syncMark}{andMarkup}{andPad}  {brMarkup}  {gitMarkup}";
+        return $"  {dotMarkup} {nameMarkup}{namePad}  {iosMarkup}{iosPad}{syncMark}{andMarkup}{andPad}  {brMarkup}  {lastUsedMarkup}{lastUsedPad}{gitMarkup}";
     }
 
     private static bool IsRecent(AppEntry app, PersistentState st) =>

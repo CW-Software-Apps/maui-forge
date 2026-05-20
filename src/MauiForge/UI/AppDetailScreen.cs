@@ -17,7 +17,7 @@ public class AppDetailScreen(
         IncrementVersion, IncrementBuild, SetManual, Sync,
         ArchiveiOS, RuniOS,
         RunAndroid, PublishAndroid,
-        GitPull, GitCommit, GitPush, Clean, Undo, SetVerbosity, RepeatLast, Back
+        GitPull, GitCommit, GitPush, Clean, Undo, SetVerbosity, RepeatLast, OpenInEditor, Back
     }
 
     // ── Show ─────────────────────────────────────────────────────────────────
@@ -124,14 +124,16 @@ public class AppDetailScreen(
             ? "[green3]local Mac[/]"
             : st.MacHost is { } h ? $"[skyblue1]{Markup.Escape(h)}[/]" : "[grey46]not configured[/]";
 
-        // ── assemble panel ─────────────────────────────
-        var grid = new Grid().AddColumn().AddColumn();
-        grid.AddRow("[dim]branch[/]",  $"[{bc}]{Markup.Escape(app.Branch)}[/]");
-        grid.AddRow("[dim]git[/]",     gitStr);
-        grid.AddRow("[dim]config[/]",  buildCfg);
-        grid.AddRow("[dim]ios dev[/]", iosDev);
-        grid.AddRow("[dim]droid dev[/]", andDev);
-        grid.AddRow("[dim]mac[/]",     macMode);
+        // ── assemble panel — two side-by-side grids ────
+        var devGrid = new Grid().AddColumn(new GridColumn().Width(11)).AddColumn();
+        devGrid.AddRow("[dim]config[/]",    buildCfg);
+        devGrid.AddRow("[dim]iOS dev[/]",   iosDev);
+        devGrid.AddRow("[dim]droid dev[/]", andDev);
+        devGrid.AddRow("[dim]mac[/]",       macMode);
+
+        var gitGrid = new Grid().AddColumn(new GridColumn().Width(11)).AddColumn();
+        gitGrid.AddRow("[dim]branch[/]", $"[{bc}]{Markup.Escape(app.Branch)}[/]");
+        gitGrid.AddRow("[dim]git[/]",    gitStr);
 
         var rows = new List<Spectre.Console.Rendering.IRenderable>
         {
@@ -139,7 +141,10 @@ public class AppDetailScreen(
         };
         if (syncLine.Length > 0) rows.Add(new Markup("  " + syncLine));
         rows.Add(new Text(""));
-        rows.Add(grid);
+        rows.Add(new Rule("[grey23]devices & config[/]").RuleStyle(new Style(Color.Grey23)));
+        rows.Add(devGrid);
+        rows.Add(new Rule("[grey23]git[/]").RuleStyle(new Style(Color.Grey23)));
+        rows.Add(gitGrid);
         rows.Add(new Text(""));
         rows.Add(new Markup($"[grey23]{Markup.Escape(app.Dir)}[/]"));
 
@@ -234,6 +239,9 @@ public class AppDetailScreen(
             $"[dim]vb[/]  [white]Build verbosity:[/] [cyan1]{verbosity}[/]");
         Add(Act.RepeatLast,
             $"[dim]..[/]  [white]Repeat last action[/]  " + H(lastAct));
+        var editorHint = DetectEditor() is { } ed ? H(ed) : H("no editor found");
+        Add(Act.OpenInEditor,
+            $"[dim]oe[/]  [white]Open in Editor[/]  {editorHint}");
         Add(Act.Back,
             "[dim]←[/]   [dim]Back[/]");
 
@@ -320,6 +328,9 @@ public class AppDetailScreen(
                 break;
             case Act.SetVerbosity:
                 SetVerbosityAction(st);
+                break;
+            case Act.OpenInEditor:
+                OpenInEditorAction(app);
                 break;
         }
     }
@@ -521,6 +532,21 @@ public class AppDetailScreen(
             AnsiConsole.MarkupLine("  [dim]Nothing to push — already up to date.[/]");
             Pause(); return;
         }
+
+        // Show commits that will be pushed
+        var commits = git.GetUnpushedCommits(app.Dir);
+        AnsiConsole.MarkupLine($"  [cyan1]↑ {gitStatus.Ahead} commit(s) to push:[/]");
+        foreach (var c in commits)
+        {
+            var parts = c.Split(' ', 2);
+            var sha   = parts.Length > 0 ? parts[0] : "";
+            var msg   = parts.Length > 1 ? parts[1] : c;
+            AnsiConsole.MarkupLine($"    [grey46]{Markup.Escape(sha)}[/]  {Markup.Escape(msg)}");
+        }
+        AnsiConsole.WriteLine();
+
+        if (!AnsiConsole.Confirm($"  Push [cyan1]{gitStatus.Ahead}[/] commit(s) to [white]{Markup.Escape(app.Branch)}[/]?", defaultValue: true))
+            return;
 
         var (pushOk, pushOut) = git.PushOnly(app.Dir);
         AnsiConsole.MarkupLine(pushOk ? "  [green]ok  Pushed.[/]" : $"  [red]x  {Markup.Escape(pushOut)}[/]");
@@ -1161,6 +1187,64 @@ public class AppDetailScreen(
         state.Save(st);
         AnsiConsole.MarkupLine($"  [green]ok  Verbosity set to[/] [cyan1]{chosen}[/].");
         Pause();
+    }
+
+    // ── Open in Editor ───────────────────────────────────────────────────────
+
+    private static string? DetectEditor()
+    {
+        var candidates = new[] { ("code", "VS Code"), ("rider", "Rider"), ("idea", "IntelliJ"), ("zed", "Zed") };
+        var pathVar = Environment.GetEnvironmentVariable("PATH") ?? "";
+        var exeSuffix = OperatingSystem.IsWindows() ? ".exe" : "";
+        foreach (var (cmd, label) in candidates)
+        {
+            foreach (var dir in pathVar.Split(System.IO.Path.PathSeparator))
+            {
+                if (System.IO.File.Exists(System.IO.Path.Combine(dir.Trim(), cmd + exeSuffix)))
+                    return label;
+            }
+        }
+        return null;
+    }
+
+    private static void OpenInEditorAction(AppEntry app)
+    {
+        var editors = new[] { "code", "rider", "idea", "zed" };
+        var pathVar = Environment.GetEnvironmentVariable("PATH") ?? "";
+        var exeSuffix = OperatingSystem.IsWindows() ? ".exe" : "";
+
+        string? found = null;
+        foreach (var cmd in editors)
+        {
+            foreach (var dir in pathVar.Split(System.IO.Path.PathSeparator))
+            {
+                var full = System.IO.Path.Combine(dir.Trim(), cmd + exeSuffix);
+                if (System.IO.File.Exists(full)) { found = cmd; break; }
+            }
+            if (found is not null) break;
+        }
+
+        if (found is null)
+        {
+            AnsiConsole.MarkupLine("  [yellow](!) No supported editor found in PATH (code, rider, idea, zed).[/]");
+            Pause(); return;
+        }
+
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo(found)
+            {
+                UseShellExecute = true,
+            };
+            psi.ArgumentList.Add(app.Dir);
+            System.Diagnostics.Process.Start(psi);
+            AnsiConsole.MarkupLine($"  [green]ok  Opening in {Markup.Escape(found)}...[/]");
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"  [red]x  Failed to open editor: {Markup.Escape(ex.Message)}[/]");
+            Pause();
+        }
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
