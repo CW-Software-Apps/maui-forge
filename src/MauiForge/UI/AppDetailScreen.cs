@@ -270,7 +270,10 @@ public class AppDetailScreen(
         if (currentGroupHeader is not null && currentGroupItems.Count > 0)
             prompt.AddChoiceGroup(currentGroupHeader, currentGroupItems);
 
-        var chosen = AnsiConsole.Prompt(prompt);
+        string? chosen;
+        try { chosen = AnsiConsole.Prompt(prompt); }
+        catch { return Act.Back; } // ESC
+
         var found  = selectables.FirstOrDefault(x => x.Label == chosen);
         return found.Label is not null ? found.Action : Act.Back;
     }
@@ -829,16 +832,21 @@ public class AppDetailScreen(
         }
 
         // Quick Launch vs Build & Run
-        var launchMode = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("  [cyan1]How would you like to run?[/]")
-                .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
-                .AddChoices(
-                    "[bold]Build & Run[/]  [dim]recompile then deploy[/]",
-                    "[bold]Quick Launch[/]  [dim]launch already-installed app (skip build)[/]",
-                    "[grey46]← Back[/]"));
+        string? launchMode;
+        try
+        {
+            launchMode = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title("  [cyan1]How would you like to run?[/]")
+                    .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
+                    .AddChoices(
+                        "[bold]Build & Run[/]  [dim]recompile then deploy[/]",
+                        "[bold]Quick Launch[/]  [dim]launch already-installed app (skip build)[/]",
+                        "[grey46]← Back[/]"));
+        }
+        catch { return; } // ESC
 
-        if (launchMode.Contains("Back")) return;
+        if (launchMode is null || launchMode.Contains("Back")) return;
 
         if (launchMode.Contains("Quick Launch"))
         {

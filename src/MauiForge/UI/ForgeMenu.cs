@@ -64,7 +64,10 @@ public static class ForgeMenu
             }
         }
 
-        var chosen = AnsiConsole.Prompt(prompt);
+        string? chosen;
+        try { chosen = AnsiConsole.Prompt(prompt); }
+        catch { return null; } // ESC or cancelled
+
         if (chosen == BackLabel) return null;
 
         var idx = orderedLabels.IndexOf(chosen);
@@ -89,10 +92,26 @@ public static class ForgeMenu
             .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
             .AddChoices([BackLabel, .. labels]);
 
-        var chosen = AnsiConsole.Prompt(prompt);
+        string? chosen;
+        try { chosen = AnsiConsole.Prompt(prompt); }
+        catch { return (false, default); } // ESC or cancelled
+
         if (chosen == BackLabel) return (false, default);
 
         var idx = labels.IndexOf(chosen);
         return idx >= 0 ? (true, selectables[idx].Value) : (false, default);
+    }
+
+    /// <summary>
+    /// Wraps AnsiConsole.Prompt for a SelectionPrompt, returning null on ESC/cancel.
+    /// </summary>
+    public static string? PromptSelection(SelectionPrompt<string> prompt, string backLabel)
+    {
+        try
+        {
+            var chosen = AnsiConsole.Prompt(prompt);
+            return chosen == backLabel ? null : chosen;
+        }
+        catch { return null; }
     }
 }

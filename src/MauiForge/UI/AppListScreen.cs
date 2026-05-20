@@ -67,10 +67,12 @@ public static class AppListScreen
                 .AddChoiceGroup("[bold grey53]── Actions ──────────────────────[/]", actions)
                 .AddChoiceGroup("[bold grey53]── Subfolders ────────────────────[/]", subdirs.Count > 0 ? subdirs : ["[dim](no subfolders)[/]"]);
 
-            var choice = AnsiConsole.Prompt(prompt);
+            string? choice;
+            try { choice = AnsiConsole.Prompt(prompt); }
+            catch { return null; } // ESC
 
             if (choice == kSelect) return current;
-            if (choice == kCancel) return null;
+            if (choice == null || choice == kCancel) return null;
             if (choice == kUp)
             {
                 current = Directory.GetParent(current)?.FullName ?? current;
@@ -245,7 +247,11 @@ public static class AppListScreen
             .AddChoiceGroup(appGroupHeader,    appLabels.Count > 0 ? appLabels : ["[dim]  (no apps found)[/]"])
             .AddChoiceGroup(globalGroupHeader, globalLabels);
 
-        var choice = AnsiConsole.Prompt(prompt);
+        string? choice;
+        try { choice = AnsiConsole.Prompt(prompt); }
+        catch { return new ListQuit(); } // ESC
+
+        if (choice is null) return new ListQuit();
 
         if (globalLabels.Contains(choice))
         {
