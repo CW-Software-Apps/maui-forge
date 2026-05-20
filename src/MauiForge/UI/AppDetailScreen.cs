@@ -851,7 +851,7 @@ public class AppDetailScreen(
         AnsiConsole.WriteLine();
         st.LastAction = "Publish Android";
         state.Save(st);
-        RunBuild(app.Dir, [.. args]);
+        if (!RunBuild(app.Dir, [.. args])) return;
 
         if (Directory.Exists(outDir))
             foreach (var f in Directory.EnumerateFiles(outDir, "*.apk").Concat(Directory.EnumerateFiles(outDir, "*.aab")))
@@ -951,12 +951,15 @@ public class AppDetailScreen(
 
     private string _verbosity = "quiet";
 
-    private void RunBuild(string dir, string[] args)
+    private bool RunBuild(string dir, string[] args)
     {
         var allArgs = args.Concat(["-v", _verbosity]).ToArray();
 
-        var sw   = System.Diagnostics.Stopwatch.StartNew();
-        int exit = 0;
+        var sw      = System.Diagnostics.Stopwatch.StartNew();
+        int exit    = 0;
+        var errorLines = new List<string>();
+        var allLines   = new List<string>();
+
         AnsiConsole.Status()
             .Spinner(Spinner.Known.Dots)
             .SpinnerStyle(Style.Parse("cyan1"))
@@ -964,22 +967,43 @@ public class AppDetailScreen(
             {
                 exit = build.Run(dir, allArgs, line =>
                 {
-                    var color = line.Contains("error",   StringComparison.OrdinalIgnoreCase) ? "red"
-                              : line.Contains("warning", StringComparison.OrdinalIgnoreCase) ? "yellow"
-                              : "dim";
-                    AnsiConsole.MarkupLine($"  [{color}]{Markup.Escape(line)}[/]");
+                    allLines.Add(line);
+                    if (line.Contains("error", StringComparison.OrdinalIgnoreCase))
+                        errorLines.Add(line);
                 });
             });
         sw.Stop();
+
         var t = sw.Elapsed.TotalMinutes >= 1
             ? $"{(int)sw.Elapsed.TotalMinutes}m {sw.Elapsed.Seconds}s"
             : $"{sw.Elapsed.TotalSeconds:F1}s";
+
         AnsiConsole.WriteLine();
+
+        if (exit != 0)
+        {
+            // Show last lines that contain errors, plus context
+            var relevantLines = allLines
+                .Where(l => l.Contains("error", StringComparison.OrdinalIgnoreCase)
+                         || l.Contains("FAILED", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (relevantLines.Count == 0)
+                relevantLines = allLines.TakeLast(20).ToList();
+
+            foreach (var line in relevantLines)
+                AnsiConsole.MarkupLine($"  [red]{Markup.Escape(line)}[/]");
+
+            AnsiConsole.WriteLine();
+        }
+
         AnsiConsole.Write(new Rule(exit == 0
             ? $"[green]ok  Completed in {t}[/]"
-            : $"[red]x  Failed in {t} (exit {exit})[/]")
+            : $"[red]x  Build failed in {t} (exit {exit})[/]")
             .RuleStyle(exit == 0 ? Style.Parse("green dim") : Style.Parse("red dim")));
+
         Pause();
+        return exit == 0;
     }
 
     private static AppBuildConfig GetOrCreateConfig(PersistentState st, AppEntry app)
