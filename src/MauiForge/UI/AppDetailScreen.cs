@@ -689,7 +689,122 @@ public class AppDetailScreen(
         AnsiConsole.WriteLine();
         st.LastAction = "Archive iOS";
         state.Save(st);
-        RunBuild(app.Dir, [.. args]);
+        
+        var buildSuccess = RunBuild(app.Dir, [.. args], pauseWhenDone: false);
+        if (buildSuccess)
+        {
+            var archivePath = _lastBuildOutput
+                .Select(ExtractXcodeArchivePath)
+                .FirstOrDefault(p => p is not null);
+
+            if (archivePath is not null)
+            {
+                AnsiConsole.WriteLine();
+                if (AnsiConsole.Confirm("  Would you like to open this archive in Xcode?", defaultValue: true))
+                {
+                    OpenXcodeArchive(st, archivePath);
+                }
+            }
+        }
+        
+        Pause();
+    }
+
+    private static string? ExtractXcodeArchivePath(string line)
+    {
+        int archiveIdx = line.IndexOf(".xcodearchive", StringComparison.OrdinalIgnoreCase);
+        if (archiveIdx == -1) return null;
+
+        int endIdx = archiveIdx + ".xcodearchive".Length;
+
+        int startIdx = line.IndexOf("/", StringComparison.Ordinal);
+        if (startIdx == -1 || startIdx > archiveIdx) return null;
+
+        int usersIdx = line.IndexOf("/Users/", StringComparison.Ordinal);
+        if (usersIdx != -1 && usersIdx < archiveIdx)
+        {
+            startIdx = usersIdx;
+        }
+        else
+        {
+            int current = startIdx;
+            while (current < archiveIdx)
+            {
+                int nextSlash = line.IndexOf("/", current + 1, StringComparison.Ordinal);
+                if (nextSlash == -1 || nextSlash > archiveIdx) break;
+                char prevChar = line[nextSlash - 1];
+                if (char.IsWhiteSpace(prevChar) || prevChar == ':' || prevChar == '"' || prevChar == '\'')
+                {
+                    startIdx = nextSlash;
+                }
+                current = nextSlash;
+            }
+        }
+
+        var path = line.Substring(startIdx, endIdx - startIdx).Trim('"', '\'', ' ', '\t');
+        return path;
+    }
+
+    private void OpenXcodeArchive(PersistentState st, string archivePath)
+    {
+        try
+        {
+            if (st.UseLocalMac)
+            {
+                AnsiConsole.MarkupLine("  [dim]Opening archive in Xcode...[/]");
+                var psi = new System.Diagnostics.ProcessStartInfo("open")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                psi.ArgumentList.Add(archivePath);
+                using var proc = System.Diagnostics.Process.Start(psi);
+                if (proc is null)
+                {
+                    AnsiConsole.MarkupLine("  [red]x  Could not start 'open' command.[/]");
+                }
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(st.MacHost) || string.IsNullOrWhiteSpace(st.MacUser))
+                {
+                    AnsiConsole.MarkupLine("  [red]x  Remote Mac not configured.[/]");
+                    return;
+                }
+
+                AnsiConsole.MarkupLine($"  [dim]Opening archive in Xcode on remote Mac ({st.MacHost})...[/]");
+                var psi = new System.Diagnostics.ProcessStartInfo("ssh")
+                {
+                    RedirectStandardOutput = true,
+                    RedirectStandardError  = true,
+                    UseShellExecute        = false,
+                    CreateNoWindow         = true
+                };
+                psi.ArgumentList.Add("-o"); psi.ArgumentList.Add("StrictHostKeyChecking=no");
+                psi.ArgumentList.Add("-o"); psi.ArgumentList.Add("ConnectTimeout=10");
+                psi.ArgumentList.Add($"{st.MacUser}@{st.MacHost}");
+                psi.ArgumentList.Add($"open \"{archivePath}\"");
+
+                using var proc = System.Diagnostics.Process.Start(psi);
+                if (proc is not null)
+                {
+                    proc.WaitForExit(5000);
+                    if (proc.ExitCode != 0)
+                    {
+                        var err = proc.StandardError.ReadToEnd();
+                        AnsiConsole.MarkupLine($"  [red]x  SSH open command failed:[/] {Markup.Escape(err.Trim())}");
+                    }
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine("  [red]x  Could not start SSH process.[/]");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"  [red]x  Failed to open archive in Xcode:[/] {Markup.Escape(ex.Message)}");
+        }
     }
 
     // ── Android ──────────────────────────────────────────────────────────────
@@ -1108,9 +1223,11 @@ public class AppDetailScreen(
     }
 
     private string _verbosity = "quiet";
+    private readonly List<string> _lastBuildOutput = new();
 
     private bool RunBuild(string dir, string[] args, bool pauseWhenDone = true)
     {
+        _lastBuildOutput.Clear();
         var allArgs = args.Concat(["-v", _verbosity]).ToArray();
 
         var sw      = System.Diagnostics.Stopwatch.StartNew();
@@ -1121,6 +1238,7 @@ public class AppDetailScreen(
         void CaptureLine(string line)
         {
             allLines.Add(line);
+            _lastBuildOutput.Add(line);
             if (line.Contains("error", StringComparison.OrdinalIgnoreCase))
                 errorLines.Add(line);
         }
