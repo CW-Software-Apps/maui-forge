@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml;
 using System.Xml.Linq;
 using MauiForge.Models;
 
@@ -35,7 +36,8 @@ public partial class VersionService
     {
         var manifest = FindFile(dir, "AndroidManifest.xml");
         if (manifest is null) return null;
-        var doc  = XDocument.Load(manifest);
+        var doc  = TryLoadXml(manifest);
+        if (doc is null) return null;
         var root = doc.Root;
         if (root is null) return null;
         XNamespace android = "http://schemas.android.com/apk/res/android";
@@ -59,13 +61,33 @@ public partial class VersionService
 
     public PlatformVersion? ReadCsproj(string csprojPath)
     {
-        var doc     = XDocument.Load(csprojPath);
-        // MAUI uses ApplicationDisplayVersion (human) + ApplicationVersion (build integer)
-        var version = doc.Descendants("ApplicationDisplayVersion").FirstOrDefault()?.Value
-                   ?? doc.Descendants("Version").FirstOrDefault()?.Value;
-        var build   = doc.Descendants("ApplicationVersion").FirstOrDefault()?.Value
-                   ?? doc.Descendants("AssemblyVersion").FirstOrDefault()?.Value;
-        return version is null ? null : new(version, build ?? "1");
+        // Prefer strict XML parsing, but never crash the app if a csproj is malformed.
+        var doc = TryLoadXml(csprojPath);
+        if (doc is not null)
+        {
+            // MAUI uses ApplicationDisplayVersion (human) + ApplicationVersion (build integer)
+            var version = doc.Descendants("ApplicationDisplayVersion").FirstOrDefault()?.Value
+                       ?? doc.Descendants("Version").FirstOrDefault()?.Value;
+            var build   = doc.Descendants("ApplicationVersion").FirstOrDefault()?.Value
+                       ?? doc.Descendants("AssemblyVersion").FirstOrDefault()?.Value;
+            return version is null ? null : new(version, build ?? "1");
+        }
+
+        // Fallback for temporarily invalid XML (for example partial merges):
+        // extract the first relevant values directly from text.
+        try
+        {
+            var content = File.ReadAllText(csprojPath, Encoding.UTF8);
+            var version = ReadXmlTagValue(content, "ApplicationDisplayVersion")
+                       ?? ReadXmlTagValue(content, "Version");
+            var build   = ReadXmlTagValue(content, "ApplicationVersion")
+                       ?? ReadXmlTagValue(content, "AssemblyVersion");
+            return version is null ? null : new(version, build ?? "1");
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public void WriteCsproj(string csprojPath, string version, string build)
@@ -144,7 +166,8 @@ public partial class VersionService
     {
         try
         {
-            var doc = XDocument.Load(csproj);
+            var doc = TryLoadXml(csproj);
+            if (doc is null) return null;
             // ApplicationId in csproj
             var id = doc.Descendants("ApplicationId").FirstOrDefault()?.Value;
             if (id is { Length: > 0 }) return id;
@@ -152,7 +175,8 @@ public partial class VersionService
             // Fallback: read from AndroidManifest.xml package attribute
             var manifest = FindFile(Path.GetDirectoryName(csproj)!, "AndroidManifest.xml");
             if (manifest is null) return null;
-            var mdoc = XDocument.Load(manifest);
+            var mdoc = TryLoadXml(manifest);
+            if (mdoc is null) return null;
             return mdoc.Root?.Attribute("package")?.Value;
         }
         catch { return null; }
@@ -199,5 +223,22 @@ public partial class VersionService
         var pg = doc.Descendants("PropertyGroup").FirstOrDefault()
               ?? throw new InvalidOperationException("No PropertyGroup in csproj");
         pg.Add(new XElement(element, value));
+    }
+
+    private static XDocument? TryLoadXml(string path)
+    {
+        try { return XDocument.Load(path); }
+        catch (XmlException) { return null; }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+    }
+
+    private static string? ReadXmlTagValue(string content, string tag)
+    {
+        var match = Regex.Match(
+            content,
+            $"<{Regex.Escape(tag)}>(.*?)</{Regex.Escape(tag)}>",
+            RegexOptions.Singleline);
+        return match.Success ? match.Groups[1].Value.Trim() : null;
     }
 }
