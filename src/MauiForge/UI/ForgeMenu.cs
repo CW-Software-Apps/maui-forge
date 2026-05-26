@@ -18,7 +18,7 @@ public static class ForgeMenu
         var selectables = items.Where(i => !i.IsSeparator).ToList();
         if (selectables.Count == 0) return null;
 
-        const string BackLabel = "  [grey46]← Back[/]";
+        const string BackLabel = "[black on grey70]  << Back  [/]";
 
         var prompt = new SelectionPrompt<string>()
             .Title($"\n  [cyan1]{Markup.Escape(title)}[/]")
@@ -81,7 +81,7 @@ public static class ForgeMenu
     {
         if (items.Count == 0) return (false, default);
 
-        const string BackLabel = "  [grey46]← Back[/]";
+        const string BackLabel = "[black on grey70]  << Back  [/]";
 
         var selectables = items.Where(i => !i.IsSeparator).ToList();
         var labels      = selectables.Select(i => "  " + i.Label).ToList();

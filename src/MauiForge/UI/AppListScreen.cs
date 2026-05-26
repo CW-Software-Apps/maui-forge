@@ -35,9 +35,9 @@ public static class AppListScreen
             AnsiConsole.MarkupLine($"  [dim]Current:[/] [bold white]{Markup.Escape(current)}[/]");
             AnsiConsole.WriteLine();
 
+            const string kBack   = "[black on grey70]  << Back  [/]";
             const string kSelect = "[[OK]] Select this folder";
             const string kUp     = " ^  .. (go up)";
-            const string kCancel = "[[X]] Cancel";
 
             // map label -> real dir name to handle special chars in folder names
             var subdirMap = new Dictionary<string, string>();
@@ -57,9 +57,8 @@ public static class AppListScreen
                 .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            var actions = new List<string> { kSelect };
+            var actions = new List<string> { kBack, kSelect };
             if (Directory.GetParent(current) is not null) actions.Add(kUp);
-            actions.Add(kCancel);
 
             var prompt = new SelectionPrompt<string>()
                 .Title("[dim]  Use arrows to navigate  ·  Enter to open  ·  Select to confirm[/]")
@@ -73,7 +72,7 @@ public static class AppListScreen
             catch { return null; } // ESC
 
             if (choice == kSelect) return current;
-            if (choice == null || choice == kCancel) return null;
+            if (choice == null || choice == kBack) return null;
             if (choice == kUp)
             {
                 current = Directory.GetParent(current)?.FullName ?? current;

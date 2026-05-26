@@ -184,6 +184,8 @@ public class AppDetailScreen(
 
         void Add(Act act, string label) => items.Add((label, act));
 
+        Add(Act.Back, "[black on grey70]  << Back  [/] [dim]return to app list[/]");
+
         // ── Version
         Group("Version");
         Add(Act.IncrementVersion,
@@ -203,12 +205,16 @@ public class AppDetailScreen(
 
         // ── Run on Device
         Group("Run on Device");
+        var iosRunDevice = cfg.iOSDeviceName ?? (cfg.iOSDeviceId is not null ? "device configured" : "no device");
+        var iosRunCfg    = cfg.BuildConfiguration ?? "Debug";
         Add(Act.RuniOS,
             $"[skyblue1]ri[/]  [white]Run iOS[/]  " +
-            H(cfg.iOSDeviceName ?? (cfg.iOSDeviceId is not null ? "device configured" : "no device")));
+            H($"{iosRunDevice} • {iosRunCfg}"));
+        var androidRunDevice = cfg.AndroidDeviceName ?? cfg.AndroidDeviceSerial ?? "no device";
+        var androidRunCfg    = cfg.BuildConfiguration ?? "Debug";
         Add(Act.RunAndroid,
             $"[green3]ra[/]  [white]Run Android[/]  " +
-            H(cfg.AndroidDeviceName ?? cfg.AndroidDeviceSerial ?? "no device"));
+            H($"{androidRunDevice} • {androidRunCfg}"));
 
         // ── Release
         Group("Release");
@@ -242,8 +248,6 @@ public class AppDetailScreen(
         var editorHint = DetectEditor() is { } ed ? H(ed) : H("no editor found");
         Add(Act.OpenInEditor,
             $"[dim]oe[/]  [white]Open in Editor[/]  {editorHint}");
-        Add(Act.Back,
-            "[dim]←[/]   [dim]Back[/]");
 
         // Separate groups from selectables
         var separators = items.Where(x => x.Action == Act.Back && x.Label.StartsWith("[grey23]")).ToList();
@@ -629,7 +633,7 @@ public class AppDetailScreen(
         cfg.iOSDeviceId        = device.Udid;
         cfg.iOSDeviceName      = device.Name;
         cfg.iOSDeviceType      = device.Type;
-        cfg.BuildConfiguration = PickBuildConfig(csproj, "Debug", "Debug");
+        cfg.BuildConfiguration = PickBuildConfig(csproj, "", cfg.BuildConfiguration ?? "Debug");
         if (cfg.BuildConfiguration is null) return;
         cfg.iOSFramework       = PickFramework(csproj, "ios", cfg.iOSFramework ?? "net9.0-ios");
         if (cfg.iOSFramework is null) return;
@@ -1029,7 +1033,7 @@ public class AppDetailScreen(
             Pause(); return;
         }
 
-        cfg.BuildConfiguration = PickBuildConfig(csproj, "Debug", "Debug");
+        cfg.BuildConfiguration = PickBuildConfig(csproj, "", cfg.BuildConfiguration ?? "Debug");
         if (cfg.BuildConfiguration is null) return;
         cfg.AndroidFramework   = PickFramework(csproj, "android", cfg.AndroidFramework ?? "net9.0-android");
         if (cfg.AndroidFramework is null) return;
@@ -1260,9 +1264,25 @@ public class AppDetailScreen(
 
     private string? PickBuildConfig(string csproj, string typeFilter, string fallback)
     {
-        var all      = versions.GetBuildConfigurations(csproj);
-        var filtered = all.Where(c => c.Contains(typeFilter, StringComparison.OrdinalIgnoreCase)).ToList();
-        var list     = filtered.Count > 0 ? filtered : [fallback];
+        var all = versions.GetBuildConfigurations(csproj);
+
+        List<string> list;
+        if (string.IsNullOrWhiteSpace(typeFilter))
+        {
+            // For run flows, always expose the common build modes even if the csproj only
+            // explicitly lists one configuration.
+            list = all
+                .Concat(["Debug", "Release"])
+                .Where(c => !string.IsNullOrWhiteSpace(c))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        else
+        {
+            var filtered = all.Where(c => c.Contains(typeFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+            list = filtered.Count > 0 ? filtered : [fallback];
+        }
 
         if (list.Count == 1) return list[0];
 
