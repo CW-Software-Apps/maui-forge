@@ -203,12 +203,16 @@ public class AppDetailScreen(
 
         // ── Run on Device
         Group("Run on Device");
+        var iosRunDevice = cfg.iOSDeviceName ?? (cfg.iOSDeviceId is not null ? "device configured" : "no device");
+        var iosRunCfg    = cfg.BuildConfiguration ?? "Debug";
         Add(Act.RuniOS,
             $"[skyblue1]ri[/]  [white]Run iOS[/]  " +
-            H(cfg.iOSDeviceName ?? (cfg.iOSDeviceId is not null ? "device configured" : "no device")));
+            H($"{iosRunDevice} • {iosRunCfg}"));
+        var androidRunDevice = cfg.AndroidDeviceName ?? cfg.AndroidDeviceSerial ?? "no device";
+        var androidRunCfg    = cfg.BuildConfiguration ?? "Debug";
         Add(Act.RunAndroid,
             $"[green3]ra[/]  [white]Run Android[/]  " +
-            H(cfg.AndroidDeviceName ?? cfg.AndroidDeviceSerial ?? "no device"));
+            H($"{androidRunDevice} • {androidRunCfg}"));
 
         // ── Release
         Group("Release");
@@ -629,7 +633,7 @@ public class AppDetailScreen(
         cfg.iOSDeviceId        = device.Udid;
         cfg.iOSDeviceName      = device.Name;
         cfg.iOSDeviceType      = device.Type;
-        cfg.BuildConfiguration = PickBuildConfig(csproj, "Debug", "Debug");
+        cfg.BuildConfiguration = PickBuildConfig(csproj, "", cfg.BuildConfiguration ?? "Debug");
         if (cfg.BuildConfiguration is null) return;
         cfg.iOSFramework       = PickFramework(csproj, "ios", cfg.iOSFramework ?? "net9.0-ios");
         if (cfg.iOSFramework is null) return;
@@ -1029,7 +1033,7 @@ public class AppDetailScreen(
             Pause(); return;
         }
 
-        cfg.BuildConfiguration = PickBuildConfig(csproj, "Debug", "Debug");
+        cfg.BuildConfiguration = PickBuildConfig(csproj, "", cfg.BuildConfiguration ?? "Debug");
         if (cfg.BuildConfiguration is null) return;
         cfg.AndroidFramework   = PickFramework(csproj, "android", cfg.AndroidFramework ?? "net9.0-android");
         if (cfg.AndroidFramework is null) return;
