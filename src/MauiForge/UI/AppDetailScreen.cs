@@ -240,7 +240,7 @@ public class AppDetailScreen(
         // ── Build & Tools
         Group("Build & Tools");
         Add(Act.Clean,
-            "[dim]cl[/]  [white]Clean Project[/]");
+            "[dim]cl[/]  [white]Clean Project[/]  [grey46](smart options)[/]");
         Add(Act.SetVerbosity,
             $"[dim]vb[/]  [white]Build verbosity:[/] [cyan1]{verbosity}[/]");
         Add(Act.RepeatLast,
@@ -275,6 +275,7 @@ public class AppDetailScreen(
             }
             else
             {
+                currentGroupHeader ??= "[grey23]── Navigation [/]";
                 currentGroupItems.Add(item.Label);
                 labelOrder.Add(item.Label);
             }
@@ -320,9 +321,7 @@ public class AppDetailScreen(
                 GitPushAction(app, ref gitStatus, st);
                 break;
             case Act.Clean:
-                RunBuild(app.Dir, ["clean"]);
-                st.LastAction = "Clean Project";
-                state.Save(st);
+                CleanProjectAction(app, st, cfg);
                 break;
             case Act.Undo:
                 UndoAction(app, st);
@@ -1191,6 +1190,135 @@ public class AppDetailScreen(
         state.Save(st);
         AnsiConsole.MarkupLine($"  [green]ok  Verbosity set to[/] [cyan1]{chosen}[/].");
         Pause();
+    }
+
+    private void CleanProjectAction(AppEntry app, PersistentState st, AppBuildConfig cfg)
+    {
+        var csproj = FindCsproj(app.Dir);
+        if (csproj is null) { NoCsproj(); return; }
+
+        AnsiConsole.WriteLine();
+        var mode = ForgeMenu.PromptList("Clean mode:",
+        [
+            new ForgeMenu.ListItem<string>("[white]Quick Clean[/] [dim](dotnet clean)[/]", "quick"),
+            new ForgeMenu.ListItem<string>("[green3]Android Clean[/] [dim](framework + config)[/]", "android"),
+            new ForgeMenu.ListItem<string>("[skyblue1]iOS Clean (safe)[/] [dim](RID-safe + fallback)[/]", "ios"),
+            new ForgeMenu.ListItem<string>("[yellow]Deep Clean[/] [dim](delete bin/obj/.vs/artifacts/TestResults)[/]", "deep"),
+            new ForgeMenu.ListItem<string>("[bold yellow]Nuclear Clean[/] [dim](dotnet clean + deep clean)[/]", "nuclear"),
+        ]);
+        if (mode is null) return;
+
+        bool success = mode switch
+        {
+            "quick"   => RunBuild(app.Dir, ["clean"], pauseWhenDone: false),
+            "android" => CleanAndroid(app, csproj, st, cfg),
+            "ios"     => CleanIosSafe(app, csproj, st, cfg),
+            "deep"    => DeleteBuildArtifacts(app.Dir),
+            "nuclear" => RunBuild(app.Dir, ["clean"], pauseWhenDone: false) & DeleteBuildArtifacts(app.Dir),
+            _         => false,
+        };
+
+        st.LastAction = "Clean Project";
+        state.Save(st);
+
+        if (success)
+            AnsiConsole.MarkupLine("  [green]ok  Clean completed.[/]");
+        else
+            AnsiConsole.MarkupLine("  [yellow](!) Clean finished with warnings/errors. Check output above.[/]");
+
+        Pause();
+    }
+
+    private bool CleanAndroid(AppEntry app, string csproj, PersistentState st, AppBuildConfig cfg)
+    {
+        cfg.BuildConfiguration = PickBuildConfig(csproj, "", cfg.BuildConfiguration ?? "Debug");
+        if (cfg.BuildConfiguration is null) return false;
+        cfg.AndroidFramework = PickFramework(csproj, "android", cfg.AndroidFramework ?? "net10.0-android");
+        if (cfg.AndroidFramework is null) return false;
+        state.Save(st);
+
+        AnsiConsole.MarkupLine($"  [dim]Android clean: {Markup.Escape(cfg.AndroidFramework)} | {Markup.Escape(cfg.BuildConfiguration)}[/]");
+        return RunBuild(app.Dir,
+        [
+            "clean", csproj,
+            "-f", cfg.AndroidFramework,
+            "-c", cfg.BuildConfiguration,
+        ], pauseWhenDone: false);
+    }
+
+    private bool CleanIosSafe(AppEntry app, string csproj, PersistentState st, AppBuildConfig cfg)
+    {
+        cfg.BuildConfiguration = PickBuildConfig(csproj, "", cfg.BuildConfiguration ?? "Debug");
+        if (cfg.BuildConfiguration is null) return false;
+        cfg.iOSFramework = PickFramework(csproj, "ios", cfg.iOSFramework ?? "net10.0-ios");
+        if (cfg.iOSFramework is null) return false;
+        state.Save(st);
+
+        AnsiConsole.MarkupLine($"  [dim]iOS clean: {Markup.Escape(cfg.iOSFramework)} | {Markup.Escape(cfg.BuildConfiguration)}[/]");
+        var ok = RunBuild(app.Dir,
+        [
+            "clean", csproj,
+            "-f", cfg.iOSFramework,
+            "-c", cfg.BuildConfiguration,
+            "-p:RuntimeIdentifier=ios-arm64",
+        ], pauseWhenDone: false);
+
+        if (ok) return true;
+
+        // Windows+MAUI iOS often fails clean with simulator RID targets.
+        // Fall back to artifact deletion to guarantee a usable clean state.
+        AnsiConsole.MarkupLine("  [yellow](!) iOS clean failed (RID/target mismatch). Applying deep artifact clean fallback...[/]");
+        return DeleteBuildArtifacts(app.Dir);
+    }
+
+    private static bool DeleteBuildArtifacts(string rootDir)
+    {
+        var targetNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "bin", "obj", ".vs", "artifacts", "TestResults"
+        };
+
+        List<string> dirs;
+        try
+        {
+            dirs = Directory.EnumerateDirectories(rootDir, "*", SearchOption.AllDirectories)
+                .Where(d => targetNames.Contains(Path.GetFileName(d)))
+                .Where(d => !d.Contains($"{Path.DirectorySeparatorChar}.git{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(d => d.Length)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"  [red]x  Failed to enumerate artifact directories: {Markup.Escape(ex.Message)}[/]");
+            return false;
+        }
+
+        if (dirs.Count == 0)
+        {
+            AnsiConsole.MarkupLine("  [dim]No artifact directories found.[/]");
+            return true;
+        }
+
+        var removed = 0;
+        var failed = 0;
+        foreach (var dir in dirs)
+        {
+            try
+            {
+                Directory.Delete(dir, recursive: true);
+                removed++;
+            }
+            catch
+            {
+                failed++;
+            }
+        }
+
+        AnsiConsole.MarkupLine($"  [dim]Deep clean removed {removed} folder(s).[/]");
+        if (failed > 0)
+            AnsiConsole.MarkupLine($"  [yellow](!) {failed} folder(s) could not be removed (likely locked).[/]");
+
+        return failed == 0;
     }
 
     // ── Open in Editor ───────────────────────────────────────────────────────
