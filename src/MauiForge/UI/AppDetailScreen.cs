@@ -102,6 +102,15 @@ public class AppDetailScreen(
             _ => ""
         };
 
+        var healthBadges = new List<string>();
+        healthBadges.Add(v.InSync || v.iOS is null || v.Android is null
+            ? "[green]sync: ok[/]"
+            : "[yellow]sync: attention[/]");
+        if (gitStatus.Behind > 0) healthBadges.Add($"[red]behind: {gitStatus.Behind}[/]");
+        if (gitStatus.Ahead > 0) healthBadges.Add($"[yellow]ahead: {gitStatus.Ahead}[/]");
+        if (gitStatus.Dirty) healthBadges.Add("[yellow]working tree: dirty[/]");
+        if (!gitStatus.Dirty && gitStatus.Ahead == 0 && gitStatus.Behind == 0) healthBadges.Add("[green]repository: clean[/]");
+
         // ── git ────────────────────────────────────────
         var bc        = app.Branch is "main" or "master" ? "green3" : "fuchsia";
         var gitBadges = new List<string>();
@@ -126,10 +135,10 @@ public class AppDetailScreen(
 
         // ── assemble panel — two side-by-side grids ────
         var devGrid = new Grid().AddColumn(new GridColumn().Width(11)).AddColumn();
-        devGrid.AddRow("[dim]config[/]",    buildCfg);
-        devGrid.AddRow("[dim]iOS dev[/]",   iosDev);
-        devGrid.AddRow("[dim]droid dev[/]", andDev);
-        devGrid.AddRow("[dim]mac[/]",       macMode);
+        devGrid.AddRow("[dim]profile[/]",      buildCfg);
+        devGrid.AddRow("[dim]iOS device[/]",   iosDev);
+        devGrid.AddRow("[dim]Android device[/]", andDev);
+        devGrid.AddRow("[dim]Mac mode[/]",     macMode);
 
         var gitGrid = new Grid().AddColumn(new GridColumn().Width(11)).AddColumn();
         gitGrid.AddRow("[dim]branch[/]", $"[{bc}]{Markup.Escape(app.Branch)}[/]");
@@ -137,11 +146,14 @@ public class AppDetailScreen(
 
         var rows = new List<Spectre.Console.Rendering.IRenderable>
         {
+            new Rule("[grey23]project health[/]").RuleStyle(new Style(Color.Grey23)),
+            new Markup("  " + string.Join("  [grey46]·[/]  ", healthBadges)),
+            new Text(""),
             table,
         };
         if (syncLine.Length > 0) rows.Add(new Markup("  " + syncLine));
         rows.Add(new Text(""));
-        rows.Add(new Rule("[grey23]devices & config[/]").RuleStyle(new Style(Color.Grey23)));
+        rows.Add(new Rule("[grey23]run profile & environment[/]").RuleStyle(new Style(Color.Grey23)));
         rows.Add(devGrid);
         rows.Add(new Rule("[grey23]git[/]").RuleStyle(new Style(Color.Grey23)));
         rows.Add(gitGrid);
@@ -167,7 +179,6 @@ public class AppDetailScreen(
         var nextBld  = master is not null && int.TryParse(master.Build, out var b) ? (b + 1).ToString() : "—";
         var hasSnap  = st.LastVersion?.AppDir == app.Dir;
         var syncWarn = !app.Versions.InSync && app.Versions.iOS is not null && app.Versions.Android is not null;
-        var gitClean = !gitStatus.Dirty && gitStatus.Ahead == 0 && gitStatus.Behind == 0;
         var verbosity = st.Verbosity ?? "quiet";
         var lastAct  = st.LastAction is { Length: > 0 } ? st.LastAction : "none";
 
@@ -184,70 +195,77 @@ public class AppDetailScreen(
 
         void Add(Act act, string label) => items.Add((label, act));
 
-        Add(Act.Back, "[black on grey70]  << Back  [/] [dim]return to app list[/]");
+        Add(Act.Back, "[black on grey70]  << Back  [/] [dim]return to dashboard[/]");
 
-        // ── Version
-        Group("Version");
-        Add(Act.IncrementVersion,
-            $"[cyan1]v+[/]  [white]Increment Version + Build[/]  " +
-            V($"{master?.Version ?? "-"} → {nextVer}  #{master?.Build ?? "-"} → #{nextBld}"));
-        Add(Act.IncrementBuild,
-            $"[cyan1]b+[/]  [white]Increment Build only[/]  " +
-            V($"#{master?.Build ?? "-"} → #{nextBld}"));
-        Add(Act.SetManual,
-            "[cyan1]m~[/]  [white]Set version manually[/]");
-        Add(Act.Sync,
-            $"[cyan1]<>[/]  [white]Sync iOS ↔ Android[/]  " +
-            (syncWarn ? WA("(!!) out of sync") : OK("(ok) in sync")));
-        Add(Act.Undo,
-            $"[cyan1]un[/]  [white]Undo last version change[/]  " +
-            H(hasSnap ? $"{st.LastVersion!.Version} #{st.LastVersion.Build}" : "no snapshot"));
-
-        // ── Run on Device
-        Group("Run on Device");
+        // ── Primary Actions
+        Group("Run Center");
         var iosRunDevice = cfg.iOSDeviceName ?? (cfg.iOSDeviceId is not null ? "device configured" : "no device");
         var iosRunCfg    = cfg.BuildConfiguration ?? "Debug";
         Add(Act.RuniOS,
-            $"[skyblue1]ri[/]  [white]Run iOS[/]  " +
+            $"[skyblue1]ri[/]  [white]Run on iOS[/]  " +
             H($"{iosRunDevice} • {iosRunCfg}"));
         var androidRunDevice = cfg.AndroidDeviceName ?? cfg.AndroidDeviceSerial ?? "no device";
         var androidRunCfg    = cfg.BuildConfiguration ?? "Debug";
         Add(Act.RunAndroid,
-            $"[green3]ra[/]  [white]Run Android[/]  " +
+            $"[green3]ra[/]  [white]Run on Android[/]  " +
             H($"{androidRunDevice} • {androidRunCfg}"));
 
         // ── Release
-        Group("Release");
+        Group("Release Center");
         Add(Act.ArchiveiOS,
-            $"[skyblue1]ai[/]  [white]Archive iOS[/] [dim](Release)[/]  " +
+            $"[skyblue1]ai[/]  [white]Create iOS Archive[/] [dim](Release)[/]  " +
             H(cfg.iOSFramework ?? "—"));
         Add(Act.PublishAndroid,
-            $"[green3]pa[/]  [white]Publish Android[/] [dim](Release)[/]  " +
+            $"[green3]pa[/]  [white]Create Android Release[/] [dim](Release)[/]  " +
             H(cfg.AndroidFramework ?? "—"));
 
+        // ── Version
+        Group("Version Center");
+        Add(Act.IncrementVersion,
+            $"[cyan1]v+[/]  [white]Bump Version and Build[/]  " +
+            V($"{master?.Version ?? "-"} → {nextVer}  #{master?.Build ?? "-"} → #{nextBld}"));
+        Add(Act.IncrementBuild,
+            $"[cyan1]b+[/]  [white]Bump Build Number[/]  " +
+            V($"#{master?.Build ?? "-"} → #{nextBld}"));
+        Add(Act.SetManual,
+            "[cyan1]m~[/]  [white]Set Version Manually[/]");
+        Add(Act.Sync,
+            $"[cyan1]<>[/]  [white]Align Platform Versions[/]  " +
+            (syncWarn ? WA("(!!) out of sync") : OK("(ok) in sync")));
+        Add(Act.Undo,
+            $"[cyan1]un[/]  [white]Undo Last Version Change[/]  " +
+            H(hasSnap ? $"{st.LastVersion!.Version} #{st.LastVersion.Build}" : "no snapshot"));
+
         // ── Git
-        Group("Git");
+        Group("Source Control");
         Add(Act.GitPull,
-            $"[yellow]gl[/]  [white]Git Pull[/]  " +
+            $"[yellow]gl[/]  [white]Pull Latest Changes[/]  " +
             (gitStatus.Behind > 0 ? WA($"↓{gitStatus.Behind} to pull") : OK("up to date")));
         Add(Act.GitCommit,
-            $"[yellow]gc[/]  [white]Git Commit[/]  " +
+            $"[yellow]gc[/]  [white]Create Commit[/]  " +
             (gitStatus.Dirty ? WA("changes pending") : OK("clean")));
         Add(Act.GitPush,
-            $"[yellow]gp[/]  [white]Git Push[/]  " +
+            $"[yellow]gp[/]  [white]Push Commits[/]  " +
             (gitStatus.Ahead > 0 ? WA($"↑{gitStatus.Ahead} to push") : OK("up to date")));
 
         // ── Build & Tools
-        Group("Build & Tools");
+        Group("Project Tools");
         Add(Act.Clean,
-            "[dim]cl[/]  [white]Clean Project[/]  [grey46](smart options)[/]");
+            "[dim]cl[/]  [white]Clean Build Artifacts[/]  [grey46](smart options)[/]");
         Add(Act.SetVerbosity,
-            $"[dim]vb[/]  [white]Build verbosity:[/] [cyan1]{verbosity}[/]");
+            $"[dim]vb[/]  [white]Build Output Level:[/] [cyan1]{verbosity}[/]");
         Add(Act.RepeatLast,
-            $"[dim]..[/]  [white]Repeat last action[/]  " + H(lastAct));
+            $"[dim]..[/]  [white]Resume Last Task[/]  " + H(lastAct));
         var editorHint = DetectEditor() is { } ed ? H(ed) : H("no editor found");
         Add(Act.OpenInEditor,
-            $"[dim]oe[/]  [white]Open in Editor[/]  {editorHint}");
+            $"[dim]oe[/]  [white]Open Project in IDE[/]  {editorHint}");
+
+        var quickActionsLine =
+            "  [dim]Quick actions:[/] " +
+            "[skyblue1]Run on iOS[/]  [grey46]·[/]  " +
+            "[green3]Run on Android[/]  [grey46]·[/]  " +
+            "[skyblue1]Create iOS Archive[/]  [grey46]·[/]  " +
+            "[green3]Create Android Release[/]";
 
         // Separate groups from selectables
         var separators = items.Where(x => x.Action == Act.Back && x.Label.StartsWith("[grey23]")).ToList();
@@ -255,7 +273,7 @@ public class AppDetailScreen(
 
         // Build SelectionPrompt with choice groups
         var prompt = new SelectionPrompt<string>()
-            .Title("\n  [cyan1]What would you like to do?[/]  [dim](↑↓ navigate, Enter select)[/]")
+            .Title("\n  [cyan1]Choose an action[/]  [dim](↑↓ navigate, Enter select)[/]\n" + quickActionsLine)
             .PageSize(24)
             .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11));
 
@@ -310,7 +328,7 @@ public class AppDetailScreen(
                 var (ok, output) = git.Pull(app.Dir);
                 AnsiConsole.MarkupLine(ok ? "  [green]ok  Pull complete.[/]" : $"  [red]x  {Markup.Escape(output)}[/]");
                 gitStatus = git.GetStatus(app.Dir);
-                st.LastAction = "Git Pull";
+                st.LastAction = "Pull Latest Changes";
                 state.Save(st);
                 Pause();
                 break;
@@ -359,7 +377,7 @@ public class AppDetailScreen(
 
         SaveSnapshot(app, master, st);
         ApplyVersion(app, newVer, newBld);
-        st.LastAction = incrementVersion ? "Increment Version + Build" : "Increment Build only";
+        st.LastAction = incrementVersion ? "Bump Version and Build" : "Bump Build Number";
         state.Save(st);
         AnsiConsole.MarkupLine("  [green]ok  Version updated.[/]");
 
@@ -502,7 +520,7 @@ public class AppDetailScreen(
         if (commitOk)
         {
             gitStatus = git.GetStatus(app.Dir);
-            st.LastAction = "Git Commit";
+            st.LastAction = "Create Commit";
             state.Save(st);
 
             if (AnsiConsole.Confirm("  Push now?", defaultValue: false))
@@ -554,7 +572,7 @@ public class AppDetailScreen(
         var (pushOk, pushOut) = git.PushOnly(app.Dir);
         AnsiConsole.MarkupLine(pushOk ? "  [green]ok  Pushed.[/]" : $"  [red]x  {Markup.Escape(pushOut)}[/]");
         gitStatus = git.GetStatus(app.Dir);
-        st.LastAction = "Git Push";
+        st.LastAction = "Push Commits";
         state.Save(st);
         Pause();
     }
@@ -667,7 +685,7 @@ public class AppDetailScreen(
 
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("  [dim]Launching iOS app...[/]");
-        st.LastAction = "Run iOS Device";
+        st.LastAction = "Run on iOS";
         state.Save(st);
         RunBuild(app.Dir, [.. runArgs]);
     }
@@ -716,7 +734,7 @@ public class AppDetailScreen(
         }
         AnsiConsole.MarkupLine($"  [dim]Output: {Markup.Escape(outDir)}[/]");
         AnsiConsole.WriteLine();
-        st.LastAction = "Archive iOS";
+        st.LastAction = "Create iOS Archive";
         state.Save(st);
         
         var buildSuccess = RunBuild(app.Dir, [.. args], pauseWhenDone: false);
@@ -725,6 +743,23 @@ public class AppDetailScreen(
             var archivePath = _lastBuildOutput
                 .Select(ExtractXcodeArchivePath)
                 .FirstOrDefault(p => p is not null);
+            var ipaPath = _lastBuildOutput
+                .Select(ExtractIpaPath)
+                .FirstOrDefault(p => p is not null);
+
+            if (ipaPath is not null)
+            {
+                AnsiConsole.WriteLine();
+                if (AnsiConsole.Confirm("  Send this build to App Store Connect now?", defaultValue: false))
+                {
+                    UploadIpaToAppStore(st, ipaPath);
+                }
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("  [yellow](!) No .ipa path found in archive output.[/]");
+                AnsiConsole.MarkupLine("  [dim]Tip: ensure IPA generation is enabled in your iOS publish/archive settings.[/]");
+            }
 
             if (archivePath is not null)
             {
@@ -772,6 +807,149 @@ public class AppDetailScreen(
 
         var path = line.Substring(startIdx, endIdx - startIdx).Trim('"', '\'', ' ', '\t');
         return path;
+    }
+
+    private static string? ExtractIpaPath(string line)
+    {
+        int ipaIdx = line.IndexOf(".ipa", StringComparison.OrdinalIgnoreCase);
+        if (ipaIdx == -1) return null;
+
+        int endIdx = ipaIdx + ".ipa".Length;
+
+        int startIdx = line.IndexOf("/", StringComparison.Ordinal);
+        if (startIdx == -1 || startIdx > ipaIdx) return null;
+
+        int usersIdx = line.IndexOf("/Users/", StringComparison.Ordinal);
+        if (usersIdx != -1 && usersIdx < ipaIdx)
+        {
+            startIdx = usersIdx;
+        }
+        else
+        {
+            int current = startIdx;
+            while (current < ipaIdx)
+            {
+                int nextSlash = line.IndexOf("/", current + 1, StringComparison.Ordinal);
+                if (nextSlash == -1 || nextSlash > ipaIdx) break;
+                char prevChar = line[nextSlash - 1];
+                if (char.IsWhiteSpace(prevChar) || prevChar == ':' || prevChar == '"' || prevChar == '\'')
+                {
+                    startIdx = nextSlash;
+                }
+                current = nextSlash;
+            }
+        }
+
+        var path = line.Substring(startIdx, endIdx - startIdx).Trim('"', '\'', ' ', '\t');
+        return path;
+    }
+
+    private static void UploadIpaToAppStore(PersistentState st, string ipaPath)
+    {
+        try
+        {
+            if (st.UseLocalMac)
+            {
+                var user = Environment.GetEnvironmentVariable("APPSTORE_CONNECT_USER");
+                var pass = Environment.GetEnvironmentVariable("APPSTORE_CONNECT_PASSWORD");
+                if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(pass))
+                {
+                    AnsiConsole.MarkupLine("  [red]x  Missing local environment variables for upload.[/]");
+                    AnsiConsole.MarkupLine("  [dim]Set APPSTORE_CONNECT_USER and APPSTORE_CONNECT_PASSWORD (app-specific password).[/]");
+                    return;
+                }
+
+                AnsiConsole.MarkupLine("  [dim]Uploading IPA to App Store Connect...[/]");
+                var psi = new System.Diagnostics.ProcessStartInfo("xcrun")
+                {
+                    RedirectStandardOutput = true,
+                    RedirectStandardError  = true,
+                    UseShellExecute        = false,
+                };
+                psi.ArgumentList.Add("altool");
+                psi.ArgumentList.Add("--upload-app");
+                psi.ArgumentList.Add("--type"); psi.ArgumentList.Add("ios");
+                psi.ArgumentList.Add("--file"); psi.ArgumentList.Add(ipaPath);
+                psi.ArgumentList.Add("--username"); psi.ArgumentList.Add(user);
+                psi.ArgumentList.Add("--password"); psi.ArgumentList.Add(pass);
+
+                using var proc = System.Diagnostics.Process.Start(psi);
+                if (proc is null)
+                {
+                    AnsiConsole.MarkupLine("  [red]x  Could not start upload process.[/]");
+                    return;
+                }
+
+                var output = proc.StandardOutput.ReadToEnd();
+                var err    = proc.StandardError.ReadToEnd();
+                proc.WaitForExit();
+                if (proc.ExitCode == 0)
+                {
+                    AnsiConsole.MarkupLine("  [green]ok  Upload sent to App Store Connect.[/]");
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine($"  [red]x  Upload failed:[/] {Markup.Escape((err + "\n" + output).Trim())}");
+                }
+
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(st.MacHost) || string.IsNullOrWhiteSpace(st.MacUser))
+            {
+                AnsiConsole.MarkupLine("  [red]x  Remote Mac not configured.[/]");
+                return;
+            }
+
+            AnsiConsole.MarkupLine($"  [dim]Uploading IPA on remote Mac ({st.MacHost})...[/]");
+            var remoteCmd =
+                "if [ -z \"$APPSTORE_CONNECT_USER\" ] || [ -z \"$APPSTORE_CONNECT_PASSWORD\" ]; then " +
+                "echo '__MISSING_UPLOAD_ENV__'; exit 42; " +
+                "fi; " +
+                $"xcrun altool --upload-app --type ios --file \"{ipaPath}\" --username \"$APPSTORE_CONNECT_USER\" --password \"$APPSTORE_CONNECT_PASSWORD\"";
+
+            var ssh = new System.Diagnostics.ProcessStartInfo("ssh")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
+            };
+            ssh.ArgumentList.Add("-o"); ssh.ArgumentList.Add("StrictHostKeyChecking=no");
+            ssh.ArgumentList.Add("-o"); ssh.ArgumentList.Add("ConnectTimeout=10");
+            ssh.ArgumentList.Add($"{st.MacUser}@{st.MacHost}");
+            ssh.ArgumentList.Add(remoteCmd);
+
+            using var remote = System.Diagnostics.Process.Start(ssh);
+            if (remote is null)
+            {
+                AnsiConsole.MarkupLine("  [red]x  Could not start SSH upload process.[/]");
+                return;
+            }
+
+            var outText = remote.StandardOutput.ReadToEnd();
+            var errText = remote.StandardError.ReadToEnd();
+            remote.WaitForExit();
+
+            if (remote.ExitCode == 0)
+            {
+                AnsiConsole.MarkupLine("  [green]ok  Upload sent to App Store Connect.[/]");
+                return;
+            }
+
+            if (outText.Contains("__MISSING_UPLOAD_ENV__", StringComparison.Ordinal))
+            {
+                AnsiConsole.MarkupLine("  [red]x  Missing APPSTORE_CONNECT_USER/APPSTORE_CONNECT_PASSWORD on remote Mac.[/]");
+                AnsiConsole.MarkupLine("  [dim]Set these env vars on the Mac shell profile and retry archive/upload.[/]");
+                return;
+            }
+
+            AnsiConsole.MarkupLine($"  [red]x  Upload failed:[/] {Markup.Escape((errText + "\n" + outText).Trim())}");
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"  [red]x  Failed to upload IPA:[/] {Markup.Escape(ex.Message)}");
+        }
     }
 
     private void OpenXcodeArchive(PersistentState st, string archivePath)
@@ -1041,7 +1219,7 @@ public class AppDetailScreen(
         var args = new List<string> { "build", csproj, "-t:Run", "-f", cfg.AndroidFramework, "-c", cfg.BuildConfiguration };
         if (serial is not null) args.Add($"-p:AdbTarget=-s {serial}");
         AnsiConsole.WriteLine();
-        st.LastAction = "Run Android Device";
+        st.LastAction = "Run on Android";
         state.Save(st);
         RunBuild(app.Dir, [.. args]);
     }
@@ -1133,7 +1311,7 @@ public class AppDetailScreen(
         var args   = new List<string> { "publish", csproj, "-f", cfg.AndroidFramework, "-c", cfg.BuildConfiguration };
         AnsiConsole.MarkupLine($"  [dim]Output: {Markup.Escape(outDir)}[/]");
         AnsiConsole.WriteLine();
-        st.LastAction = "Publish Android";
+        st.LastAction = "Create Android Release";
         state.Save(st);
         if (!RunBuild(app.Dir, [.. args])) return;
 
@@ -1159,13 +1337,24 @@ public class AppDetailScreen(
         {
             "Increment Version + Build" => Act.IncrementVersion,
             "Increment Build only"      => Act.IncrementBuild,
+            "Bump Version and Build"    => Act.IncrementVersion,
+            "Bump Build Number"         => Act.IncrementBuild,
             "Archive iOS"               => Act.ArchiveiOS,
+            "Create iOS Archive"        => Act.ArchiveiOS,
             "Run iOS Device"            => Act.RuniOS,
+            "Run on iOS"                => Act.RuniOS,
             "Run Android Device"        => Act.RunAndroid,
+            "Run on Android"            => Act.RunAndroid,
             "Publish Android"           => Act.PublishAndroid,
+            "Create Android Release"    => Act.PublishAndroid,
             "Git Pull"                  => Act.GitPull,
+            "Pull Latest Changes"       => Act.GitPull,
+            "Git Commit"                => Act.GitCommit,
+            "Create Commit"             => Act.GitCommit,
             "Git Push"                  => Act.GitPush,
+            "Push Commits"              => Act.GitPush,
             "Clean Project"             => Act.Clean,
+            "Clean Build Artifacts"     => Act.Clean,
             _                           => Act.Back,
         };
 
@@ -1218,7 +1407,7 @@ public class AppDetailScreen(
             _         => false,
         };
 
-        st.LastAction = "Clean Project";
+        st.LastAction = "Clean Build Artifacts";
         state.Save(st);
 
         if (success)
@@ -1386,7 +1575,7 @@ public class AppDetailScreen(
         if (st.UseLocalMac) return true;
         if (st.MacHost is { Length: > 0 } && st.MacUser is { Length: > 0 }) return true;
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("  [yellow](!) Mac not configured. Go to Mac / SSH config from the main menu.[/]");
+        AnsiConsole.MarkupLine("  [yellow](!) Mac is not configured. Open Environment Settings (Mac / SSH) from the dashboard.[/]");
         Pause(); return false;
     }
 
@@ -1513,6 +1702,18 @@ public class AppDetailScreen(
 
         AnsiConsole.WriteLine();
 
+        if (!ShowsLiveBuildOutput(_verbosity) && allLines.Count > 0)
+        {
+            var milestones = ExtractBuildMilestones(allLines);
+            if (milestones.Count > 0)
+            {
+                AnsiConsole.Write(new Rule("[grey23]build milestones[/]").RuleStyle(Style.Parse("grey23")));
+                foreach (var line in milestones)
+                    AnsiConsole.MarkupLine($"  [grey70]{Markup.Escape(line)}[/]");
+                AnsiConsole.WriteLine();
+            }
+        }
+
         if (exit != 0)
         {
             // Show last lines that contain errors, plus context
@@ -1541,6 +1742,32 @@ public class AppDetailScreen(
 
     private static bool ShowsLiveBuildOutput(string verbosity) =>
         verbosity is "normal" or "detailed" or "diagnostic";
+
+    private static List<string> ExtractBuildMilestones(List<string> allLines)
+    {
+        var keywords = new[]
+        {
+            "restore", "build succeeded", "build failed", "failed", "time elapsed", "publish", "archive", "output", "installed", "deploy"
+        };
+
+        var milestones = new List<string>();
+        foreach (var raw in allLines)
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+
+            if (!keywords.Any(k => line.Contains(k, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            if (line.Length > 140)
+                line = line[..140] + "...";
+
+            if (!milestones.Contains(line, StringComparer.OrdinalIgnoreCase))
+                milestones.Add(line);
+        }
+
+        return milestones.Take(8).ToList();
+    }
 
     private static AppBuildConfig GetOrCreateConfig(PersistentState st, AppEntry app)
     {

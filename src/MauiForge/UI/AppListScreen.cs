@@ -30,13 +30,13 @@ public static class AppListScreen
         {
             AnsiConsole.Clear();
             AnsiConsole.WriteLine();
-            AnsiConsole.Write(new Rule($"[bold cyan1] Select Folder [/]").RuleStyle(new Style(Color.Cyan1, decoration: Decoration.Dim)));
+            AnsiConsole.Write(new Rule($"[bold cyan1] Choose Scan Folder [/]").RuleStyle(new Style(Color.Cyan1, decoration: Decoration.Dim)));
             AnsiConsole.WriteLine();
             AnsiConsole.MarkupLine($"  [dim]Current:[/] [bold white]{Markup.Escape(current)}[/]");
             AnsiConsole.WriteLine();
 
             const string kBack   = "[black on grey70]  << Back  [/]";
-            const string kSelect = "[[OK]] Select this folder";
+            const string kSelect = "[[OK]] Use this folder";
             const string kUp     = " ^  .. (go up)";
 
             // map label -> real dir name to handle special chars in folder names
@@ -61,11 +61,11 @@ public static class AppListScreen
             if (Directory.GetParent(current) is not null) actions.Add(kUp);
 
             var prompt = new SelectionPrompt<string>()
-                .Title("[dim]  Use arrows to navigate  ·  Enter to open  ·  Select to confirm[/]")
+                .Title("[dim]  Use arrows to navigate  ·  Enter to open  ·  Choose to confirm[/]")
                 .PageSize(22)
                 .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
                 .AddChoiceGroup("[bold grey53]── Actions ──────────────────────[/]", actions)
-                .AddChoiceGroup("[bold grey53]── Subfolders ────────────────────[/]", subdirs.Count > 0 ? subdirs : ["[dim](no subfolders)[/]"]);
+                .AddChoiceGroup("[bold grey53]── Subfolders ────────────────────[/]", subdirs.Count > 0 ? subdirs : ["[dim](no subfolders found)[/]"]);
 
             string? choice;
             try { choice = AnsiConsole.Prompt(prompt); }
@@ -109,7 +109,7 @@ public static class AppListScreen
         AnsiConsole.Write(new FigletText("MAUIForge").Color(Color.Cyan1));
         
         var version = typeof(AppListScreen).Assembly.GetName().Version?.ToString(3) ?? "1.4.1";
-        AnsiConsole.MarkupLine($"  [bold cyan1]>>>[/] [bold white][link=https://cwsoftware.com.br]by CW Software[/][/] [cyan1]v{version}[/]  [grey46]|[/]  [dim].NET MAUI Version & Build Manager[/]");
+        AnsiConsole.MarkupLine($"  [bold cyan1]>>>[/] [bold white][link=https://cwsoftware.com.br]by CW Software[/][/] [cyan1]v{version}[/]  [grey46]|[/]  [dim]Unified MAUI Build, Release, and Version Console[/]");
         AnsiConsole.WriteLine();
         AnsiConsole.Write(new Rule().RuleStyle(new Style(Color.Cyan1, decoration: Decoration.Dim)));
         AnsiConsole.WriteLine();
@@ -160,7 +160,7 @@ public static class AppListScreen
         // Line 2: stats inline
         if (apps is null || apps.Count == 0)
         {
-            AnsiConsole.MarkupLine(apps is null ? "" : "  [yellow](!) No apps found.[/]");
+            AnsiConsole.MarkupLine(apps is null ? "" : "  [yellow](!) No projects found in this scan path.[/]");
             AnsiConsole.WriteLine();
             return;
         }
@@ -173,7 +173,7 @@ public static class AppListScreen
 
         var stats = new List<string>
         {
-            $"[bold white]{apps.Count}[/] [dim]apps[/]",
+            $"[bold white]{apps.Count}[/] [dim]projects[/]",
             $"[skyblue1]{iosC}[/] [dim]iOS[/]",
             $"[green3]{andC}[/] [dim]Android[/]",
         };
@@ -207,19 +207,22 @@ public static class AppListScreen
         var currentVer  = typeof(AppListScreen).Assembly.GetName().Version;
         var updateLabel = latestVer is not null && Version.TryParse(latestVer.Split('-')[0], out var lv) && currentVer is not null && lv > currentVer
             ? $"[cyan1] >[/]  [white]Check for Updates[/]  [yellow]↑ {Markup.Escape(latestVer)} available[/]"
-            : "[cyan1] >[/]  [white]Check for Updates[/]  [dim]up to date[/]";
+            : "[cyan1] >[/]  [white]Check for Updates[/]  [dim]latest installed[/]";
 
-        var globalLabels = new List<string>
-        {
-            "[cyan1] >[/]  [white]Change folder[/]",
-            "[cyan1] >[/]  [white]Refresh[/] [dim]re-scan[/]",
-            $"[cyan1] >[/]  [white]Platform:[/] {platLabel}  [dim]→ {Markup.Escape(nextPlat)}[/]",
-            $"[cyan1] >[/]  [white]Search:[/] {searchLabel}",
-            "[cyan1] >[/]  [white]Mac / SSH config[/]",
-            "[cyan1] >[/]  [white]Diagnostics[/]",
+        var globalLabels = new List<string>();
+        if (sorted.Count > 0)
+            globalLabels.Add("[cyan1] >[/]  [white]Open Most Recent Project[/] [dim]quick start[/]");
+        globalLabels.AddRange(
+        [
+            "[cyan1] >[/]  [white]Change Scan Folder[/]",
+            "[cyan1] >[/]  [white]Refresh Project Scan[/] [dim]re-scan[/]",
+            $"[cyan1] >[/]  [white]Platform Filter:[/] {platLabel}  [dim]→ {Markup.Escape(nextPlat)}[/]",
+            $"[cyan1] >[/]  [white]Search Projects:[/] {searchLabel}",
+            "[cyan1] >[/]  [white]Environment Settings[/] [dim](Mac / SSH)[/]",
+            "[cyan1] >[/]  [white]Diagnostics & Health[/]",
             updateLabel,
-            "[cyan1] >[/]  [white]Quit[/]",
-        };
+            "[cyan1] >[/]  [white]Exit[/]",
+        ]);
 
         var hNamePad = "".PadRight(nameW + 4);
         var hIosPad  = "iOS".PadRight(ColIOS);
@@ -235,14 +238,14 @@ public static class AppListScreen
             $"[bold dim]{Markup.Escape(hLastPad)}[/]" +
             $"[bold dim]Git[/]";
 
-        var appGroupHeader    = $"[bold grey53]── Apps ({sorted.Count}) ──────────────────────────────────────────────────────────────────[/]";
-        var globalGroupHeader = $"[bold grey53]── Options ───────────────────────────────────────────────────────────────────────[/]";
+        var appGroupHeader    = $"[bold grey53]── Projects ({sorted.Count}) ─────────────────────────────────────────────────────────────[/]";
+        var globalGroupHeader = $"[bold grey53]── Home Dashboard ─────────────────────────────────────────────────────────────[/]";
 
         var prompt = new SelectionPrompt<string>()
-            .Title(header)
+            .Title("[bold cyan1]Project Dashboard[/]\n" + header)
             .PageSize(26)
             .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
-            .AddChoiceGroup(appGroupHeader,    appLabels.Count > 0 ? appLabels : ["[dim]  (no apps found)[/]"])
+            .AddChoiceGroup(appGroupHeader,    appLabels.Count > 0 ? appLabels : ["[dim]  (no projects found)[/]"])
             .AddChoiceGroup(globalGroupHeader, globalLabels);
 
         string? choice;
@@ -253,24 +256,30 @@ public static class AppListScreen
 
         if (globalLabels.Contains(choice))
         {
-            if (choice.Contains("Change folder"))
+            if (choice.Contains("Open Most Recent Project"))
+            {
+                if (sorted.Count > 0)
+                    return new AppSelected(sorted[0]);
+                return new ListQuit();
+            }
+            if (choice.Contains("Change Scan Folder"))
             {
                 var newPath = BrowseFolder(scanPath);
                 return new ScanRefresh(newPath ?? scanPath);
             }
-            if (choice.Contains("Refresh"))     return new ScanRefresh(scanPath);
-            if (choice.Contains("Platform"))    return new FilterChanged(nameFilter, nextPlat);
-            if (choice.Contains("Search"))
+            if (choice.Contains("Refresh Project Scan")) return new ScanRefresh(scanPath);
+            if (choice.Contains("Platform Filter"))      return new FilterChanged(nameFilter, nextPlat);
+            if (choice.Contains("Search Projects"))
             {
                 AnsiConsole.Clear();
                 RenderHeader();
                 RenderScanBar(scanPath, st, nameFilter, platformFilter);
                 var newFilter = AnsiConsole.Ask<string>(
-                    "  [cyan1]Filter by name[/] [dim](empty = show all):[/]", nameFilter ?? "");
+                    "  [cyan1]Filter projects by name[/] [dim](empty = show all):[/]", nameFilter ?? "");
                 return new FilterChanged(newFilter.Length == 0 ? null : newFilter, platformFilter);
             }
-            if (choice.Contains("Mac"))              return new MacConfigRequested();
-            if (choice.Contains("Diagnostics"))     return new DiagnosticsRequested();
+            if (choice.Contains("Environment Settings")) return new MacConfigRequested();
+            if (choice.Contains("Diagnostics & Health")) return new DiagnosticsRequested();
             if (choice.Contains("Check for Updates")) return new CheckUpdatesRequested();
             return new ListQuit();
         }

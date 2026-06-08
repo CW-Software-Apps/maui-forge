@@ -168,7 +168,7 @@ while (true)
         }
 
         AnsiConsole.WriteLine();
-        AnsiConsole.Prompt(new TextPrompt<string>("[dim]Press Enter to go back...[/]").AllowEmpty());
+        AnsiConsole.Prompt(new TextPrompt<string>("[dim]Press Enter to return to dashboard...[/]").AllowEmpty());
         continue;
     }
 
@@ -176,17 +176,17 @@ while (true)
     {
         AnsiConsole.Clear();
         AnsiConsole.WriteLine();
-        AnsiConsole.Write(new Rule("[bold cyan1]  Mac / SSH Config  [/]").RuleStyle(Style.Parse("cyan1 dim")));
+        AnsiConsole.Write(new Rule("[bold cyan1]  Environment Settings (Mac / SSH)  [/]").RuleStyle(Style.Parse("cyan1 dim")));
         AnsiConsole.WriteLine();
 
-        st.UseLocalMac = AnsiConsole.Confirm("  Use local Mac (no SSH)?", defaultValue: st.UseLocalMac);
+        st.UseLocalMac = AnsiConsole.Confirm("  Use local Mac mode (no SSH)?", defaultValue: st.UseLocalMac);
 
         if (!st.UseLocalMac)
         {
-            st.MacHost = AnsiConsole.Ask<string>("  [cyan1]Mac Host (IP or hostname):[/]", st.MacHost ?? "");
-            st.MacUser = AnsiConsole.Ask<string>("  [cyan1]Mac User:[/]", st.MacUser ?? "");
+            st.MacHost = AnsiConsole.Ask<string>("  [cyan1]Mac host (IP or hostname):[/]", st.MacHost ?? "");
+            st.MacUser = AnsiConsole.Ask<string>("  [cyan1]Mac username:[/]", st.MacUser ?? "");
 
-            if (AnsiConsole.Confirm("  Scan network for Macs?", defaultValue: false))
+            if (AnsiConsole.Confirm("  Scan local network for Macs?", defaultValue: false))
             {
                 List<string> hosts = [];
                 AnsiConsole.Status().Spinner(Spinner.Known.Dots).SpinnerStyle(Style.Parse("cyan1"))
@@ -197,7 +197,7 @@ while (true)
                     hosts.Insert(0, "[Keep current]");
                     var picked = AnsiConsole.Prompt(
                         new SelectionPrompt<string>()
-                            .Title("  [cyan1]Select Mac host:[/]")
+                            .Title("  [cyan1]Select a Mac host:[/]")
                             .HighlightStyle(new Style(foreground: Color.Cyan1, background: Color.Grey11))
                             .AddChoices(hosts));
                     if (!picked.Contains("Keep")) st.MacHost = picked;
@@ -211,7 +211,7 @@ while (true)
 
         stateService.Save(st);
         AnsiConsole.MarkupLine("  [green]ok  Settings saved.[/]");
-        AnsiConsole.Prompt(new TextPrompt<string>("\n  [dim]Press Enter to continue...[/]").AllowEmpty());
+        AnsiConsole.Prompt(new TextPrompt<string>("\n  [dim]Press Enter to return to dashboard...[/]").AllowEmpty());
         continue;
     }
 

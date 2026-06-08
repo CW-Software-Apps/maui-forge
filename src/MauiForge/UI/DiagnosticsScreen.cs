@@ -10,7 +10,7 @@ public static class DiagnosticsScreen
     {
         AnsiConsole.Clear();
         AnsiConsole.WriteLine();
-        AnsiConsole.Write(new Rule("[bold cyan1]  Diagnostics  [/]").RuleStyle(Style.Parse("cyan1 dim")));
+        AnsiConsole.Write(new Rule("[bold cyan1]  Diagnostics & Health  [/]").RuleStyle(Style.Parse("cyan1 dim")));
         AnsiConsole.WriteLine();
 
         var adbPath      = DeviceService.FindAdb();
@@ -60,7 +60,7 @@ public static class DiagnosticsScreen
             AnsiConsole.MarkupLine($"  [dim]{Markup.Escape(line.TrimEnd())}[/]");
 
         AnsiConsole.WriteLine();
-        AnsiConsole.Prompt(new TextPrompt<string>("[dim]Press Enter to go back...[/]").AllowEmpty());
+        AnsiConsole.Prompt(new TextPrompt<string>("[dim]Press Enter to return to dashboard...[/]").AllowEmpty());
     }
 
     private static void CheckExe(Table table, string label, string args, string? exePath, string? displayPath = null)
