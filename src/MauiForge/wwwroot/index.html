@@ -32,6 +32,13 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #475569;
         }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .spinning {
+            animation: spin 1s linear infinite;
+        }
     </style>
 </head>
 <body class="h-full flex flex-col overflow-hidden">
@@ -89,13 +96,21 @@
                         Applications
                         <span id="appCount" class="text-xs font-normal text-slate-400 bg-slate-900 px-2 py-0.5 rounded-full">0</span>
                     </h2>
-                    <button onclick="loadApps()" class="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-800 px-3 py-1.5 rounded-lg text-slate-300 transition flex items-center gap-1">
-                        🔄 Refresh
-                    </button>
+                    <div class="flex items-center gap-4">
+                        <!-- Layout toggles -->
+                        <div class="inline-flex rounded-lg border border-slate-800 p-0.5 bg-slate-900/50">
+                            <button id="layoutCardBtn" onclick="setLayout('card')" class="px-3 py-1.5 rounded-md text-xs font-medium transition">🎴 Cards</button>
+                            <button id="layoutListBtn" onclick="setLayout('list')" class="px-3 py-1.5 rounded-md text-xs font-medium transition">📋 List</button>
+                        </div>
+                        <button onclick="loadApps()" class="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-800 px-3 py-1.5 rounded-lg text-slate-300 transition flex items-center gap-1.5">
+                            <span id="refreshAllIcon">🔄</span> Refresh All
+                        </button>
+                    </div>
                 </div>
 
-                <div id="appsGrid" class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    <!-- Apps cards will be injected here -->
+                <!-- Apps render target -->
+                <div id="appsContainer">
+                    <!-- Dynamic rendering either cards or list -->
                 </div>
             </div>
 
@@ -136,15 +151,22 @@
                     <label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Build Number</label>
                     <input type="text" id="modalBuildInput" class="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition">
                 </div>
-                <button onclick="submitVersionUpdate()" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-medium rounded-lg py-2.5 transition">
-                    Save Version Settings
-                </button>
+                <div class="flex gap-3 pt-2">
+                    <button onclick="submitVersionUpdate()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold rounded-lg py-2.5 transition text-sm">
+                        💾 Save Local
+                    </button>
+                    <button onclick="submitVersionUpdateAndPush()" class="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold rounded-lg py-2.5 transition text-sm flex items-center justify-center gap-1.5">
+                        🚀 Bump & Push
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
         const API_BASE = "";
+        let appsList = [];
+        let currentLayout = localStorage.getItem("layout") || "card";
 
         // Establish SignalR connection for build logs
         const connection = new signalR.HubConnectionBuilder()
@@ -181,7 +203,28 @@
         window.addEventListener("DOMContentLoaded", () => {
             loadPaths();
             loadApps();
+            updateLayoutButtons();
         });
+
+        function setLayout(layout) {
+            currentLayout = layout;
+            localStorage.setItem("layout", layout);
+            updateLayoutButtons();
+            renderApps();
+        }
+
+        function updateLayoutButtons() {
+            const cardBtn = document.getElementById("layoutCardBtn");
+            const listBtn = document.getElementById("layoutListBtn");
+            
+            if (currentLayout === "card") {
+                cardBtn.className = "px-3 py-1.5 rounded-md text-xs font-semibold bg-cyan-600/20 text-cyan-400 border border-cyan-500/20 transition";
+                listBtn.className = "px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 transition";
+            } else {
+                listBtn.className = "px-3 py-1.5 rounded-md text-xs font-semibold bg-cyan-600/20 text-cyan-400 border border-cyan-500/20 transition";
+                cardBtn.className = "px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 transition";
+            }
+        }
 
         function clearConsole() {
             document.getElementById("terminalConsole").innerHTML = '<div class="text-slate-500">[Info] Terminal cleared.</div>';
@@ -253,23 +296,63 @@
         }
 
         async function loadApps() {
-            const grid = document.getElementById("appsGrid");
-            grid.innerHTML = '<div class="col-span-2 text-center py-12 text-slate-500 text-sm">🔄 Scanning folders for MAUI apps...</div>';
+            const container = document.getElementById("appsContainer");
+            container.innerHTML = '<div class="text-center py-12 text-slate-500 text-sm">🔄 Scanning folders for MAUI apps...</div>';
             
             try {
                 const res = await fetch(`${API_BASE}/api/apps`);
-                const apps = await res.json();
-                grid.innerHTML = "";
-                document.getElementById("appCount").textContent = apps.length;
+                appsList = await res.json();
+                document.getElementById("appCount").textContent = appsList.length;
+                renderApps();
+            } catch (err) {
+                console.error("Failed to load apps:", err);
+                container.innerHTML = '<div class="text-center py-12 text-rose-500 text-sm">Failed to connect to Localhost Web Server. Verify service status.</div>';
+            }
+        }
 
-                if (apps.length === 0) {
-                    grid.innerHTML = '<div class="col-span-2 text-center py-12 text-slate-500 text-sm">No MAUI projects found. Ensure directories contain a valid .csproj file.</div>';
-                    return;
+        async function refreshSingleApp(dir, iconId) {
+            const icon = document.getElementById(iconId);
+            if (icon) icon.classList.add("spinning");
+
+            try {
+                const res = await fetch(`${API_BASE}/api/apps/refresh`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dir })
+                });
+                if (res.ok) {
+                    const updatedApp = await res.json();
+                    const index = appsList.findIndex(a => a.dir === dir);
+                    if (index !== -1) {
+                        appsList[index] = updatedApp;
+                    } else {
+                        appsList.push(updatedApp);
+                    }
+                    renderApps();
                 }
+            } catch (err) {
+                console.error("Failed to refresh app:", err);
+            } finally {
+                if (icon) icon.classList.remove("spinning");
+            }
+        }
 
-                apps.forEach(app => {
+        function renderApps() {
+            const container = document.getElementById("appsContainer");
+            container.innerHTML = "";
+
+            if (appsList.length === 0) {
+                container.innerHTML = '<div class="text-center py-12 text-slate-500 text-sm">No MAUI projects found. Ensure directories contain a valid .csproj file.</div>';
+                return;
+            }
+
+            if (currentLayout === "card") {
+                const grid = document.createElement("div");
+                grid.className = "grid grid-cols-1 xl:grid-cols-2 gap-6";
+                
+                appsList.forEach((app, idx) => {
                     const card = document.createElement("div");
-                    card.className = "bg-slate-900/35 border border-slate-850 hover:border-slate-800 rounded-xl p-5 flex flex-col gap-4 transition shadow-sm hover:shadow-md";
+                    card.className = "bg-slate-900/35 border border-slate-850 hover:border-slate-800 rounded-xl p-5 flex flex-col gap-4 transition shadow-sm hover:shadow-md relative overflow-hidden";
                     
                     const isDirty = app.git.dirty;
                     const gitStatusText = isDirty ? "Dirty" : "Clean";
@@ -279,16 +362,32 @@
                     const androidVer = app.versions.android ? `${app.versions.android.version} (${app.versions.android.build})` : "N/A";
                     const csprojVer = app.versions.csproj ? `${app.versions.csproj.version} (${app.versions.csproj.build})` : "N/A";
 
+                    const isBehind = app.git.behind > 0;
+                    const pullWarningHtml = isBehind 
+                        ? `<div class="bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg p-2.5 text-xs flex items-center justify-between gap-2">
+                             <span>⚠️ <b>Pull Pending:</b> This repository is ${app.git.behind} commits behind remote.</span>
+                             <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-2 py-1 rounded transition text-[10px]">PULL NOW</button>
+                           </div>` 
+                        : "";
+
                     card.innerHTML = `
                         <div class="flex items-start justify-between">
                             <div>
-                                <h3 class="font-bold text-white text-base">${app.name}</h3>
-                                <p class="text-xs font-mono text-slate-500 truncate max-w-md" title="${app.dir}">${app.dir}</p>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="font-bold text-white text-base">${app.name}</h3>
+                                    <button onclick="refreshSingleApp('${app.dir.replace(/\\/g, '\\\\')}', 'icon-card-${idx}')" 
+                                            class="text-slate-500 hover:text-slate-300 text-xs transition" title="Refresh this project">
+                                        <span id="icon-card-${idx}" class="inline-block">🔄</span>
+                                    </button>
+                                </div>
+                                <p class="text-xs font-mono text-slate-500 truncate max-w-xs md:max-w-md" title="${app.dir}">${app.dir}</p>
                             </div>
                             <span class="text-xs px-2 py-0.5 rounded-full border ${gitBadgeColor} font-medium">
                                 ${app.branch} [${gitStatusText}]
                             </span>
                         </div>
+
+                        ${pullWarningHtml}
 
                         <!-- Versions Grid -->
                         <div class="grid grid-cols-3 gap-3 bg-slate-950/40 p-3 rounded-lg border border-slate-850/40">
@@ -328,9 +427,92 @@
                     `;
                     grid.appendChild(card);
                 });
-            } catch (err) {
-                console.error("Failed to load apps:", err);
-                grid.innerHTML = '<div class="col-span-2 text-center py-12 text-rose-500 text-sm">Failed to connect to Localhost Web Server. Verify service status.</div>';
+                container.appendChild(grid);
+            } else {
+                // Table View
+                const tableWrapper = document.createElement("div");
+                tableWrapper.className = "overflow-x-auto border border-slate-800 rounded-xl bg-slate-900/10";
+                
+                let tableHtml = `
+                    <table class="min-w-full divide-y divide-slate-800 text-left text-xs">
+                        <thead class="bg-slate-900/50 text-slate-400 uppercase tracking-wider font-semibold">
+                            <tr>
+                                <th class="px-4 py-3">App Name</th>
+                                <th class="px-4 py-3">Versions (Csproj / Android / iOS)</th>
+                                <th class="px-4 py-3">Git Branch & Status</th>
+                                <th class="px-4 py-3 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800 bg-slate-950/20">
+                `;
+
+                appsList.forEach((app, idx) => {
+                    const isDirty = app.git.dirty;
+                    const gitStatusText = isDirty ? "Dirty" : "Clean";
+                    const gitBadgeColor = isDirty ? "text-amber-400" : "text-emerald-400";
+                    
+                    const iosVer = app.versions.iOS ? `${app.versions.iOS.version} (${app.versions.iOS.build})` : "N/A";
+                    const androidVer = app.versions.android ? `${app.versions.android.version} (${app.versions.android.build})` : "N/A";
+                    const csprojVer = app.versions.csproj ? `${app.versions.csproj.version} (${app.versions.csproj.build})` : "N/A";
+
+                    const isBehind = app.git.behind > 0;
+                    const gitPullAlert = isBehind 
+                        ? `<span class="bg-amber-500/10 text-amber-500 border border-amber-500/25 px-2 py-0.5 rounded text-[10px] ml-2 animate-pulse" title="Click Pull below to update">⚠️ Pull Pending</span>` 
+                        : "";
+
+                    tableHtml += `
+                        <tr class="hover:bg-slate-900/20 transition">
+                            <td class="px-4 py-3.5">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-white">${app.name}</span>
+                                    <button onclick="refreshSingleApp('${app.dir.replace(/\\/g, '\\\\')}', 'icon-list-${idx}')" 
+                                            class="text-slate-500 hover:text-slate-300 transition">
+                                        <span id="icon-list-${idx}" class="inline-block">🔄</span>
+                                    </button>
+                                </div>
+                                <span class="text-[10px] font-mono text-slate-500 truncate block max-w-xs" title="${app.dir}">${app.dir}</span>
+                            </td>
+                            <td class="px-4 py-3.5 font-mono text-slate-300">
+                                <div><span class="text-[10px] text-slate-500 uppercase mr-1">Proj:</span> ${csprojVer}</div>
+                                <div><span class="text-[10px] text-slate-500 uppercase mr-1">Andr:</span> ${androidVer}</div>
+                                <div><span class="text-[10px] text-slate-500 uppercase mr-1">iOS:</span>  ${iosVer}</div>
+                            </td>
+                            <td class="px-4 py-3.5 font-medium">
+                                <div class="flex items-center">
+                                    <span class="text-slate-200 font-mono">${app.branch}</span>
+                                    <span class="mx-2 text-slate-600">|</span>
+                                    <span class="${gitBadgeColor}">${gitStatusText}</span>
+                                    ${gitPullAlert}
+                                </div>
+                            </td>
+                            <td class="px-4 py-3.5 text-right space-x-1.5">
+                                <button onclick="openVersionUpdate('${app.dir.replace(/\\/g, '\\\\')}', '${app.versions.csproj?.version || ''}', '${app.versions.csproj?.build || ''}')" 
+                                        class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold px-2 py-1 rounded transition text-[11px]">
+                                    ✏️ Version
+                                </button>
+                                <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" 
+                                        class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold px-2 py-1 rounded transition text-[11px]">
+                                    ⬇️ Pull
+                                </button>
+                                <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Android')" 
+                                        class="bg-cyan-600/10 border border-cyan-500/20 hover:border-cyan-500/50 text-cyan-400 font-semibold px-2 py-1 rounded transition text-[11px]">
+                                    🤖 Build Android
+                                </button>
+                                <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'iOS')" 
+                                        class="bg-blue-600/10 border border-blue-500/20 hover:border-blue-500/50 text-blue-400 font-semibold px-2 py-1 rounded transition text-[11px]">
+                                    🍎 Build iOS
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                tableHtml += `
+                        </tbody>
+                    </table>
+                `;
+                tableWrapper.innerHTML = tableHtml;
+                container.appendChild(tableWrapper);
             }
         }
 
@@ -364,6 +546,36 @@
                 }
             } catch (err) {
                 console.error("Failed to update version:", err);
+            }
+        }
+
+        async function submitVersionUpdateAndPush() {
+            const dir = document.getElementById("modalAppDir").value;
+            const version = document.getElementById("modalVersionInput").value;
+            const build = document.getElementById("modalBuildInput").value;
+
+            const terminal = document.getElementById("terminalConsole");
+            terminal.innerHTML = '<div class="text-slate-400">[Bump & Push] Writing version and pushing commits...</div>';
+            closeVersionModal();
+
+            try {
+                const res = await fetch(`${API_BASE}/api/apps/bump-push`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dir, version, build })
+                });
+                const data = await res.json();
+                
+                const line = document.createElement("div");
+                line.className = data.success ? "text-emerald-400 font-bold" : "text-rose-500";
+                line.textContent = data.success 
+                    ? `[Bump & Push] Successfully updated to ${data.version} #${data.build} and pushed to origin.` 
+                    : `[Bump & Push] Version written, but push failed: ${data.output}`;
+                
+                terminal.appendChild(line);
+                loadApps();
+            } catch (err) {
+                console.error("Failed to bump & push version:", err);
             }
         }
 

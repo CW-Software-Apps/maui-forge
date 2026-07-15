@@ -46,6 +46,32 @@ public class AppDiscoveryService(VersionService versions, GitService git)
         return entries;
     }
 
+    public AppEntry? RefreshApp(string dir)
+    {
+        if (!Directory.Exists(dir)) return null;
+        var csproj = Directory.EnumerateFiles(dir, "*.csproj").FirstOrDefault();
+        if (csproj is null) return null;
+
+        var name = Path.GetFileNameWithoutExtension(csproj);
+
+        var ios     = versions.ReadiOS(dir);
+        var android = versions.ReadAndroid(dir);
+        var csprojV = versions.ReadCsproj(csproj);
+
+        if (ios is null && android is null && csprojV is null) return null;
+
+        var branch = git.GetBranch(dir);
+        var status = git.GetStatus(dir);
+
+        return new AppEntry(
+            Name:     name,
+            Dir:      dir,
+            Branch:   branch,
+            Versions: new AppVersions(ios, android, csprojV),
+            Git:      status
+        );
+    }
+
     private static readonly HashSet<string> SkipDirs = new(StringComparer.OrdinalIgnoreCase)
         { "bin", "obj", ".git", ".vs", "node_modules", ".idea", "packages" };
 

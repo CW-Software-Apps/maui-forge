@@ -147,6 +147,44 @@ public static class WebStartup
             return Results.Ok(new { Success = res.Success, Output = res.Output });
         });
 
+        app.MapPost("/api/apps/refresh", (AppDiscoveryService discovery, RefreshRequest req) =>
+        {
+            var appEntry = discovery.RefreshApp(req.Dir);
+            if (appEntry is null) return Results.NotFound("App not found.");
+            return Results.Ok(appEntry);
+        });
+
+        app.MapPost("/api/apps/bump-push", (VersionService versions, GitService git, StateService state, BumpPushRequest req) =>
+        {
+            var csproj = Directory.EnumerateFiles(req.Dir, "*.csproj").FirstOrDefault();
+            if (csproj == null) return Results.BadRequest("No .csproj found.");
+
+            var currentIos = versions.ReadiOS(req.Dir);
+            var currentAndroid = versions.ReadAndroid(req.Dir);
+            var currentCsproj = versions.ReadCsproj(csproj);
+
+            string newVersion = req.Version;
+            string newBuild = req.Build;
+
+            var st = state.Load();
+            st.LastVersion = new VersionSnapshot
+            {
+                AppDir = req.Dir,
+                Version = currentCsproj?.Version ?? currentIos?.Version ?? currentAndroid?.Version ?? "1.0.0",
+                Build = currentCsproj?.Build ?? currentIos?.Build ?? currentAndroid?.Build ?? "1"
+            };
+            state.Save(st);
+
+            if (currentIos is not null) versions.WriteiOS(req.Dir, newVersion, newBuild);
+            if (currentAndroid is not null) versions.WriteAndroid(req.Dir, newVersion, newBuild);
+            if (csproj is not null) versions.WriteCsproj(csproj, newVersion, newBuild);
+
+            var commitMsg = $"chore: bump version to {newVersion} #{newBuild}";
+            var (gitSuccess, gitOutput) = git.Push(req.Dir, commitMsg);
+
+            return Results.Ok(new { Success = gitSuccess, Output = gitOutput, Version = newVersion, Build = newBuild });
+        });
+
         // Build Endpoint
         app.MapPost("/api/apps/build", (BuildService builder, DeviceService devices, StateService state, BuildRequest req) =>
         {
@@ -227,3 +265,5 @@ public record GitRequest(string Dir);
 public record GitPushRequest(string Dir, string Message);
 public record VersionUpdateRequest(string Dir, string Version, string Build);
 public record BuildRequest(string Dir, string Platform, string Configuration);
+public record RefreshRequest(string Dir);
+public record BumpPushRequest(string Dir, string Version, string Build);
