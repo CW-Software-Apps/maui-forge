@@ -241,4 +241,79 @@ public partial class VersionService
             RegexOptions.Singleline);
         return match.Success ? match.Groups[1].Value.Trim() : null;
     }
+
+    public PlatformVersion? ReadAssemblyInfo(string dir)
+    {
+        var assemblyInfo = FindFile(dir, "AssemblyInfo.cs");
+        if (assemblyInfo is null) return null;
+        try
+        {
+            var content = File.ReadAllText(assemblyInfo, Encoding.UTF8);
+            var versionMatch = Regex.Match(content, @"\[assembly:\s*AssemblyVersion\(""([^""]+)""\)\]");
+            var fileVersionMatch = Regex.Match(content, @"\[assembly:\s*AssemblyFileVersion\(""([^""]+)""\)\]");
+            
+            var version = versionMatch.Success ? versionMatch.Groups[1].Value : null;
+            var build = fileVersionMatch.Success ? fileVersionMatch.Groups[1].Value : "1";
+            
+            if (version is not null) return new(version, build);
+        }
+        catch { }
+        return null;
+    }
+
+    public void WriteAssemblyInfo(string dir, string version, string build)
+    {
+        var assemblyInfo = FindFile(dir, "AssemblyInfo.cs");
+        if (assemblyInfo is null) return;
+        try
+        {
+            var content = File.ReadAllText(assemblyInfo, Encoding.UTF8);
+            content = Regex.Replace(content, @"\[assembly:\s*AssemblyVersion\(""[^""]+""\)\]", $"[assembly: AssemblyVersion(\"{version}\")]");
+            content = Regex.Replace(content, @"\[assembly:\s*AssemblyFileVersion\(""[^""]+""\)\]", $"[assembly: AssemblyFileVersion(\"{build}\")]");
+            File.WriteAllText(assemblyInfo, content, Encoding.UTF8);
+        }
+        catch { }
+    }
+
+    public PlatformVersion? ReadUnity(string dir)
+    {
+        var assetPath = Path.Combine(dir, "ProjectSettings", "ProjectSettings.asset");
+        if (!File.Exists(assetPath)) return null;
+        try
+        {
+            var content = File.ReadAllText(assetPath, Encoding.UTF8);
+            var versionMatch = Regex.Match(content, @"bundleVersion:\s*(.+)");
+            var buildMatch = Regex.Match(content, @"AndroidBundleVersionCode:\s*(\d+)");
+            if (!buildMatch.Success) buildMatch = Regex.Match(content, @"buildNumber:\s*(.+)");
+
+            var version = versionMatch.Success ? versionMatch.Groups[1].Value.Trim() : null;
+            var build = buildMatch.Success ? buildMatch.Groups[1].Value.Trim() : "1";
+
+            if (version is not null) return new(version, build);
+        }
+        catch { }
+        return null;
+    }
+
+    public void WriteUnity(string dir, string version, string build)
+    {
+        var assetPath = Path.Combine(dir, "ProjectSettings", "ProjectSettings.asset");
+        if (!File.Exists(assetPath)) return;
+        try
+        {
+            var content = File.ReadAllText(assetPath, Encoding.UTF8);
+            content = Regex.Replace(content, @"bundleVersion:\s*.+", $"bundleVersion: {version}");
+            
+            if (content.Contains("AndroidBundleVersionCode:"))
+            {
+                content = Regex.Replace(content, @"AndroidBundleVersionCode:\s*\d+", $"AndroidBundleVersionCode: {build}");
+            }
+            if (content.Contains("buildNumber:"))
+            {
+                content = Regex.Replace(content, @"buildNumber:\s*.+", $"buildNumber: {build}");
+            }
+            File.WriteAllText(assetPath, content, Encoding.UTF8);
+        }
+        catch { }
+    }
 }

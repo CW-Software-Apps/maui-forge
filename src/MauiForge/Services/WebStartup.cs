@@ -108,15 +108,32 @@ public static class WebStartup
         app.MapPost("/api/apps/version", (VersionService versions, StateService state, VersionUpdateRequest req) =>
         {
             var st = state.Load();
+            string newVersion = req.Version;
+            string newBuild = req.Build;
+
+            // 1. Unity
+            var unitySettings = Path.Combine(req.Dir, "ProjectSettings", "ProjectSettings.asset");
+            if (File.Exists(unitySettings))
+            {
+                var currentUnity = versions.ReadUnity(req.Dir);
+                st.LastVersion = new VersionSnapshot
+                {
+                    AppDir = req.Dir,
+                    Version = currentUnity?.Version ?? "1.0.0",
+                    Build = currentUnity?.Build ?? "1"
+                };
+                state.Save(st);
+                versions.WriteUnity(req.Dir, newVersion, newBuild);
+                return Results.Ok(new { Success = true, Version = newVersion, Build = newBuild });
+            }
+
+            // 2. Csproj
             var csproj = Directory.EnumerateFiles(req.Dir, "*.csproj").FirstOrDefault();
             if (csproj == null) return Results.BadRequest("No .csproj found.");
 
             var currentIos = versions.ReadiOS(req.Dir);
             var currentAndroid = versions.ReadAndroid(req.Dir);
-            var currentCsproj = versions.ReadCsproj(csproj);
-
-            string newVersion = req.Version;
-            string newBuild = req.Build;
+            var currentCsproj = versions.ReadCsproj(csproj) ?? versions.ReadAssemblyInfo(req.Dir);
 
             // Increment log / snapshot
             st.LastVersion = new VersionSnapshot
@@ -130,6 +147,7 @@ public static class WebStartup
             if (currentIos is not null) versions.WriteiOS(req.Dir, newVersion, newBuild);
             if (currentAndroid is not null) versions.WriteAndroid(req.Dir, newVersion, newBuild);
             if (csproj is not null) versions.WriteCsproj(csproj, newVersion, newBuild);
+            versions.WriteAssemblyInfo(req.Dir, newVersion, newBuild);
 
             return Results.Ok(new { Success = true, Version = newVersion, Build = newBuild });
         });
@@ -156,17 +174,37 @@ public static class WebStartup
 
         app.MapPost("/api/apps/bump-push", (VersionService versions, GitService git, StateService state, BumpPushRequest req) =>
         {
+            var st = state.Load();
+            string newVersion = req.Version;
+            string newBuild = req.Build;
+
+            // 1. Unity
+            var unitySettings = Path.Combine(req.Dir, "ProjectSettings", "ProjectSettings.asset");
+            if (File.Exists(unitySettings))
+            {
+                var currentUnity = versions.ReadUnity(req.Dir);
+                st.LastVersion = new VersionSnapshot
+                {
+                    AppDir = req.Dir,
+                    Version = currentUnity?.Version ?? "1.0.0",
+                    Build = currentUnity?.Build ?? "1"
+                };
+                state.Save(st);
+                versions.WriteUnity(req.Dir, newVersion, newBuild);
+
+                var commitMsgU = $"chore: bump version to {newVersion} #{newBuild}";
+                var (gitSuccessU, gitOutputU) = git.Push(req.Dir, commitMsgU);
+                return Results.Ok(new { Success = gitSuccessU, Output = gitOutputU, Version = newVersion, Build = newBuild });
+            }
+
+            // 2. Csproj
             var csproj = Directory.EnumerateFiles(req.Dir, "*.csproj").FirstOrDefault();
             if (csproj == null) return Results.BadRequest("No .csproj found.");
 
             var currentIos = versions.ReadiOS(req.Dir);
             var currentAndroid = versions.ReadAndroid(req.Dir);
-            var currentCsproj = versions.ReadCsproj(csproj);
+            var currentCsproj = versions.ReadCsproj(csproj) ?? versions.ReadAssemblyInfo(req.Dir);
 
-            string newVersion = req.Version;
-            string newBuild = req.Build;
-
-            var st = state.Load();
             st.LastVersion = new VersionSnapshot
             {
                 AppDir = req.Dir,
@@ -178,6 +216,7 @@ public static class WebStartup
             if (currentIos is not null) versions.WriteiOS(req.Dir, newVersion, newBuild);
             if (currentAndroid is not null) versions.WriteAndroid(req.Dir, newVersion, newBuild);
             if (csproj is not null) versions.WriteCsproj(csproj, newVersion, newBuild);
+            versions.WriteAssemblyInfo(req.Dir, newVersion, newBuild);
 
             var commitMsg = $"chore: bump version to {newVersion} #{newBuild}";
             var (gitSuccess, gitOutput) = git.Push(req.Dir, commitMsg);

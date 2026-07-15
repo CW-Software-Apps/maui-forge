@@ -5,5 +5,7 @@ public record AppEntry(
     string Dir,
     string Branch,
     AppVersions Versions,
-    GitStatus Git
+    GitStatus Git,
+    string ProjectType = "MAUI",
+    string? IconBase64 = null
 );
