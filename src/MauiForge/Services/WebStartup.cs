@@ -76,7 +76,7 @@ public static class WebStartup
             return Results.Ok(st.MonitoredPaths);
         });
 
-        app.MapDelete("/api/paths", (StateService state, PathRequest req) =>
+        app.MapPost("/api/paths/delete", (StateService state, PathRequest req) =>
         {
             if (string.IsNullOrWhiteSpace(req.Path)) return Results.BadRequest("Path cannot be empty.");
             var st = state.Load();

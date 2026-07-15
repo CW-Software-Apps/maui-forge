@@ -240,8 +240,8 @@
         async function removePath(path) {
             if (!confirm(`Are you sure you want to stop monitoring:\n${path}`)) return;
             try {
-                await fetch(`${API_BASE}/api/paths`, {
-                    method: "DELETE",
+                await fetch(`${API_BASE}/api/paths/delete`, {
+                    method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ path })
                 });
