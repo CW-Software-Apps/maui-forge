@@ -20,7 +20,11 @@ public static class WebStartup
 
     public static void Start(string[] args, StateService stateService, AppDiscoveryService discoveryService, VersionService versionService, GitService gitService, BuildService buildService, DeviceService deviceService)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            Args = args,
+            WebRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot")
+        });
 
         // Configure ports
         builder.WebHost.ConfigureKestrel(options =>
@@ -29,6 +33,13 @@ public static class WebStartup
         });
 
         // Add services
+        builder.Services.AddSingleton(stateService);
+        builder.Services.AddSingleton(discoveryService);
+        builder.Services.AddSingleton(versionService);
+        builder.Services.AddSingleton(gitService);
+        builder.Services.AddSingleton(buildService);
+        builder.Services.AddSingleton(deviceService);
+
         builder.Services.AddSignalR();
         builder.Services.AddCors(options =>
         {

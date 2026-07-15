@@ -15,7 +15,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>maui-forge</ToolCommandName>
     <PackageId>CwSoftware.MauiForge</PackageId>
-    <Version>1.5.20</Version>
+    <Version>1.5.21</Version>
     <Description>MAUI Forge — Version and build manager for .NET MAUI apps</Description>
     <Authors>CWSoftware</Authors>
     <PackageTags>maui;dotnet;cli;build;version</PackageTags>
@@ -40,6 +40,10 @@
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
     <None Include="..\..\assets\icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="wwwroot\**" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="tools\net10.0\any\wwwroot" />
   </ItemGroup>
 
 </Project>
