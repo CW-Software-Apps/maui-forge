@@ -50,12 +50,18 @@
                 MF
             </div>
             <div>
-                <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">MAUI Forge</h1>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">MAUI Forge</h1>
+                    <span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">v1.5.25</span>
+                </div>
                 <p class="text-xs text-slate-400">Version & Build Manager</p>
             </div>
         </div>
         
         <div class="flex items-center gap-4">
+            <a href="https://github.com/CW-Software-Apps/maui-forge" target="_blank" class="text-xs text-slate-400 hover:text-white transition flex items-center gap-1">
+                🐙 GitHub Repository
+            </a>
             <button onclick="loadDiagnostics()" class="px-3 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700 bg-slate-900 text-xs font-medium text-slate-300 transition flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 Local Host Connected
@@ -369,6 +375,33 @@
             }
         }
 
+        async function openFolder(dir) {
+            try {
+                await fetch(`${API_BASE}/api/apps/open-folder`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dir })
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function openIDE(dir, ide) {
+            try {
+                const res = await fetch(`${API_BASE}/api/apps/open-ide`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dir, ide })
+                });
+                if (!res.ok) {
+                    alert(await res.text());
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
         function filterApps() {
             renderApps();
         }
@@ -406,11 +439,19 @@
             }
 
             const getTechBadge = (type) => {
-                if (type === "MAUI") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-600/10 text-violet-400 border border-violet-500/20">🟣 MAUI</span>`;
-                if (type === "Blazor") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-600/10 text-amber-400 border border-amber-500/20">🟠 Blazor</span>`;
-                if (type === "Unity") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700/20 text-slate-300 border border-slate-600/20">🎮 Unity</span>`;
-                if (type === "WPF") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-600/10 text-blue-400 border border-blue-500/20">🖥️ WPF</span>`;
+                if (type === "MAUI") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-650/10 text-violet-400 border border-violet-500/20">🟣 MAUI</span>`;
+                if (type === "Blazor") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-655/10 text-amber-400 border border-amber-500/20">🟠 Blazor</span>`;
+                if (type === "Unity") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-750/20 text-slate-300 border border-slate-600/20">🎮 Unity</span>`;
+                if (type === "WPF") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-655/10 text-blue-400 border border-blue-500/20">🖥️ WPF</span>`;
                 return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">📁 ClassLib</span>`;
+            };
+
+            const getCardBorderClass = (type) => {
+                if (type === "MAUI") return "border-violet-500/20 hover:border-violet-500/50 shadow-violet-500/5";
+                if (type === "Blazor") return "border-amber-500/20 hover:border-amber-500/50 shadow-amber-500/5";
+                if (type === "Unity") return "border-slate-700/30 hover:border-slate-650/55 shadow-slate-600/5";
+                if (type === "WPF") return "border-blue-500/20 hover:border-blue-500/50 shadow-blue-500/5";
+                return "border-slate-850 hover:border-slate-700";
             };
 
             if (currentLayout === "card") {
@@ -419,7 +460,7 @@
                 
                 filteredApps.forEach((app, idx) => {
                     const card = document.createElement("div");
-                    card.className = "bg-slate-900/35 border border-slate-850 hover:border-slate-800 rounded-xl p-5 flex flex-col gap-4 transition shadow-sm hover:shadow-md relative overflow-hidden";
+                    card.className = `bg-slate-900/35 border rounded-xl p-5 flex flex-col gap-4 transition shadow-sm hover:shadow-md relative overflow-hidden ${getCardBorderClass(app.projectType)}`;
                     
                     const isDirty = app.git.dirty;
                     const gitStatusText = isDirty ? "Dirty" : "Clean";
@@ -440,13 +481,29 @@
                     // Action buttons depending on Type
                     let actionButtons = `
                         <button onclick="openVersionUpdate('${app.dir.replace(/\\/g, '\\\\')}', '${app.versions.csproj?.version || ''}', '${app.versions.csproj?.build || ''}')" 
-                                class="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 font-semibold text-xs px-3 py-1.5 rounded-lg transition">
+                                class="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 font-semibold text-xs px-3 py-1.5 rounded-lg transition" title="Change version details">
                             ✏️ Edit Version
                         </button>
                         <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" 
-                                class="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 font-semibold text-xs px-3 py-1.5 rounded-lg transition">
+                                class="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 font-semibold text-xs px-3 py-1.5 rounded-lg transition" title="Fetch and pull git updates">
                             ⬇️ Pull
                         </button>
+                        <button onclick="openFolder('${app.dir.replace(/\\/g, '\\\\')}')" 
+                                class="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-350 hover:text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition" title="Open directory in Windows Explorer">
+                            📂 Open Folder
+                        </button>
+                        
+                        <!-- Open in IDE Dropdown Options -->
+                        <div class="relative inline-block text-left group">
+                            <button class="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-350 hover:text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition">
+                                💻 IDE ▾
+                            </button>
+                            <div class="absolute bottom-full mb-1 left-0 w-32 bg-slate-900 border border-slate-800 rounded-lg shadow-xl hidden group-hover:block z-20">
+                                <button onclick="openIDE('${app.dir.replace(/\\/g, '\\\\')}', 'vs')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition">🎥 Visual Studio</button>
+                                <button onclick="openIDE('${app.dir.replace(/\\/g, '\\\\')}', 'vscode')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition">💙 VS Code</button>
+                                <button onclick="openIDE('${app.dir.replace(/\\/g, '\\\\')}', 'rider')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition">❤️ Rider</button>
+                            </div>
+                        </div>
                     `;
 
                     if (app.projectType === "MAUI") {
@@ -493,7 +550,7 @@
                                             <span id="icon-card-${idx}" class="inline-block">🔄</span>
                                         </button>
                                     </div>
-                                    <p class="text-xs font-mono text-slate-500 truncate max-w-xs md:max-w-md" title="${app.dir}">${app.dir}</p>
+                                    <p class="text-xs font-mono text-slate-550 truncate max-w-xs md:max-w-md" title="${app.dir}">${app.dir}</p>
                                 </div>
                             </div>
                             <span class="text-xs px-2 py-0.5 rounded-full border ${gitBadgeColor} font-medium">
@@ -569,6 +626,22 @@
                                 class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold px-2 py-1 rounded transition text-[11px]">
                             ⬇️ Pull
                         </button>
+                        <button onclick="openFolder('${app.dir.replace(/\\/g, '\\\\')}')" 
+                                class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold px-2 py-1 rounded transition text-[11px]">
+                            📂 Folder
+                        </button>
+                        
+                        <!-- IDE open menu -->
+                        <div class="relative inline-block text-left group">
+                            <button class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-350 hover:text-white font-semibold px-2 py-1 rounded transition text-[11px]">
+                                💻 IDE
+                            </button>
+                            <div class="absolute bottom-full mb-1 left-0 w-32 bg-slate-900 border border-slate-800 rounded-lg shadow-xl hidden group-hover:block z-20">
+                                <button onclick="openIDE('${app.dir.replace(/\\/g, '\\\\')}', 'vs')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition">Visual Studio</button>
+                                <button onclick="openIDE('${app.dir.replace(/\\/g, '\\\\')}', 'vscode')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition">VS Code</button>
+                                <button onclick="openIDE('${app.dir.replace(/\\/g, '\\\\')}', 'rider')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition">Rider</button>
+                            </div>
+                        </div>
                     `;
 
                     if (app.projectType === "MAUI") {

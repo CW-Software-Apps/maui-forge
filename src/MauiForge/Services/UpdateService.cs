@@ -64,7 +64,6 @@ public class UpdateService
         var currentPid = Environment.ProcessId;
         var dotnetPath = FindDotnet() ?? "dotnet";
         var manualCommand = GetManualUpdateCommand(latestVer);
-
         if (OperatingSystem.IsWindows())
         {
             var script = Path.Combine(Path.GetTempPath(), "maui-forge-update.bat");
@@ -75,6 +74,14 @@ public class UpdateService
 
             var batchContent =
                 "@echo off\r\n" +
+                "title MAUI Forge Auto-Updater\r\n" +
+                "color 0B\r\n" +
+                "echo.\r\n" +
+                "echo  ================================────────────────=========\r\n" +
+                "echo               MAUI Forge Auto-Updater\r\n" +
+                "echo  ================================────────────────=========\r\n" +
+                "echo.\r\n" +
+                $"echo  [1/3] Waiting for MAUI Forge (PID: {currentPid}) to close...\r\n" +
                 "setlocal enabledelayedexpansion\r\n" +
                 $"set \"PID_TO_WAIT={currentPid}\"\r\n" +
                 $"set \"DOTNET_CMD={dotnetPath}\"\r\n" +
@@ -82,7 +89,6 @@ public class UpdateService
                 $"set \"LOG_FILE={log}\"\r\n" +
                 "\r\n" +
                 "echo === MAUI Forge updater started %DATE% %TIME% === > \"!LOG_FILE!\"\r\n" +
-                "echo Waiting for parent process %PID_TO_WAIT% to exit... >> \"!LOG_FILE!\"\r\n" +
                 "\r\n" +
                 ":wait_loop\r\n" +
                 "tasklist /FI \"PID eq %PID_TO_WAIT%\" 2>NUL | find \"%PID_TO_WAIT%\" >NUL\r\n" +
@@ -91,22 +97,40 @@ public class UpdateService
                 "    goto wait_loop\r\n" +
                 ")\r\n" +
                 "\r\n" +
-                "echo Parent process exited. Starting update... >> \"!LOG_FILE!\"\r\n" +
+                "echo.\r\n" +
+                "echo  [2/3] Downloading and installing version !VERSION!...\r\n" +
+                "echo  Running: \"!DOTNET_CMD!\" tool update CwSoftware.MauiForge -g --version !VERSION!\r\n" +
+                "echo.\r\n" +
                 "\r\n" +
-                "for /L %%i in (1,1,8) do (\r\n" +
-                "    echo Attempt %%i: \"!DOTNET_CMD!\" tool update CwSoftware.MauiForge -g --version !VERSION! >> \"!LOG_FILE!\"\r\n" +
-                "    \"!DOTNET_CMD!\" tool update CwSoftware.MauiForge -g --version !VERSION! >> \"!LOG_FILE!\" 2>&1\r\n" +
+                "for /L %%i in (1,1,3) do (\r\n" +
+                "    \"!DOTNET_CMD!\" tool update CwSoftware.MauiForge -g --version !VERSION!\r\n" +
                 "    if !ERRORLEVEL! == 0 (\r\n" +
                 "        echo Update successful. >> \"!LOG_FILE!\"\r\n" +
                 "        goto success\r\n" +
                 "    )\r\n" +
-                "    timeout /t 2 /nobreak >nul\r\n" +
+                "    echo Attempt %%i failed. Retrying in 3 seconds...\r\n" +
+                "    timeout /t 3 /nobreak >nul\r\n" +
                 ")\r\n" +
                 "\r\n" +
-                "echo Update failed after 8 attempts. >> \"!LOG_FILE!\"\r\n" +
+                "echo.\r\n" +
+                "color 0C\r\n" +
+                "echo  ================================────────────────=========\r\n" +
+                "echo  [ERROR] Update failed! Check log: !LOG_FILE!\r\n" +
+                "echo  ================================────────────────=========\r\n" +
+                "echo.\r\n" +
+                "echo  Press any key to exit...\r\n" +
+                "pause > nul\r\n" +
                 "exit /b 1\r\n" +
                 "\r\n" +
                 ":success\r\n" +
+                "echo.\r\n" +
+                "echo  ================================────────────────=========\r\n" +
+                "echo  [3/3] Update completed successfully!\r\n" +
+                "echo  ================================────────────────=========\r\n" +
+                "echo.\r\n" +
+                "echo  Press any key to relaunch MAUI Forge...\r\n" +
+                "pause > nul\r\n" +
+                "start maui-forge\r\n" +
                 "del \"%~f0\"\r\n" +
                 "exit /b 0\r\n";
 
@@ -116,8 +140,8 @@ public class UpdateService
             {
                 Arguments      = $"/c \"{script}\"",
                 UseShellExecute = true,
-                CreateNoWindow  = true,
-                WindowStyle     = System.Diagnostics.ProcessWindowStyle.Hidden,
+                CreateNoWindow  = false,
+                WindowStyle     = System.Diagnostics.ProcessWindowStyle.Normal,
             });
 
             if (updater is null)

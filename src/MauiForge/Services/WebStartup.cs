@@ -263,6 +263,64 @@ public static class WebStartup
             return Results.Accepted();
         });
 
+        app.MapPost("/api/apps/open-folder", (OpenFolderRequest req) =>
+        {
+            if (Directory.Exists(req.Dir))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe")
+                {
+                    Arguments = $"\"{req.Dir}\"",
+                    UseShellExecute = true
+                });
+                return Results.Ok();
+            }
+            return Results.BadRequest("Directory does not exist.");
+        });
+
+        app.MapPost("/api/apps/open-ide", (OpenIdeRequest req) =>
+        {
+            if (Directory.Exists(req.Dir))
+            {
+                var sln = Directory.EnumerateFiles(req.Dir, "*.sln").FirstOrDefault();
+                var csproj = Directory.EnumerateFiles(req.Dir, "*.csproj").FirstOrDefault();
+                var target = sln ?? csproj ?? req.Dir;
+
+                if (req.Ide.Equals("vscode", StringComparison.OrdinalIgnoreCase))
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("code")
+                    {
+                        Arguments = $"\"{req.Dir}\"",
+                        UseShellExecute = true,
+                        CreateNoWindow = true
+                    });
+                }
+                else if (req.Ide.Equals("vs", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (csproj != null || sln != null)
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(target)
+                        {
+                            UseShellExecute = true
+                        });
+                    }
+                    else
+                    {
+                        return Results.BadRequest("No solution or csproj found for VS.");
+                    }
+                }
+                else if (req.Ide.Equals("rider", StringComparison.OrdinalIgnoreCase))
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("rider")
+                    {
+                        Arguments = $"\"{target}\"",
+                        UseShellExecute = true
+                    });
+                }
+                return Results.Ok();
+            }
+            return Results.BadRequest("Directory does not exist.");
+        });
+
         // Diagnostics Endpoint
         app.MapGet("/api/diagnostics", (DeviceService devices, GitService git) =>
         {
@@ -306,3 +364,5 @@ public record VersionUpdateRequest(string Dir, string Version, string Build);
 public record BuildRequest(string Dir, string Platform, string Configuration);
 public record RefreshRequest(string Dir);
 public record BumpPushRequest(string Dir, string Version, string Build);
+public record OpenFolderRequest(string Dir);
+public record OpenIdeRequest(string Dir, string Ide);
