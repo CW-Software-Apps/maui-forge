@@ -11,6 +11,7 @@ public record MacConfigRequested : ListResult;
 public record DiagnosticsRequested : ListResult;
 public record CheckUpdatesRequested : ListResult;
 public record FilterChanged(string? NameFilter, string PlatformFilter) : ListResult;
+public record WebInterfaceRequested : ListResult;
 public record ListQuit : ListResult;
 
 public static class AppListScreen
@@ -109,7 +110,7 @@ public static class AppListScreen
         AnsiConsole.Write(new FigletText("MAUIForge").Color(Color.Cyan1));
         
         var version = typeof(AppListScreen).Assembly.GetName().Version?.ToString(3) ?? "1.4.1";
-        AnsiConsole.MarkupLine($"  [bold cyan1]>>>[/] [bold white][link=https://cwsoftware.com.br]by CW Software[/][/] [cyan1]v{version}[/]  [grey46]|[/]  [dim]Unified MAUI Build, Release, and Version Console[/]");
+        AnsiConsole.MarkupLine($"  [bold cyan1]>>>[/] [bold white][link=https://cwsoftware.com.br]by CW Software[/][/] [cyan1]v{version}[/]  [grey46]|[/]  [dim]Unified MAUI Console[/]  [grey46]|[/]  [cyan1]Run with --web to launch local dashboard[/]");
         AnsiConsole.WriteLine();
         AnsiConsole.Write(new Rule().RuleStyle(new Style(Color.Cyan1, decoration: Decoration.Dim)));
         AnsiConsole.WriteLine();
@@ -214,6 +215,7 @@ public static class AppListScreen
             globalLabels.Add("[cyan1] >[/]  [white]Open Most Recent Project[/] [dim]quick start[/]");
         globalLabels.AddRange(
         [
+            "[cyan1] >[/]  [white]Launch Web Interface[/] [dim](browser dashboard)[/]",
             "[cyan1] >[/]  [white]Change Scan Folder[/]",
             "[cyan1] >[/]  [white]Refresh Project Scan[/] [dim]re-scan[/]",
             $"[cyan1] >[/]  [white]Platform Filter:[/] {platLabel}  [dim]→ {Markup.Escape(nextPlat)}[/]",
@@ -256,6 +258,7 @@ public static class AppListScreen
 
         if (globalLabels.Contains(choice))
         {
+            if (choice.Contains("Launch Web Interface")) return new WebInterfaceRequested();
             if (choice.Contains("Open Most Recent Project"))
             {
                 if (sorted.Count > 0)

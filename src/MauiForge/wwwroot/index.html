@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAUI Forge Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SignalR -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #020617;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md px-6 py-4 flex items-center justify-between flex-shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-lg shadow-lg shadow-cyan-500/20">
+                MF
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">MAUI Forge</h1>
+                <p class="text-xs text-slate-400">Version & Build Manager</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <button onclick="loadDiagnostics()" class="px-3 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700 bg-slate-900 text-xs font-medium text-slate-300 transition flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                Local Host Connected
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Sidebar: Monitored Folders -->
+        <aside class="w-80 border-r border-slate-800 bg-slate-900/20 p-6 flex flex-col gap-6 overflow-y-auto flex-shrink-0">
+            <div>
+                <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Monitored Folders</h2>
+                <div id="pathsList" class="flex flex-col gap-2">
+                    <!-- Path items injected here -->
+                </div>
+            </div>
+
+            <div class="border-t border-slate-800/60 pt-4">
+                <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Add Folder</h3>
+                <form id="addPathForm" onsubmit="addPath(event)" class="flex flex-col gap-2">
+                    <input type="text" id="newPathInput" placeholder="K:\your\projects" required
+                           class="w-full bg-slate-900 border border-slate-800 hover:border-slate-700 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 outline-none transition">
+                    <button type="submit" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-medium text-xs rounded-lg py-2 transition shadow-md shadow-cyan-500/10">
+                        Add Directory
+                    </button>
+                </form>
+            </div>
+        </aside>
+
+        <!-- Main Dashboard View -->
+        <main class="flex-1 flex flex-col overflow-hidden bg-slate-950">
+            <!-- App list / dashboard -->
+            <div class="flex-1 p-6 overflow-y-auto">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+                        Applications
+                        <span id="appCount" class="text-xs font-normal text-slate-400 bg-slate-900 px-2 py-0.5 rounded-full">0</span>
+                    </h2>
+                    <button onclick="loadApps()" class="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-800 px-3 py-1.5 rounded-lg text-slate-300 transition flex items-center gap-1">
+                        🔄 Refresh
+                    </button>
+                </div>
+
+                <div id="appsGrid" class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <!-- Apps cards will be injected here -->
+                </div>
+            </div>
+
+            <!-- Real-time Terminal Logs section -->
+            <div class="h-64 border-t border-slate-800 bg-slate-950 flex flex-col overflow-hidden flex-shrink-0">
+                <div class="bg-slate-900/60 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse"></span>
+                        <span class="text-xs font-semibold text-slate-300 tracking-wide uppercase">Build Output Terminal</span>
+                    </div>
+                    <button onclick="clearConsole()" class="text-slate-400 hover:text-slate-200 text-xs px-2 py-0.5 rounded hover:bg-slate-800 transition">
+                        Clear
+                    </button>
+                </div>
+                <div id="terminalConsole" class="flex-1 p-4 overflow-y-auto bg-slate-950 text-slate-300 font-mono text-xs space-y-1 select-text selection:bg-slate-800">
+                    <div class="text-slate-500">[Info] System idle. Trigger a build or deploy to stream output here...</div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <!-- Update Version Modal -->
+    <div id="versionModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-850 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="font-bold text-white">Update Version</h3>
+                <button onclick="closeVersionModal()" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <input type="hidden" id="modalAppDir">
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Version String</label>
+                    <input type="text" id="modalVersionInput" class="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Build Number</label>
+                    <input type="text" id="modalBuildInput" class="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition">
+                </div>
+                <button onclick="submitVersionUpdate()" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-medium rounded-lg py-2.5 transition">
+                    Save Version Settings
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "";
+
+        // Establish SignalR connection for build logs
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/hubs/logs")
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+
+        connection.on("LogReceived", function (message) {
+            const consoleEl = document.getElementById("terminalConsole");
+            const wasAtBottom = consoleEl.scrollHeight - consoleEl.clientHeight <= consoleEl.scrollTop + 10;
+            
+            const line = document.createElement("div");
+            line.textContent = message;
+            
+            // Basic colored logs parsing
+            if (message.includes("error") || message.includes("Failed")) {
+                line.className = "text-rose-500";
+            } else if (message.includes("warning") || message.includes("Warning")) {
+                line.className = "text-amber-400";
+            } else if (message.startsWith("===") || message.includes("completed")) {
+                line.className = "text-cyan-400 font-bold";
+            }
+            
+            consoleEl.appendChild(line);
+
+            if (wasAtBottom) {
+                consoleEl.scrollTop = consoleEl.scrollHeight;
+            }
+        });
+
+        connection.start().catch(err => console.error("SignalR Connection Error: ", err));
+
+        // Load paths and apps on load
+        window.addEventListener("DOMContentLoaded", () => {
+            loadPaths();
+            loadApps();
+        });
+
+        function clearConsole() {
+            document.getElementById("terminalConsole").innerHTML = '<div class="text-slate-500">[Info] Terminal cleared.</div>';
+        }
+
+        async function loadPaths() {
+            try {
+                const res = await fetch(`${API_BASE}/api/paths`);
+                const paths = await res.json();
+                const container = document.getElementById("pathsList");
+                container.innerHTML = "";
+
+                if (paths.length === 0) {
+                    container.innerHTML = `<div class="text-xs text-slate-500 italic p-2 border border-dashed border-slate-800 rounded-lg">No directories registered yet. Add one below to start discovery.</div>`;
+                    return;
+                }
+
+                paths.forEach(p => {
+                    const item = document.createElement("div");
+                    item.className = "flex items-center justify-between p-2 rounded-lg bg-slate-900/50 border border-slate-850 hover:border-slate-800 transition group";
+                    item.innerHTML = `
+                        <span class="text-xs font-mono truncate text-slate-300 select-all" title="${p}">${p}</span>
+                        <button onclick="removePath('${p.replace(/\\/g, '\\\\')}')" class="text-slate-500 hover:text-rose-500 text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition">✕</button>
+                    `;
+                    container.appendChild(item);
+                });
+            } catch (err) {
+                console.error("Failed to load paths:", err);
+            }
+        }
+
+        async function addPath(e) {
+            e.preventDefault();
+            const input = document.getElementById("newPathInput");
+            const path = input.value.trim();
+            if (!path) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/paths`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ path })
+                });
+                if (res.ok) {
+                    input.value = "";
+                    loadPaths();
+                    loadApps();
+                } else {
+                    alert(await res.text());
+                }
+            } catch (err) {
+                console.error("Failed to add path:", err);
+            }
+        }
+
+        async function removePath(path) {
+            if (!confirm(`Are you sure you want to stop monitoring:\n${path}`)) return;
+            try {
+                await fetch(`${API_BASE}/api/paths`, {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ path })
+                });
+                loadPaths();
+                loadApps();
+            } catch (err) {
+                console.error("Failed to remove path:", err);
+            }
+        }
+
+        async function loadApps() {
+            const grid = document.getElementById("appsGrid");
+            grid.innerHTML = '<div class="col-span-2 text-center py-12 text-slate-500 text-sm">🔄 Scanning folders for MAUI apps...</div>';
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/apps`);
+                const apps = await res.json();
+                grid.innerHTML = "";
+                document.getElementById("appCount").textContent = apps.length;
+
+                if (apps.length === 0) {
+                    grid.innerHTML = '<div class="col-span-2 text-center py-12 text-slate-500 text-sm">No MAUI projects found. Ensure directories contain a valid .csproj file.</div>';
+                    return;
+                }
+
+                apps.forEach(app => {
+                    const card = document.createElement("div");
+                    card.className = "bg-slate-900/35 border border-slate-850 hover:border-slate-800 rounded-xl p-5 flex flex-col gap-4 transition shadow-sm hover:shadow-md";
+                    
+                    const isDirty = app.git.dirty;
+                    const gitStatusText = isDirty ? "Dirty" : "Clean";
+                    const gitBadgeColor = isDirty ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+                    
+                    const iosVer = app.versions.iOS ? `${app.versions.iOS.version} (${app.versions.iOS.build})` : "N/A";
+                    const androidVer = app.versions.android ? `${app.versions.android.version} (${app.versions.android.build})` : "N/A";
+                    const csprojVer = app.versions.csproj ? `${app.versions.csproj.version} (${app.versions.csproj.build})` : "N/A";
+
+                    card.innerHTML = `
+                        <div class="flex items-start justify-between">
+                            <div>
+                                <h3 class="font-bold text-white text-base">${app.name}</h3>
+                                <p class="text-xs font-mono text-slate-500 truncate max-w-md" title="${app.dir}">${app.dir}</p>
+                            </div>
+                            <span class="text-xs px-2 py-0.5 rounded-full border ${gitBadgeColor} font-medium">
+                                ${app.branch} [${gitStatusText}]
+                            </span>
+                        </div>
+
+                        <!-- Versions Grid -->
+                        <div class="grid grid-cols-3 gap-3 bg-slate-950/40 p-3 rounded-lg border border-slate-850/40">
+                            <div>
+                                <div class="text-[10px] text-slate-500 uppercase tracking-wider">Csproj</div>
+                                <div class="text-xs font-mono font-medium text-slate-300 mt-1">${csprojVer}</div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] text-slate-500 uppercase tracking-wider">Android</div>
+                                <div class="text-xs font-mono font-medium text-slate-300 mt-1">${androidVer}</div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] text-slate-500 uppercase tracking-wider">iOS</div>
+                                <div class="text-xs font-mono font-medium text-slate-300 mt-1">${iosVer}</div>
+                            </div>
+                        </div>
+
+                        <!-- Actions bar -->
+                        <div class="flex items-center gap-2 pt-2">
+                            <button onclick="openVersionUpdate('${app.dir.replace(/\\/g, '\\\\')}', '${app.versions.csproj?.version || ''}', '${app.versions.csproj?.build || ''}')" 
+                                    class="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 font-semibold text-xs px-3 py-1.5 rounded-lg transition">
+                                ✏️ Edit Version
+                            </button>
+                            <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" 
+                                    class="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 font-semibold text-xs px-3 py-1.5 rounded-lg transition">
+                                ⬇️ Pull
+                            </button>
+                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Android')" 
+                                    class="bg-cyan-600/10 border border-cyan-500/20 hover:border-cyan-500/50 text-cyan-400 font-semibold text-xs px-3 py-1.5 rounded-lg transition ml-auto">
+                                🤖 Build Android
+                            </button>
+                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'iOS')" 
+                                    class="bg-blue-600/10 border border-blue-500/20 hover:border-blue-500/50 text-blue-400 font-semibold text-xs px-3 py-1.5 rounded-lg transition">
+                                🍎 Build iOS
+                            </button>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+            } catch (err) {
+                console.error("Failed to load apps:", err);
+                grid.innerHTML = '<div class="col-span-2 text-center py-12 text-rose-500 text-sm">Failed to connect to Localhost Web Server. Verify service status.</div>';
+            }
+        }
+
+        function openVersionUpdate(dir, ver, build) {
+            document.getElementById("modalAppDir").value = dir;
+            document.getElementById("modalVersionInput").value = ver;
+            document.getElementById("modalBuildInput").value = build;
+            document.getElementById("versionModal").classList.remove("hidden");
+        }
+
+        function closeVersionModal() {
+            document.getElementById("versionModal").classList.add("hidden");
+        }
+
+        async function submitVersionUpdate() {
+            const dir = document.getElementById("modalAppDir").value;
+            const version = document.getElementById("modalVersionInput").value;
+            const build = document.getElementById("modalBuildInput").value;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/apps/version`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dir, version, build })
+                });
+                if (res.ok) {
+                    closeVersionModal();
+                    loadApps();
+                } else {
+                    alert(await res.text());
+                }
+            } catch (err) {
+                console.error("Failed to update version:", err);
+            }
+        }
+
+        async function pullGit(dir) {
+            const terminal = document.getElementById("terminalConsole");
+            terminal.innerHTML = '<div class="text-slate-400">[Git] Running git pull...</div>';
+            try {
+                const res = await fetch(`${API_BASE}/api/apps/git/pull`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dir })
+                });
+                const data = await res.json();
+                const line = document.createElement("div");
+                line.className = data.success ? "text-emerald-400" : "text-rose-500";
+                line.textContent = data.output || "Git pull executed.";
+                terminal.appendChild(line);
+                loadApps();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function buildApp(dir, platform) {
+            clearConsole();
+            try {
+                await fetch(`${API_BASE}/api/apps/build`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dir, platform, configuration: "Debug" })
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function loadDiagnostics() {
+            try {
+                const res = await fetch(`${API_BASE}/api/diagnostics`);
+                const diag = await res.json();
+                alert(`OS: ${diag.os}\n.NET version: ${diag.dotnetVersion}`);
+            } catch (err) {
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>

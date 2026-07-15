@@ -16,7 +16,12 @@ public class StateService
         {
             if (!File.Exists(StatePath)) return new();
             var json = File.ReadAllText(StatePath);
-            return JsonSerializer.Deserialize<PersistentState>(json) ?? new();
+            var state = JsonSerializer.Deserialize<PersistentState>(json) ?? new();
+            if (state.MonitoredPaths.Count == 0 && !string.IsNullOrEmpty(state.ScanRootPath))
+            {
+                state.MonitoredPaths.Add(state.ScanRootPath);
+            }
+            return state;
         }
         catch { return new(); }
     }

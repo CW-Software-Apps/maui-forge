@@ -6,29 +6,41 @@ public class AppDiscoveryService(VersionService versions, GitService git)
 {
     public List<AppEntry> FindApps(string rootDir, int depth = 2)
     {
+        return FindApps([rootDir], depth);
+    }
+
+    public List<AppEntry> FindApps(IEnumerable<string> rootDirs, int depth = 2)
+    {
         var entries = new List<AppEntry>();
 
-        foreach (var csproj in FindCsprojs(rootDir, depth))
+        foreach (var rootDir in rootDirs)
         {
-            var dir  = Path.GetDirectoryName(csproj)!;
-            var name = Path.GetFileNameWithoutExtension(csproj);
+            if (!Directory.Exists(rootDir)) continue;
 
-            var ios     = versions.ReadiOS(dir);
-            var android = versions.ReadAndroid(dir);
-            var csprojV = versions.ReadCsproj(csproj);
+            foreach (var csproj in FindCsprojs(rootDir, depth))
+            {
+                var dir  = Path.GetDirectoryName(csproj)!;
+                if (entries.Any(e => e.Dir == dir)) continue;
 
-            if (ios is null && android is null && csprojV is null) continue;
+                var name = Path.GetFileNameWithoutExtension(csproj);
 
-            var branch = git.GetBranch(dir);
-            var status = git.GetStatus(dir);
+                var ios     = versions.ReadiOS(dir);
+                var android = versions.ReadAndroid(dir);
+                var csprojV = versions.ReadCsproj(csproj);
 
-            entries.Add(new AppEntry(
-                Name:     name,
-                Dir:      dir,
-                Branch:   branch,
-                Versions: new AppVersions(ios, android, csprojV),
-                Git:      status
-            ));
+                if (ios is null && android is null && csprojV is null) continue;
+
+                var branch = git.GetBranch(dir);
+                var status = git.GetStatus(dir);
+
+                entries.Add(new AppEntry(
+                    Name:     name,
+                    Dir:      dir,
+                    Branch:   branch,
+                    Versions: new AppVersions(ios, android, csprojV),
+                    Git:      status
+                ));
+            }
         }
 
         return entries;

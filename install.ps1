@@ -1,4 +1,4 @@
-#Requires -Version 7
+#Requires -Version 5.1
 <#
 .SYNOPSIS
     Build maui-forge as a self-contained Windows exe and add it to PATH.
@@ -37,6 +37,22 @@ if ($currentPath -notlike "*$OutDir*") {
 if ($env:PATH -notlike "*$OutDir*") {
     $env:PATH += ";$OutDir"
     Write-Host "Updated PATH in current session." -ForegroundColor Green
+}
+
+# Create Desktop Shortcut
+Write-Host "Creating Desktop Shortcut..." -ForegroundColor Cyan
+try {
+    $WshShell = New-Object -ComObject WScript.Shell
+    $ShortcutPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath('Desktop'), "MAUI Forge.lnk")
+    $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
+    $Shortcut.TargetPath = $exePath
+    $Shortcut.Arguments = "--web"
+    $Shortcut.WorkingDirectory = $OutDir
+    $Shortcut.IconLocation = "$exePath,0"
+    $Shortcut.Save()
+    Write-Host "Shortcut created on Desktop: MAUI Forge" -ForegroundColor Green
+} catch {
+    Write-Host "Failed to create Desktop shortcut: $_" -ForegroundColor Yellow
 }
 
 Write-Host "Run: maui-forge" -ForegroundColor Cyan

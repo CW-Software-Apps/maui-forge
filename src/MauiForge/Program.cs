@@ -41,17 +41,28 @@ var services = new ServiceCollection()
 
 var depth   = 2;
 var cliPath = (string?)null;
+var runWeb  = false;
 
 for (int i = 0; i < args.Length; i++)
 {
     if (args[i] == "--depth" && i + 1 < args.Length && int.TryParse(args[i + 1], out var d)) depth = d;
     if (args[i] == "--path"  && i + 1 < args.Length) cliPath = args[i + 1];
+    if (args[i] == "--web") runWeb = true;
 }
 
 var stateService = services.GetRequiredService<StateService>();
 var discovery    = services.GetRequiredService<AppDiscoveryService>();
 var detail       = services.GetRequiredService<AppDetailScreen>();
 var deviceSvc    = services.GetRequiredService<DeviceService>();
+
+if (runWeb)
+{
+    var versionSvc = services.GetRequiredService<VersionService>();
+    var gitSvc     = services.GetRequiredService<GitService>();
+    var buildSvc   = services.GetRequiredService<BuildService>();
+    WebStartup.Start(args, stateService, discovery, versionSvc, gitSvc, buildSvc, deviceSvc);
+    return;
+}
 
 var st       = stateService.Load();
 var scanPath = cliPath ?? st.ScanRootPath ?? Directory.GetCurrentDirectory();
@@ -87,6 +98,15 @@ while (true)
     var result = AppListScreen.Show(apps, scanPath, st, nameFilter, platformFilter);
 
     if (result is ListQuit) break;
+
+    if (result is WebInterfaceRequested)
+    {
+        var versionSvc = services.GetRequiredService<VersionService>();
+        var gitSvc     = services.GetRequiredService<GitService>();
+        var buildSvc   = services.GetRequiredService<BuildService>();
+        WebStartup.Start(args, stateService, discovery, versionSvc, gitSvc, buildSvc, deviceSvc);
+        return;
+    }
 
     if (result is ScanRefresh refresh)
     {

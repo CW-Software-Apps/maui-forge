@@ -10,6 +10,7 @@ public class PersistentState
     public string? LastAction { get; set; }
     public VersionSnapshot? LastVersion { get; set; }
     public string? ScanRootPath { get; set; }
+    public List<string> MonitoredPaths { get; set; } = [];
     public bool UseLocalMac { get; set; } = false;
     public Dictionary<string, AppBuildConfig> AppBuildConfigs { get; set; } = [];
 }
