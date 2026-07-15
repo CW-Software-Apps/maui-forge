@@ -169,23 +169,46 @@ public class AppDiscoveryService(VersionService versions, GitService git)
             IconBase64:  icon
         );
     }
-
     private string? GetAppIconBase64(string dir)
     {
         try
         {
-            // 1. Resources/AppIcon for MAUI
-            var resourcesDir = Path.Combine(dir, "Resources", "AppIcon");
-            if (Directory.Exists(resourcesDir))
+            var appIconDirs = new[] 
             {
-                var png = Directory.EnumerateFiles(resourcesDir, "*.png").FirstOrDefault();
-                if (png != null) return ToBase64(png, "image/png");
-                
-                var svg = Directory.EnumerateFiles(resourcesDir, "*.svg").FirstOrDefault();
-                if (svg != null) return ToBase64(svg, "image/svg+xml");
+                Path.Combine(dir, "Resources", "AppIcon"),
+                Path.Combine(dir, "Resources", "Images"),
+                Path.Combine(dir, "Resources", "Media"),
+                Path.Combine(dir, "Assets")
+            };
+
+            foreach (var iconDir in appIconDirs)
+            {
+                if (!Directory.Exists(iconDir)) continue;
+
+                // 1. Search for foreground files (svg or png)
+                var fgFile = Directory.EnumerateFiles(iconDir, "*fg.*")
+                    .Concat(Directory.EnumerateFiles(iconDir, "*foreground*.*"))
+                    .Concat(Directory.EnumerateFiles(iconDir, "*toolbar*.*"))
+                    .FirstOrDefault(f => f.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".png", StringComparison.OrdinalIgnoreCase));
+
+                if (fgFile != null)
+                {
+                    var mime = fgFile.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ? "image/svg+xml" : "image/png";
+                    return ToBase64(fgFile, mime);
+                }
+
+                // 2. Search for any standard appicon (svg or png)
+                var stdFile = Directory.EnumerateFiles(iconDir, "appicon.*")
+                    .FirstOrDefault(f => f.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".png", StringComparison.OrdinalIgnoreCase));
+
+                if (stdFile != null)
+                {
+                    var mime = stdFile.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ? "image/svg+xml" : "image/png";
+                    return ToBase64(stdFile, mime);
+                }
             }
 
-            // 2. wwwroot for Blazor
+            // 3. wwwroot for Blazor
             var wwwroot = Path.Combine(dir, "wwwroot");
             if (Directory.Exists(wwwroot))
             {
@@ -199,7 +222,7 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                 if (File.Exists(favIco)) return ToBase64(favIco, "image/x-icon");
             }
 
-            // 3. Generic logo/icon in root directory
+            // 4. Generic logo/icon in root directory
             var genericIcon = Directory.EnumerateFiles(dir, "*icon*.png")
                 .Concat(Directory.EnumerateFiles(dir, "*logo*.png"))
                 .FirstOrDefault();
@@ -211,7 +234,6 @@ public class AppDiscoveryService(VersionService versions, GitService git)
         catch { }
         return null;
     }
-
     private static string ToBase64(string path, string mimeType)
     {
         try
