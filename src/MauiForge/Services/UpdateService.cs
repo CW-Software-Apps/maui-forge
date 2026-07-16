@@ -71,15 +71,15 @@ public class UpdateService
 
             try { if (File.Exists(script)) File.Delete(script); } catch { }
             try { if (File.Exists(log)) File.Delete(log); } catch { }
-
             var batchContent =
                 "@echo off\r\n" +
+                "chcp 65001 > nul\r\n" +
                 "title MAUI Forge Auto-Updater\r\n" +
                 "color 0B\r\n" +
                 "echo.\r\n" +
-                "echo  ================================────────────────=========\r\n" +
+                "echo  ---------------------------------------------------------\r\n" +
                 "echo               MAUI Forge Auto-Updater\r\n" +
-                "echo  ================================────────────────=========\r\n" +
+                "echo  ---------------------------------------------------------\r\n" +
                 "echo.\r\n" +
                 $"echo  [1/3] Waiting for MAUI Forge (PID: {currentPid}) to close...\r\n" +
                 "setlocal enabledelayedexpansion\r\n" +
@@ -114,9 +114,9 @@ public class UpdateService
                 "\r\n" +
                 "echo.\r\n" +
                 "color 0C\r\n" +
-                "echo  ================================────────────────=========\r\n" +
+                "echo  ---------------------------------------------------------\r\n" +
                 "echo  [ERROR] Update failed! Check log: !LOG_FILE!\r\n" +
-                "echo  ================================────────────────=========\r\n" +
+                "echo  ---------------------------------------------------------\r\n" +
                 "echo.\r\n" +
                 "echo  Press any key to exit...\r\n" +
                 "pause > nul\r\n" +
@@ -124,16 +124,15 @@ public class UpdateService
                 "\r\n" +
                 ":success\r\n" +
                 "echo.\r\n" +
-                "echo  ================================────────────────=========\r\n" +
+                "echo  ---------------------------------------------------------\r\n" +
                 "echo  [3/3] Update completed successfully!\r\n" +
-                "echo  ================================────────────────=========\r\n" +
+                "echo  ---------------------------------------------------------\r\n" +
                 "echo.\r\n" +
                 "echo  Press any key to relaunch MAUI Forge...\r\n" +
                 "pause > nul\r\n" +
                 "start maui-forge\r\n" +
                 "del \"%~f0\"\r\n" +
                 "exit /b 0\r\n";
-
             File.WriteAllText(script, batchContent);
 
             var updater = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe")
