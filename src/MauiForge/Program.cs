@@ -42,12 +42,62 @@ var services = new ServiceCollection()
 var depth       = 2;
 var cliPath     = (string?)null;
 var runTerminal = false;
+var runUpdate   = false;
+var runHelp     = false;
 
 for (int i = 0; i < args.Length; i++)
 {
     if (args[i] == "--depth" && i + 1 < args.Length && int.TryParse(args[i + 1], out var d)) depth = d;
     if (args[i] == "--path"  && i + 1 < args.Length) cliPath = args[i + 1];
     if (args[i] == "--cli" || args[i] == "--terminal") runTerminal = true;
+    if (args[i] == "--update") runUpdate = true;
+    if (args[i] == "--help" || args[i] == "-h" || args[i] == "/?") runHelp = true;
+}
+
+if (runHelp)
+{
+    AnsiConsole.MarkupLine("[bold cyan1]MAUI Forge Command Line Help[/]");
+    AnsiConsole.MarkupLine("Usage:");
+    AnsiConsole.MarkupLine("  [cyan1]maui-forge[/]                         Starts the local Web Dashboard (default)");
+    AnsiConsole.MarkupLine("  [cyan1]maui-forge --cli[/]                  Starts the traditional terminal interface");
+    AnsiConsole.MarkupLine("  [cyan1]maui-forge --update[/]               Forces check and installs updates");
+    AnsiConsole.MarkupLine("  [cyan1]maui-forge --help[/]                 Shows this help message");
+    return;
+}
+
+if (runUpdate)
+{
+    AnsiConsole.MarkupLine("[cyan1]Checking for updates...[/]");
+    UpdateService.Instance.ForceCheck();
+    for (var i = 0; i < 60 && UpdateService.Instance.GetLatestVersion() is null; i++)
+        System.Threading.Thread.Sleep(100);
+    
+    var latestStr = UpdateService.Instance.GetLatestVersion();
+    var currentVer = typeof(AppListScreen).Assembly.GetName().Version;
+    
+    if (latestStr != null && currentVer != null)
+    {
+        var cleanLatest = latestStr.Split('-')[0];
+        if (Version.TryParse(cleanLatest, out var latestVer) && latestVer > currentVer)
+        {
+            AnsiConsole.MarkupLine($"[cyan1 bold]↑ New version available: {latestStr} (installed: {currentVer.ToString(3)})[/]");
+            AnsiConsole.MarkupLine("[dim]Closing and updating. If it does not update, check maui-forge-update.log in your temp folder.[/]");
+            try
+            {
+                System.Threading.Thread.Sleep(500);
+                UpdateService.LaunchDeferredUpdate(latestStr, args);
+            }
+            catch (Exception ex)
+            {
+                AnsiConsole.MarkupLine($"[red]x  Could not start updater:[/] {Markup.Escape(ex.Message)}");
+                AnsiConsole.MarkupLine($"[dim]Run manually:[/] [cyan1]{Markup.Escape(UpdateService.GetManualUpdateCommand(latestStr))}[/]");
+            }
+            return;
+        }
+    }
+    
+    AnsiConsole.MarkupLine("[green]✓ Already up to date.[/]");
+    return;
 }
 
 var stateService = services.GetRequiredService<StateService>();

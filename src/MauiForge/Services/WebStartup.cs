@@ -344,6 +344,40 @@ public static class WebStartup
             return Results.BadRequest("Directory does not exist.");
         });
 
+        // Update Check Endpoint
+        app.MapGet("/api/update/check", async () =>
+        {
+            var current = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            var currentStr = current is not null ? $"{current.Major}.{current.Minor}.{current.Build}" : "0.0.0";
+
+            UpdateService.Instance.ForceCheck();
+            for (var i = 0; i < 50; i++)
+            {
+                var latest = UpdateService.Instance.GetLatestVersion();
+                if (latest is not null)
+                {
+                    var updateAvailable = !string.Equals(latest, currentStr, StringComparison.OrdinalIgnoreCase);
+                    var updateCommand = UpdateService.GetManualUpdateCommand(latest);
+                    return Results.Ok(new
+                    {
+                        CurrentVersion = currentStr,
+                        LatestVersion = latest,
+                        UpdateAvailable = updateAvailable,
+                        UpdateCommand = updateCommand
+                    });
+                }
+                await Task.Delay(100);
+            }
+
+            return Results.Ok(new
+            {
+                CurrentVersion = currentStr,
+                LatestVersion = (string?)null,
+                UpdateAvailable = false,
+                UpdateCommand = (string?)null
+            });
+        });
+
         // Diagnostics Endpoint
         app.MapGet("/api/diagnostics", (DeviceService devices, GitService git) =>
         {

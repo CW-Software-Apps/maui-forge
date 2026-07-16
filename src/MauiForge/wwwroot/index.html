@@ -127,16 +127,6 @@
         }
         .select:focus { border-color: var(--blue); }
 
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(4px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 50;
-        }
         .modal-panel {
             background: var(--surface-raised);
             border: 1px solid var(--border);
@@ -145,6 +135,20 @@
             max-width: 24rem;
             overflow: hidden;
             box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        .modal-overlay:not(.hidden) {
+            display: flex;
         }
     </style>
 </head>
@@ -159,7 +163,7 @@
             <div>
                 <div class="flex items-center gap-2">
                     <h1 class="text-xl font-bold tracking-tight text-white">MAUI Forge</h1>
-                    <span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">v1.5.26</span>
+                    <span id="versionBadge" class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">v---</span>
                 </div>
                 <p class="text-xs text-slate-500">Version & Build Manager</p>
             </div>
@@ -170,6 +174,10 @@
                 <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
                 GitHub
             </a>
+            <button id="updateCheckBtn" onclick="checkForUpdates()" class="btn-ghost text-xs flex items-center gap-1.5 py-1.5">
+                <span class="w-1.5 h-1.5 rounded-full"></span>
+                Check Updates
+            </button>
             <button onclick="loadDiagnostics()" class="btn-ghost text-xs flex items-center gap-2 py-1.5">
                 <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 Local Host Connected
@@ -284,7 +292,7 @@
 
     <!-- Modals -->
     <!-- Update Version Modal -->
-    <div id="versionModal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:50;">
+    <div id="versionModal" class="modal-overlay hidden">
         <div class="modal-panel">
             <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
                 <h3 class="font-bold text-white">Update Version</h3>
@@ -307,6 +315,20 @@
                     <button onclick="submitVersionUpdateAndPush()" class="btn-primary flex-1 py-2.5 text-sm font-semibold">
                         Bump & Push
                     </button>
+                </div>
+            </div>
+        </div>
+    <!-- Update Check Modal -->
+    <div id="updateModal" class="modal-overlay hidden">
+        <div class="modal-panel" style="max-width:28rem;">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="font-bold text-white" id="updateModalTitle">Check for Updates</h3>
+                <button onclick="closeUpdateModal()" class="text-slate-500 hover:text-white transition text-sm">✕</button>
+            </div>
+            <div class="p-6 space-y-4" id="updateModalBody">
+                <div class="flex items-center justify-center py-6">
+                    <span class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full spinning"></span>
+                    <span class="ml-3 text-sm text-slate-400">Checking NuGet for latest version...</span>
                 </div>
             </div>
         </div>
@@ -359,12 +381,24 @@
 
         connection.start().catch(err => console.error("SignalR Connection Error: ", err));
 
-        // Load paths and apps on load
+        // Load paths, apps, and version info on load
         window.addEventListener("DOMContentLoaded", () => {
             loadPaths();
             loadApps();
             updateLayoutButtons();
+            loadVersionInfo();
         });
+
+        async function loadVersionInfo() {
+            try {
+                const res = await fetch(`${API_BASE}/api/update/check`);
+                const data = await res.json();
+                const badge = document.getElementById("versionBadge");
+                badge.textContent = `v${data.currentVersion}`;
+            } catch {
+                document.getElementById("versionBadge").textContent = "v---";
+            }
+        }
 
         function setLayout(layout) {
             currentLayout = layout;
@@ -939,6 +973,84 @@
                 alert(`OS: ${diag.os}\n.NET version: ${diag.dotnetVersion}`);
             } catch (err) {
                 console.error(err);
+            }
+        }
+
+        function closeUpdateModal() {
+            document.getElementById("updateModal").classList.add("hidden");
+            document.getElementById("updateCheckBtn").querySelector("span").className = "w-1.5 h-1.5 rounded-full"
+        }
+
+        async function checkForUpdates() {
+            const modal = document.getElementById("updateModal");
+            const body = document.getElementById("updateModalBody");
+            const title = document.getElementById("updateModalTitle");
+            const indicator = document.getElementById("updateCheckBtn").querySelector("span");
+
+            indicator.className = "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse";
+            modal.classList.remove("hidden");
+            title.textContent = "Check for Updates";
+            body.innerHTML = `
+                <div class="flex items-center justify-center py-6">
+                    <span class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full spinning"></span>
+                    <span class="ml-3 text-sm text-slate-400">Checking NuGet for latest version...</span>
+                </div>
+            `;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/update/check`);
+                const data = await res.json();
+
+                indicator.className = data.updateAvailable
+                    ? "w-1.5 h-1.5 rounded-full bg-amber-400"
+                    : "w-1.5 h-1.5 rounded-full bg-green-400";
+
+                if (data.latestVersion) {
+                    const isUpToDate = data.currentVersion === data.latestVersion;
+                    body.innerHTML = `
+                        <div class="flex flex-col items-center py-4 text-center">
+                            <div class="w-16 h-16 rounded-full flex items-center justify-center text-2xl mb-3 ${
+                                isUpToDate
+                                    ? 'bg-green-500/10 border border-green-500/20 text-green-400'
+                                    : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+                            }">
+                                ${isUpToDate ? '&#x2713;' : '&#x26A0;'}
+                            </div>
+                            <span class="text-sm font-semibold text-white mb-1 ${
+                                isUpToDate ? '' : 'text-amber-400'
+                            }">${isUpToDate ? 'You\'re up to date!' : 'Update Available'}</span>
+                            <span class="text-xs text-slate-400 mb-4">
+                                Current: <span class="font-mono text-slate-300">v${data.currentVersion}</span>
+                                &rarr;
+                                Latest: <span class="font-mono text-slate-300">v${data.latestVersion}</span>
+                            </span>
+                            ${!isUpToDate ? `
+                                <div class="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-left">
+                                    <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5">Update Command</div>
+                                    <code class="text-xs font-mono text-blue-400 select-all break-all">${data.updateCommand}</code>
+                                </div>
+                            ` : `
+                                <div class="text-xs text-slate-500 italic">No update required.</div>
+                            `}
+                        </div>
+                    `;
+                } else {
+                    indicator.className = "w-1.5 h-1.5 rounded-full bg-slate-500";
+                    body.innerHTML = `
+                        <div class="flex flex-col items-center py-4 text-center">
+                            <span class="text-sm text-amber-400 mb-2">Could not reach NuGet API</span>
+                            <span class="text-xs text-slate-500">Check your internet connection or try again later.</span>
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                indicator.className = "w-1.5 h-1.5 rounded-full bg-red-400";
+                body.innerHTML = `
+                    <div class="flex flex-col items-center py-4 text-center">
+                        <span class="text-sm text-red-400 mb-2">Network error</span>
+                        <span class="text-xs text-slate-500">${err.message}</span>
+                    </div>
+                `;
             }
         }
     </script>
