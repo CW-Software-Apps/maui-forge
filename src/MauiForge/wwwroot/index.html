@@ -52,7 +52,7 @@
             <div>
                 <div class="flex items-center gap-2">
                     <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">MAUI Forge</h1>
-                    <span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">v1.5.25</span>
+                    <span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">v1.5.26</span>
                 </div>
                 <p class="text-xs text-slate-400">Version & Build Manager</p>
             </div>
@@ -103,6 +103,11 @@
                         <span id="appCount" class="text-xs font-normal text-slate-400 bg-slate-900 px-2 py-0.5 rounded-full">0</span>
                     </h2>
                     <div class="flex items-center gap-4">
+                        <!-- Background Scan Loader Indicator -->
+                        <span id="bgScanStatus" class="hidden text-xs text-cyan-400 bg-cyan-950/40 border border-cyan-800/30 px-2.5 py-1 rounded-lg flex items-center gap-1.5 animate-pulse">
+                            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
+                            🔄 Scanning in background...
+                        </span>
                         <!-- Layout toggles -->
                         <div class="inline-flex rounded-lg border border-slate-800 p-0.5 bg-slate-900/50">
                             <button id="layoutCardBtn" onclick="setLayout('card')" class="px-3 py-1.5 rounded-md text-xs font-medium transition">🎴 Cards</button>
@@ -174,7 +179,7 @@
     <!-- Modals -->
     <!-- Update Version Modal -->
     <div id="versionModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-        <div class="bg-slate-900 border border-slate-850 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+        <div class="bg-slate-900 border border-slate-855 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
             <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
                 <h3 class="font-bold text-white">Update Version</h3>
                 <button onclick="closeVersionModal()" class="text-slate-400 hover:text-white">✕</button>
@@ -183,11 +188,11 @@
                 <input type="hidden" id="modalAppDir">
                 <div>
                     <label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Version String</label>
-                    <input type="text" id="modalVersionInput" class="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition">
+                    <input type="text" id="modalVersionInput" class="w-full bg-slate-950 border border-slate-855 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Build Number</label>
-                    <input type="text" id="modalBuildInput" class="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition">
+                    <input type="text" id="modalBuildInput" class="w-full bg-slate-950 border border-slate-855 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition">
                 </div>
                 <div class="flex gap-3 pt-2">
                     <button onclick="submitVersionUpdate()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold rounded-lg py-2.5 transition text-sm">
@@ -235,6 +240,17 @@
             }
         });
 
+        // Background scan finished notification handler
+        connection.on("ScanCompleted", function (freshApps) {
+            appsList = freshApps;
+            renderApps();
+            showScanIndicator(false);
+            
+            // Remove full loading spinner if present
+            const spinner = document.getElementById("fullLoadingSpinner");
+            if (spinner) spinner.remove();
+        });
+
         connection.start().catch(err => console.error("SignalR Connection Error: ", err));
 
         // Load paths and apps on load
@@ -265,6 +281,14 @@
             }
         }
 
+        function showScanIndicator(show) {
+            const el = document.getElementById("bgScanStatus");
+            if (el) {
+                if (show) el.classList.remove("hidden");
+                else el.classList.add("hidden");
+            }
+        }
+
         function clearConsole() {
             document.getElementById("terminalConsole").innerHTML = '<div class="text-slate-500">[Info] Terminal cleared.</div>';
         }
@@ -283,7 +307,7 @@
 
                 paths.forEach(p => {
                     const item = document.createElement("div");
-                    item.className = "flex items-center justify-between p-2 rounded-lg bg-slate-900/50 border border-slate-850 hover:border-slate-800 transition group";
+                    item.className = "flex items-center justify-between p-2 rounded-lg bg-slate-900/50 border border-slate-855 hover:border-slate-800 transition group";
                     item.innerHTML = `
                         <span class="text-xs font-mono truncate text-slate-300 select-all" title="${p}">${p}</span>
                         <button onclick="removePath('${p.replace(/\\/g, '\\\\')}')" class="text-slate-500 hover:text-rose-500 text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition">✕</button>
@@ -336,7 +360,13 @@
 
         async function loadApps() {
             const container = document.getElementById("appsContainer");
-            container.innerHTML = '<div class="text-center py-12 text-slate-500 text-sm">🔄 Scanning folders for projects...</div>';
+            
+            // If appsList is empty, show a soft loading message. Otherwise, we keep the cached view.
+            if (appsList.length === 0) {
+                container.innerHTML = '<div id="fullLoadingSpinner" class="text-center py-12 text-slate-500 text-sm animate-pulse">🔄 Loading cached dashboard...</div>';
+            }
+            
+            showScanIndicator(true);
             
             try {
                 const res = await fetch(`${API_BASE}/api/apps`);
@@ -441,7 +471,7 @@
             const getTechBadge = (type) => {
                 if (type === "MAUI") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-650/10 text-violet-400 border border-violet-500/20">🟣 MAUI</span>`;
                 if (type === "Blazor") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-655/10 text-amber-400 border border-amber-500/20">🟠 Blazor</span>`;
-                if (type === "Unity") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-750/20 text-slate-300 border border-slate-600/20">🎮 Unity</span>`;
+                if (type === "Unity") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-755/20 text-slate-300 border border-slate-600/20">🎮 Unity</span>`;
                 if (type === "WPF") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-655/10 text-blue-400 border border-blue-500/20">🖥️ WPF</span>`;
                 return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">📁 ClassLib</span>`;
             };
@@ -451,7 +481,7 @@
                 if (type === "Blazor") return "border-amber-500/20 hover:border-amber-500/50 shadow-amber-500/5";
                 if (type === "Unity") return "border-slate-700/30 hover:border-slate-650/55 shadow-slate-600/5";
                 if (type === "WPF") return "border-blue-500/20 hover:border-blue-500/50 shadow-blue-500/5";
-                return "border-slate-850 hover:border-slate-700";
+                return "border-slate-855 hover:border-slate-700";
             };
 
             if (currentLayout === "card") {
@@ -527,7 +557,7 @@
                     } else if (app.projectType === "Blazor") {
                         actionButtons += `
                             <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Web')" 
-                                    class="bg-amber-600/10 border border-amber-500/20 hover:border-amber-500/50 text-amber-450 font-semibold text-xs px-3 py-1.5 rounded-lg transition ml-auto">
+                                    class="bg-amber-600/10 border border-amber-500/20 hover:border-amber-500/50 text-amber-455 font-semibold text-xs px-3 py-1.5 rounded-lg transition ml-auto">
                                 🌐 Build Web
                             </button>
                         `;
@@ -599,7 +629,7 @@
                                 <th class="px-4 py-3 text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-800 bg-slate-950/20">
+                        <tbody class="divide-y divide-slate-800 bg-slate-955/20">
                 `;
 
                 filteredApps.forEach((app, idx) => {
@@ -665,7 +695,7 @@
                     } else if (app.projectType === "Blazor") {
                         actionButtons += `
                             <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Web')" 
-                                    class="bg-amber-600/10 border border-amber-505/20 hover:border-amber-505/50 text-amber-450 font-semibold px-2 py-1 rounded transition text-[11px]">
+                                    class="bg-amber-600/10 border border-amber-505/20 hover:border-amber-505/50 text-amber-455 font-semibold px-2 py-1 rounded transition text-[11px]">
                                 🌐 Build Web
                             </button>
                         `;
@@ -673,7 +703,7 @@
 
                     const appIconHtml = app.iconBase64 
                         ? `<img src="${app.iconBase64}" class="w-6 h-6 rounded object-contain bg-slate-950/30 border border-slate-850 shadow" alt="${app.name} Icon">`
-                        : `<div class="w-6 h-6 rounded bg-slate-900 border border-slate-850 flex items-center justify-center text-[10px] font-bold text-slate-500 select-none">MF</div>`;
+                        : `<div class="w-6 h-6 rounded bg-slate-900 border border-slate-855 flex items-center justify-center text-[10px] font-bold text-slate-500 select-none">MF</div>`;
 
                     tableHtml += `
                         <tr class="hover:bg-slate-900/20 transition">

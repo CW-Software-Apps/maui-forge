@@ -13,6 +13,7 @@ public class PersistentState
     public List<string> MonitoredPaths { get; set; } = [];
     public bool UseLocalMac { get; set; } = false;
     public Dictionary<string, AppBuildConfig> AppBuildConfigs { get; set; } = [];
+    public List<AppEntry> CachedApps { get; set; } = [];
 }
 
 public class VersionSnapshot

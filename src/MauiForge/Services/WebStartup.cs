@@ -100,8 +100,31 @@ public static class WebStartup
             {
                 paths = [Directory.GetCurrentDirectory()];
             }
-            var apps = discovery.FindApps(paths, depth: 2);
-            return Results.Ok(apps);
+
+            var cached = st.CachedApps ?? [];
+
+            // Background task to perform scanning
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    var freshApps = discovery.FindApps(paths, depth: 2);
+                    var curState = state.Load();
+                    curState.CachedApps = freshApps;
+                    state.Save(curState);
+
+                    if (_hubContext != null)
+                    {
+                        _ = _hubContext.Clients.All.SendAsync("ScanCompleted", freshApps);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _ = SendLog($"Background scan failed: {ex.Message}");
+                }
+            });
+
+            return Results.Ok(cached);
         });
 
         // Version Update Endpoint
