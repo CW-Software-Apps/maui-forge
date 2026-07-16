@@ -39,15 +39,15 @@ var services = new ServiceCollection()
     .AddSingleton<AppDetailScreen>()
     .BuildServiceProvider();
 
-var depth   = 2;
-var cliPath = (string?)null;
-var runWeb  = false;
+var depth       = 2;
+var cliPath     = (string?)null;
+var runTerminal = false;
 
 for (int i = 0; i < args.Length; i++)
 {
     if (args[i] == "--depth" && i + 1 < args.Length && int.TryParse(args[i + 1], out var d)) depth = d;
     if (args[i] == "--path"  && i + 1 < args.Length) cliPath = args[i + 1];
-    if (args[i] == "--web") runWeb = true;
+    if (args[i] == "--cli" || args[i] == "--terminal") runTerminal = true;
 }
 
 var stateService = services.GetRequiredService<StateService>();
@@ -55,7 +55,7 @@ var discovery    = services.GetRequiredService<AppDiscoveryService>();
 var detail       = services.GetRequiredService<AppDetailScreen>();
 var deviceSvc    = services.GetRequiredService<DeviceService>();
 
-if (runWeb)
+if (!runTerminal)
 {
     var versionSvc = services.GetRequiredService<VersionService>();
     var gitSvc     = services.GetRequiredService<GitService>();
