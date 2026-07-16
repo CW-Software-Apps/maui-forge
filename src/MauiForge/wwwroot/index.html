@@ -9,31 +9,42 @@
     <script>
         // Repaints Tailwind's default neutral/status shades onto the Forge palette
         // (true-neutral base + ember accent) so utility classes and CSS var tokens agree.
+        // Every named shade below is a CSS custom property, not a literal color —
+        // so when :root[data-theme] flips, every utility class using these
+        // colors (bg-slate-950, text-amber-400, border-blue-500, etc.) follows
+        // automatically instead of needing per-usage light/dark variants.
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
+                        white: 'var(--ink)',
                         slate: {
-                            100: 'oklch(0.95 0 0)', 200: 'oklch(0.88 0 0)', 300: 'oklch(0.80 0 0)',
-                            400: 'oklch(0.68 0 0)', 500: 'oklch(0.56 0 0)', 600: 'oklch(0.48 0 0)',
-                            700: 'oklch(0.32 0 0)', 800: 'oklch(0.26 0 0)', 900: 'oklch(0.11 0 0)',
-                            950: 'oklch(0.045 0 0)'
+                            100: 'var(--ink)', 200: 'var(--ink)', 300: 'var(--ink-dim)',
+                            400: 'var(--ink-dim)', 500: 'var(--ink-muted)', 600: 'var(--ink-muted)',
+                            700: 'var(--border-hover)', 800: 'var(--border)', 900: 'var(--surface)',
+                            950: 'var(--bg)'
                         },
-                        accent: {
-                            400: 'oklch(0.82 0.14 195)', 500: 'oklch(0.78 0.15 195)', 600: 'oklch(0.72 0.16 195)'
-                        },
+                        accent: { 400: 'var(--accent)', 500: 'var(--accent)', 600: 'var(--accent-hover)' },
                         blue: {
-                            400: 'oklch(0.70 0.13 250)', 500: 'oklch(0.58 0.14 250)', 600: 'oklch(0.52 0.15 250)',
-                            800: 'oklch(0.30 0.09 250)', 950: 'oklch(0.16 0.05 250)'
+                            400: 'var(--blue)', 500: 'var(--blue)', 600: 'var(--blue-hover)',
+                            800: 'var(--blue-subtle)', 950: 'var(--blue-subtle)'
                         },
-                        amber: { 400: 'oklch(0.87 0.15 85)', 500: 'oklch(0.83 0.17 85)', 600: 'oklch(0.72 0.17 85)' },
-                        green: { 400: 'oklch(0.84 0.15 150)', 500: 'oklch(0.79 0.17 150)' },
-                        emerald: { 400: 'oklch(0.84 0.15 150)', 500: 'oklch(0.79 0.17 150)' },
-                        red: { 400: 'oklch(0.75 0.16 22)', 500: 'oklch(0.70 0.19 22)' }
+                        amber: { 400: 'var(--amber)', 500: 'var(--amber)', 600: 'var(--amber-hover)' },
+                        green: { 400: 'var(--green)', 500: 'var(--green)' },
+                        emerald: { 400: 'var(--green)', 500: 'var(--green)' },
+                        red: { 400: 'var(--red)', 500: 'var(--red)' }
                     }
                 }
             }
         };
+    </script>
+    <script>
+        // Applied before first paint to avoid a flash of the wrong theme.
+        (function () {
+            var stored = localStorage.getItem("theme");
+            var theme = stored || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+            document.documentElement.dataset.theme = theme;
+        })();
     </script>
     <!-- SignalR -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js" integrity="sha384-/taWmisziXYpcfnYsumSUmNaiMvG/fF/OJOUCLnqCIYTrpOZy7WbFF6FfIxwOrfL" crossorigin="anonymous"></script>
@@ -41,7 +52,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
-            /* Elevation ladder: darkest (void) -> chrome (nav/sidebar) -> surface (content) -> table-head -> hover -> raised (modals) */
+            /* Dark (default). Elevation ladder: void -> chrome (nav/sidebar) -> surface (content) -> table-head -> hover -> raised (modals) */
             --bg: oklch(0.045 0 0);
             --chrome: oklch(0.075 0 0);
             --surface: oklch(0.11 0 0);
@@ -49,6 +60,7 @@
             --surface-hover: oklch(0.16 0 0);
             --surface-raised: oklch(0.20 0 0);
             --border: oklch(0.26 0 0);
+            --border-hover: oklch(0.34 0 0);
             --ink: oklch(0.95 0 0);
             --ink-dim: oklch(0.68 0 0);
             --ink-muted: oklch(0.48 0 0);
@@ -62,6 +74,7 @@
             --blue-active: oklch(0.46 0.15 250);
             --blue-subtle: oklch(0.22 0.07 250);
             --amber: oklch(0.83 0.17 85);
+            --amber-hover: oklch(0.72 0.17 85);
             --amber-subtle: oklch(0.24 0.08 85);
             --green: oklch(0.79 0.17 150);
             --green-subtle: oklch(0.20 0.07 150);
@@ -71,6 +84,41 @@
             --indigo-maui-subtle: oklch(0.22 0.08 295);
             --purple: oklch(0.58 0.14 320);
             --purple-subtle: oklch(0.22 0.08 320);
+        }
+
+        :root[data-theme="light"] {
+            /* Light. Elevation inverts: content surfaces are brightest, chrome/void recede. */
+            --bg: oklch(0.955 0 0);
+            --chrome: oklch(0.985 0 0);
+            --surface: oklch(1 0 0);
+            --table-head: oklch(0.93 0 0);
+            --surface-hover: oklch(0.92 0 0);
+            --surface-raised: oklch(1 0 0);
+            --border: oklch(0.86 0 0);
+            --border-hover: oklch(0.76 0 0);
+            --ink: oklch(0.19 0 0);
+            --ink-dim: oklch(0.42 0 0);
+            --ink-muted: oklch(0.56 0 0);
+            --ink-inverse: oklch(0.99 0 0);
+            --accent: oklch(0.53 0.17 195);
+            --accent-hover: oklch(0.47 0.18 195);
+            --accent-active: oklch(0.42 0.18 195);
+            --accent-subtle: oklch(0.92 0.045 195);
+            --blue: oklch(0.47 0.15 250);
+            --blue-hover: oklch(0.41 0.16 250);
+            --blue-active: oklch(0.37 0.16 250);
+            --blue-subtle: oklch(0.92 0.03 250);
+            --amber: oklch(0.52 0.16 85);
+            --amber-hover: oklch(0.46 0.16 85);
+            --amber-subtle: oklch(0.93 0.05 85);
+            --green: oklch(0.46 0.15 150);
+            --green-subtle: oklch(0.92 0.045 150);
+            --red: oklch(0.50 0.19 22);
+            --red-subtle: oklch(0.93 0.05 22);
+            --indigo-maui: oklch(0.47 0.16 295);
+            --indigo-maui-subtle: oklch(0.92 0.045 295);
+            --purple: oklch(0.47 0.14 320);
+            --purple-subtle: oklch(0.92 0.045 320);
         }
 
         h1, h2, h3 { text-wrap: balance; }
@@ -99,7 +147,7 @@
         .badge-red-fill { background: var(--red); color: var(--ink-inverse); border: 1px solid var(--red); }
         .badge-indigo-fill { background: var(--indigo-maui); color: var(--ink-inverse); border: 1px solid var(--indigo-maui); }
         .badge-slate-fill { background: var(--ink-muted); color: var(--ink-inverse); border: 1px solid var(--ink-muted); }
-        .badge-purple { background: var(--purple-subtle); color: var(--purple); border: 1px solid oklch(0.30 0.08 320 / 0.3); }
+        .badge-purple { background: var(--purple-subtle); color: var(--purple); border: 1px solid color-mix(in oklch, var(--purple) 35%, transparent); }
         .badge-purple-fill { background: var(--purple); color: var(--ink-inverse); border: 1px solid var(--purple); }
 
         body {
@@ -153,12 +201,12 @@
             font-weight: 700;
             line-height: 1.4;
         }
-        .badge-blue { background: var(--blue-subtle); color: var(--blue); border: 1px solid oklch(0.30 0.08 250 / 0.3); }
-        .badge-amber { background: var(--amber-subtle); color: var(--amber); border: 1px solid oklch(0.40 0.10 85 / 0.3); }
-        .badge-green { background: var(--green-subtle); color: var(--green); border: 1px solid oklch(0.28 0.08 150 / 0.3); }
-        .badge-red { background: var(--red-subtle); color: var(--red); border: 1px solid oklch(0.30 0.09 22 / 0.3); }
-        .badge-indigo { background: var(--indigo-maui-subtle); color: var(--indigo-maui); border: 1px solid oklch(0.30 0.08 295 / 0.3); }
-        .badge-slate { background: rgba(255,255,255,0.04); color: var(--ink-dim); border: 1px solid var(--border); }
+        .badge-blue { background: var(--blue-subtle); color: var(--blue); border: 1px solid color-mix(in oklch, var(--blue) 35%, transparent); }
+        .badge-amber { background: var(--amber-subtle); color: var(--amber); border: 1px solid color-mix(in oklch, var(--amber) 35%, transparent); }
+        .badge-green { background: var(--green-subtle); color: var(--green); border: 1px solid color-mix(in oklch, var(--green) 35%, transparent); }
+        .badge-red { background: var(--red-subtle); color: var(--red); border: 1px solid color-mix(in oklch, var(--red) 35%, transparent); }
+        .badge-indigo { background: var(--indigo-maui-subtle); color: var(--indigo-maui); border: 1px solid color-mix(in oklch, var(--indigo-maui) 35%, transparent); }
+        .badge-slate { background: var(--surface-hover); color: var(--ink-dim); border: 1px solid var(--border); }
 
         .card {
             background: var(--surface);
@@ -225,7 +273,7 @@
             transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
         }
         .input::placeholder { color: var(--ink-muted); }
-        .input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px oklch(0.78 0.15 195 / 0.18); }
+        .input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in oklch, var(--accent) 20%, transparent); }
 
         .select {
             background: var(--bg);
@@ -269,7 +317,7 @@
     <!-- Header -->
     <header class="border-b border-slate-800 bg-[var(--chrome)] backdrop-blur-md px-6 py-4 flex items-center justify-between flex-shrink-0">
         <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-[var(--accent)] flex items-center justify-center font-bold text-lg text-[var(--ink-inverse)] shadow-lg shadow-[oklch(0.78_0.15_195_/_0.35)]">
+            <div class="w-10 h-10 rounded-xl bg-[var(--accent)] flex items-center justify-center font-bold text-lg text-[var(--ink-inverse)] shadow-lg" style="box-shadow: 0 10px 15px -3px color-mix(in oklch, var(--accent) 35%, transparent);"
                 MF
             </div>
             <div>
@@ -282,6 +330,9 @@
         </div>
         
         <div class="flex items-center gap-3">
+            <button id="themeToggle" onclick="toggleTheme()" class="btn-ghost text-xs py-1.5 px-2.5" aria-label="Switch to light theme" title="Switch theme">
+                <span id="themeToggleIcon">&#x2600;</span>
+            </button>
             <button id="sidebarToggle" class="btn-ghost text-xs flex items-center gap-1.5 py-1.5 lg:hidden" aria-label="Toggle sidebar">☰</button>
             <a href="https://github.com/CW-Software-Apps/maui-forge" target="_blank" class="text-xs text-slate-500 hover:text-white transition flex items-center gap-1.5">
                 <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
@@ -554,6 +605,17 @@
             if (spinner) spinner.remove();
         });
 
+        // Individual app update handler (e.g. from version bump or git pull)
+        connection.on("AppUpdated", function (updatedApp) {
+            const index = appsList.findIndex(a => a.dir === updatedApp.dir);
+            if (index !== -1) {
+                appsList[index] = updatedApp;
+            } else {
+                appsList.push(updatedApp);
+            }
+            renderApps();
+        });
+
         connection.start().catch(err => console.error("SignalR Connection Error: ", err));
 
         // Toast notification system
@@ -731,7 +793,7 @@
                 terminal.appendChild(line);
                 if (data.success) showToast("Bumped to " + data.version + " #" + data.build + " and pushed", "success");
                 else showToast("Push failed: " + data.output, "error");
-                loadApps();
+                refreshSingleApp(dir);
             } catch (err) {
                 showToast("Bump & Push failed: " + err.message, "error");
             }
@@ -743,7 +805,22 @@
             loadApps();
             updateLayoutButtons();
             loadVersionInfo();
+            updateThemeToggle();
         });
+
+        // Theme (data-theme is already set pre-paint by the inline script in <head>)
+        function updateThemeToggle() {
+            var isLight = document.documentElement.dataset.theme === "light";
+            document.getElementById("themeToggleIcon").innerHTML = isLight ? "&#x263E;" : "&#x2600;";
+            document.getElementById("themeToggle").setAttribute("aria-label", isLight ? "Switch to dark theme" : "Switch to light theme");
+        }
+
+        function toggleTheme() {
+            var next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+            document.documentElement.dataset.theme = next;
+            localStorage.setItem("theme", next);
+            updateThemeToggle();
+        }
 
         async function loadVersionInfo() {
             try {
@@ -1087,7 +1164,7 @@
                     const pullWarningHtml = isBehind 
                         ? `<div class="bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg p-2.5 text-xs flex items-center justify-between gap-2">
                              <span><b>Pull pending:</b> ${app.git.behind} commit(s) behind remote.</span>
-                             <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-2 py-1 rounded transition text-[10px]">PULL</button>
+                             <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" class="bg-amber-500 hover:bg-amber-600 text-[var(--ink-inverse)] font-bold px-2 py-1 rounded transition text-[10px]">PULL</button>
                            </div>` 
                         : "";
 
@@ -1235,7 +1312,7 @@
                 });
                 if (res.ok) {
                     closeVersionModal();
-                    loadApps();
+                    refreshSingleApp(dir);
                     showToast("Version updated locally", "success");
                 } else {
                     showToast(await res.text(), "error");
@@ -1268,7 +1345,7 @@
                 line.className = data.success ? "text-green-400" : "text-red-400";
                 line.textContent = data.output || "Git pull executed.";
                 terminal.appendChild(line);
-                loadApps();
+                refreshSingleApp(dir);
             } catch (err) {
                 console.error(err);
             }

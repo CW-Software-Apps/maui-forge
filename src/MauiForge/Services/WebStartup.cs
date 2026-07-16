@@ -129,7 +129,7 @@ public static class WebStartup
         });
 
         // Version Update Endpoint
-        app.MapPost("/api/apps/version", (VersionService versions, StateService state, VersionUpdateRequest req) =>
+        app.MapPost("/api/apps/version", (VersionService versions, AppDiscoveryService discovery, StateService state, VersionUpdateRequest req) =>
         {
             var st = state.Load();
             string newVersion = req.Version;
@@ -148,6 +148,7 @@ public static class WebStartup
                 };
                 state.Save(st);
                 versions.WriteUnity(req.Dir, newVersion, newBuild);
+                RefreshCacheAndNotify(discovery, state, req.Dir);
                 return Results.Ok(new { Success = true, Version = newVersion, Build = newBuild });
             }
 
@@ -173,19 +174,22 @@ public static class WebStartup
             if (csproj is not null) versions.WriteCsproj(csproj, newVersion, newBuild);
             versions.WriteAssemblyInfo(req.Dir, newVersion, newBuild);
 
+            RefreshCacheAndNotify(discovery, state, req.Dir);
             return Results.Ok(new { Success = true, Version = newVersion, Build = newBuild });
         });
 
         // Git Endpoints
-        app.MapPost("/api/apps/git/pull", (GitService git, GitRequest req) =>
+        app.MapPost("/api/apps/git/pull", (GitService git, AppDiscoveryService discovery, StateService state, GitRequest req) =>
         {
             var res = git.Pull(req.Dir);
+            RefreshCacheAndNotify(discovery, state, req.Dir);
             return Results.Ok(new { Success = res.Success, Output = res.Output });
         });
 
-        app.MapPost("/api/apps/git/push", (GitService git, GitPushRequest req) =>
+        app.MapPost("/api/apps/git/push", (GitService git, AppDiscoveryService discovery, StateService state, GitPushRequest req) =>
         {
             var res = git.Push(req.Dir, req.Message);
+            RefreshCacheAndNotify(discovery, state, req.Dir);
             return Results.Ok(new { Success = res.Success, Output = res.Output });
         });
 
@@ -196,7 +200,7 @@ public static class WebStartup
             return Results.Ok(appEntry);
         });
 
-        app.MapPost("/api/apps/bump-push", (VersionService versions, GitService git, StateService state, BumpPushRequest req) =>
+        app.MapPost("/api/apps/bump-push", (VersionService versions, GitService git, AppDiscoveryService discovery, StateService state, BumpPushRequest req) =>
         {
             var st = state.Load();
             string newVersion = req.Version;
@@ -218,6 +222,7 @@ public static class WebStartup
 
                 var commitMsgU = $"chore: bump version to {newVersion} #{newBuild}";
                 var (gitSuccessU, gitOutputU) = git.Push(req.Dir, commitMsgU);
+                RefreshCacheAndNotify(discovery, state, req.Dir);
                 return Results.Ok(new { Success = gitSuccessU, Output = gitOutputU, Version = newVersion, Build = newBuild });
             }
 
@@ -245,6 +250,7 @@ public static class WebStartup
             var commitMsg = $"chore: bump version to {newVersion} #{newBuild}";
             var (gitSuccess, gitOutput) = git.Push(req.Dir, commitMsg);
 
+            RefreshCacheAndNotify(discovery, state, req.Dir);
             return Results.Ok(new { Success = gitSuccess, Output = gitOutput, Version = newVersion, Build = newBuild });
         });
 
@@ -464,6 +470,36 @@ public static class WebStartup
 
         app.MapHub<LogHub>("/hubs/logs");
         app.Run();
+    }
+
+    private static void RefreshCacheAndNotify(AppDiscoveryService discovery, StateService state, string dir)
+    {
+        try
+        {
+            var updated = discovery.RefreshApp(dir);
+            if (updated != null)
+            {
+                var st = state.Load();
+                var cached = st.CachedApps ?? new List<AppEntry>();
+                var index = cached.FindIndex(a => a.Dir.Equals(dir, StringComparison.OrdinalIgnoreCase));
+                if (index >= 0)
+                {
+                    cached[index] = updated;
+                }
+                else
+                {
+                    cached.Add(updated);
+                }
+                st.CachedApps = cached;
+                state.Save(st);
+
+                if (_hubContext != null)
+                {
+                    _ = _hubContext.Clients.All.SendAsync("AppUpdated", updated);
+                }
+            }
+        }
+        catch { }
     }
 
     private static async Task SendLog(string message)
