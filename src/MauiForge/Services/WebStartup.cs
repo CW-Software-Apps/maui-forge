@@ -17,6 +17,7 @@ public class LogHub : Hub
 public static class WebStartup
 {
     private static IHubContext<LogHub>? _hubContext;
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Diagnostics.Process> _runningBuilds = new();
 
     public static void Start(string[] args, StateService stateService, AppDiscoveryService discoveryService, VersionService versionService, GitService gitService, BuildService buildService, DeviceService deviceService)
     {
@@ -253,37 +254,71 @@ public static class WebStartup
             // Run build asynchronously in a task to not block API response, but notify client via SignalR
             _ = Task.Run(async () =>
             {
-                await SendLog("=========================================");
-                await SendLog($"Starting Build for platform {req.Platform}...");
-                await SendLog("=========================================");
-
-                var buildArgs = new List<string> { "build" };
-                if (req.Platform.Equals("Android", StringComparison.OrdinalIgnoreCase))
+                try
                 {
-                    buildArgs.AddRange(new[] { "-f", "net10.0-android" });
+                    await SendLog("=========================================");
+                    await SendLog($"Starting Build for platform {req.Platform}...");
+                    await SendLog("=========================================");
+
+                    var buildArgs = new List<string> { "build" };
+                    if (req.Platform.Equals("Android", StringComparison.OrdinalIgnoreCase))
+                    {
+                        buildArgs.AddRange(new[] { "-f", "net10.0-android" });
+                    }
+                    else
+                    {
+                        buildArgs.AddRange(new[] { "-f", "net10.0-ios" });
+                    }
+
+                    if (req.Configuration.Equals("Release", StringComparison.OrdinalIgnoreCase))
+                    {
+                        buildArgs.Add("-c");
+                        buildArgs.Add("Release");
+                    }
+
+                    int exitCode = builder.Run(req.Dir, buildArgs.ToArray(), line =>
+                    {
+                        _ = SendLog(line);
+                    }, onStart: proc => _runningBuilds[req.Dir] = proc);
+
+                    // If the entry is already gone, /api/apps/build/cancel removed it and logged the cancellation.
+                    bool completedNaturally = _runningBuilds.TryRemove(req.Dir, out _);
+                    if (completedNaturally)
+                    {
+                        await SendLog("=========================================");
+                        await SendLog($"Build process completed with exit code: {exitCode}");
+                        await SendLog("=========================================");
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    buildArgs.AddRange(new[] { "-f", "net10.0-ios" });
+                    _runningBuilds.TryRemove(req.Dir, out _);
+                    await SendLog($"[Error] Build failed to start: {ex.Message}");
                 }
-
-                if (req.Configuration.Equals("Release", StringComparison.OrdinalIgnoreCase))
-                {
-                    buildArgs.Add("-c");
-                    buildArgs.Add("Release");
-                }
-
-                int exitCode = builder.Run(req.Dir, buildArgs.ToArray(), line =>
-                {
-                    _ = SendLog(line);
-                });
-
-                await SendLog("=========================================");
-                await SendLog($"Build process completed with exit code: {exitCode}");
-                await SendLog("=========================================");
             });
 
             return Results.Accepted();
+        });
+
+        // Cancel a running build
+        app.MapPost("/api/apps/build/cancel", (BuildCancelRequest req) =>
+        {
+            if (_runningBuilds.TryRemove(req.Dir, out var proc))
+            {
+                try
+                {
+                    if (!proc.HasExited) proc.Kill(entireProcessTree: true);
+                    _ = SendLog("=========================================");
+                    _ = SendLog("Build cancelled by user.");
+                    _ = SendLog("=========================================");
+                    return Results.Ok(new { Success = true });
+                }
+                catch (Exception ex)
+                {
+                    return Results.Ok(new { Success = false, Error = ex.Message });
+                }
+            }
+            return Results.Ok(new { Success = false, Error = "No running build found for this app." });
         });
 
         app.MapPost("/api/apps/open-folder", (OpenFolderRequest req) =>
@@ -378,6 +413,31 @@ public static class WebStartup
             });
         });
 
+        // Update Install Endpoint — runs the same deferred updater the CLI uses, minus the console prompts.
+        app.MapPost("/api/update/install", async (UpdateInstallRequest req) =>
+        {
+            var latest = req.Version;
+            if (string.IsNullOrWhiteSpace(latest))
+            {
+                UpdateService.Instance.ForceCheck();
+                for (var i = 0; i < 50 && UpdateService.Instance.GetLatestVersion() is null; i++)
+                    await Task.Delay(100);
+                latest = UpdateService.Instance.GetLatestVersion();
+            }
+
+            if (string.IsNullOrWhiteSpace(latest))
+                return Results.Ok(new { Success = false, Error = "Could not reach NuGet to resolve the latest version." });
+
+            // Give the HTTP response time to reach the browser before this process exits.
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(500);
+                UpdateService.LaunchDeferredUpdate(latest, args, interactive: false);
+            });
+
+            return Results.Ok(new { Success = true, Version = latest });
+        });
+
         // Diagnostics Endpoint
         app.MapGet("/api/diagnostics", (DeviceService devices, GitService git) =>
         {
@@ -420,6 +480,8 @@ public record GitRequest(string Dir);
 public record GitPushRequest(string Dir, string Message);
 public record VersionUpdateRequest(string Dir, string Version, string Build);
 public record BuildRequest(string Dir, string Platform, string Configuration);
+public record BuildCancelRequest(string Dir);
+public record UpdateInstallRequest(string? Version);
 public record RefreshRequest(string Dir);
 public record BumpPushRequest(string Dir, string Version, string Build);
 public record OpenFolderRequest(string Dir);

@@ -59,7 +59,7 @@ public class UpdateService
     /// the Job Object process termination limit, then exits.
     /// On macOS/Linux, it runs the update synchronously with visual feedback.
     /// </summary>
-    public static void LaunchDeferredUpdate(string latestVer, string[] originalArgs)
+    public static void LaunchDeferredUpdate(string latestVer, string[] originalArgs, bool interactive = true)
     {
         var currentPid = Environment.ProcessId;
         var dotnetPath = FindDotnet() ?? "dotnet";
@@ -150,6 +150,67 @@ public class UpdateService
         }
         else
         {
+            void RunUpdateProcess(Action<string>? onSuccess, Action<string> onFailure)
+            {
+                try
+                {
+                    var processInfo = new System.Diagnostics.ProcessStartInfo(dotnetPath)
+                    {
+                        Arguments = $"tool update {PackageId} -g --version {latestVer}",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+
+                    processInfo.EnvironmentVariables["DOTNET_CLI_UI_LANGUAGE"] = "en";
+                    processInfo.EnvironmentVariables["LANG"] = "en_US.UTF-8";
+                    processInfo.EnvironmentVariables["LC_ALL"] = "en_US.UTF-8";
+                    processInfo.EnvironmentVariables["LC_MESSAGES"] = "en_US.UTF-8";
+                    processInfo.EnvironmentVariables["LANGUAGE"] = "en";
+
+                    using var process = System.Diagnostics.Process.Start(processInfo);
+                    if (process == null)
+                    {
+                        onFailure("Could not start update process.");
+                        return;
+                    }
+
+                    var output = process.StandardOutput.ReadToEnd();
+                    var error = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+
+                    if (process.ExitCode == 0)
+                    {
+                        onSuccess?.Invoke("Update completed successfully.");
+                    }
+                    else
+                    {
+                        var detail = !string.IsNullOrWhiteSpace(error) ? error.Trim() : output.Trim();
+                        onFailure($"Update failed with exit code {process.ExitCode}. {detail}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    onFailure($"Error during update: {ex.Message}");
+                }
+            }
+
+            if (!interactive)
+            {
+                // Called from the web dashboard: no console attached to interact with, so
+                // run the update and relaunch without any AnsiConsole prompts or key waits.
+                RunUpdateProcess(
+                    onSuccess: _ =>
+                    {
+                        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("maui-forge") { UseShellExecute = true }); }
+                        catch { /* the user can still relaunch manually if the PATH shortcut isn't set up */ }
+                        Environment.Exit(0);
+                    },
+                    onFailure: _ => Environment.Exit(1));
+                return;
+            }
+
             AnsiConsole.Clear();
             AnsiConsole.WriteLine();
             AnsiConsole.Write(new Rule("[bold cyan1]  Update in Progress  [/]").RuleStyle(Style.Parse("cyan1 dim")));
@@ -160,55 +221,17 @@ public class UpdateService
                 .SpinnerStyle(Style.Parse("cyan1"))
                 .Start($"  [dim]Updating CwSoftware.MauiForge to version {latestVer}...[/]", ctx =>
                 {
-                    try
-                    {
-                        var processInfo = new System.Diagnostics.ProcessStartInfo(dotnetPath)
+                    RunUpdateProcess(
+                        onSuccess: msg =>
                         {
-                            Arguments = $"tool update {PackageId} -g --version {latestVer}",
-                            RedirectStandardOutput = true,
-                            RedirectStandardError = true,
-                            UseShellExecute = false,
-                            CreateNoWindow = true
-                        };
-
-                        processInfo.EnvironmentVariables["DOTNET_CLI_UI_LANGUAGE"] = "en";
-                        processInfo.EnvironmentVariables["LANG"] = "en_US.UTF-8";
-                        processInfo.EnvironmentVariables["LC_ALL"] = "en_US.UTF-8";
-                        processInfo.EnvironmentVariables["LC_MESSAGES"] = "en_US.UTF-8";
-                        processInfo.EnvironmentVariables["LANGUAGE"] = "en";
-
-                        using var process = System.Diagnostics.Process.Start(processInfo);
-                        if (process == null)
-                        {
-                            AnsiConsole.MarkupLine($"  [red]x  Could not start update process.[/]");
-                            AnsiConsole.MarkupLine($"  [dim]Run manually:[/] [cyan1]{manualCommand}[/]");
-                            return;
-                        }
-
-                        var output = process.StandardOutput.ReadToEnd();
-                        var error = process.StandardError.ReadToEnd();
-                        process.WaitForExit();
-
-                        if (process.ExitCode == 0)
-                        {
-                            AnsiConsole.MarkupLine("  [green]✓ Update completed successfully![/]");
+                            AnsiConsole.MarkupLine($"  [green]✓ {Markup.Escape(msg)}[/]");
                             AnsiConsole.MarkupLine("  [dim]Please restart maui-forge to run the new version.[/]");
-                        }
-                        else
+                        },
+                        onFailure: msg =>
                         {
-                            AnsiConsole.MarkupLine($"  [red]x  Update failed with exit code {process.ExitCode}.[/]");
-                            if (!string.IsNullOrWhiteSpace(output))
-                                AnsiConsole.MarkupLine($"  [dim]Output:[/] {Markup.Escape(output.Trim())}");
-                            if (!string.IsNullOrWhiteSpace(error))
-                                AnsiConsole.MarkupLine($"  [red]Error:[/] {Markup.Escape(error.Trim())}");
+                            AnsiConsole.MarkupLine($"  [red]x  {Markup.Escape(msg)}[/]");
                             AnsiConsole.MarkupLine($"  [dim]Run manually:[/] [cyan1]{manualCommand}[/]");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        AnsiConsole.MarkupLine($"  [red]x  Error during update:[/] {Markup.Escape(ex.Message)}");
-                        AnsiConsole.MarkupLine($"  [dim]Run manually:[/] [cyan1]{manualCommand}[/]");
-                    }
+                        });
                 });
 
             AnsiConsole.WriteLine();

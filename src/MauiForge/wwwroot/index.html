@@ -6,35 +6,68 @@
     <title>MAUI Forge Dashboard</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Repaints Tailwind's default neutral/status shades onto the Forge palette
+        // (true-neutral base + ember accent) so utility classes and CSS var tokens agree.
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            100: 'oklch(0.95 0 0)', 200: 'oklch(0.88 0 0)', 300: 'oklch(0.80 0 0)',
+                            400: 'oklch(0.68 0 0)', 500: 'oklch(0.56 0 0)', 600: 'oklch(0.48 0 0)',
+                            700: 'oklch(0.30 0 0)', 800: 'oklch(0.24 0 0)', 900: 'oklch(0.115 0 0)',
+                            950: 'oklch(0.07 0 0)'
+                        },
+                        accent: {
+                            400: 'oklch(0.82 0.14 195)', 500: 'oklch(0.78 0.15 195)', 600: 'oklch(0.72 0.16 195)'
+                        },
+                        blue: {
+                            400: 'oklch(0.70 0.13 250)', 500: 'oklch(0.58 0.14 250)', 600: 'oklch(0.52 0.15 250)',
+                            800: 'oklch(0.30 0.09 250)', 950: 'oklch(0.16 0.05 250)'
+                        },
+                        amber: { 400: 'oklch(0.87 0.15 85)', 500: 'oklch(0.83 0.17 85)', 600: 'oklch(0.72 0.17 85)' },
+                        green: { 400: 'oklch(0.84 0.15 150)', 500: 'oklch(0.79 0.17 150)' },
+                        emerald: { 400: 'oklch(0.84 0.15 150)', 500: 'oklch(0.79 0.17 150)' },
+                        red: { 400: 'oklch(0.75 0.16 22)', 500: 'oklch(0.70 0.19 22)' }
+                    }
+                }
+            }
+        };
+    </script>
     <!-- SignalR -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js" integrity="sha384-/taWmisziXYpcfnYsumSUmNaiMvG/fF/OJOUCLnqCIYTrpOZy7WbFF6FfIxwOrfL" crossorigin="anonymous"></script>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: oklch(0.06 0.000 0);
-            --surface: oklch(0.10 0.005 260);
-            --surface-hover: oklch(0.14 0.008 260);
-            --surface-raised: oklch(0.18 0.010 260);
-            --border: oklch(0.20 0.012 260);
-            --ink: oklch(0.93 0.008 260);
-            --ink-dim: oklch(0.65 0.015 260);
-            --ink-muted: oklch(0.42 0.012 260);
-            --ink-inverse: oklch(0.08 0.000 0);
-            --blue: oklch(0.48 0.20 260);
-            --blue-hover: oklch(0.44 0.22 260);
-            --blue-active: oklch(0.40 0.22 260);
-            --blue-subtle: oklch(0.20 0.08 260);
-            --amber: oklch(0.65 0.16 85);
-            --amber-subtle: oklch(0.22 0.06 85);
-            --green: oklch(0.55 0.16 145);
-            --green-subtle: oklch(0.18 0.06 145);
-            --red: oklch(0.50 0.20 25);
-            --red-subtle: oklch(0.20 0.08 25);
-            --indigo-maui: oklch(0.48 0.18 280);
-            --indigo-maui-subtle: oklch(0.20 0.08 280);
-            --purple: oklch(0.50 0.15 290);
-            --purple-subtle: oklch(0.20 0.08 290);
+            --bg: oklch(0.055 0 0);
+            --surface: oklch(0.09 0 0);
+            --surface-hover: oklch(0.13 0 0);
+            --surface-raised: oklch(0.17 0 0);
+            --border: oklch(0.22 0 0);
+            --ink: oklch(0.95 0 0);
+            --ink-dim: oklch(0.68 0 0);
+            --ink-muted: oklch(0.48 0 0);
+            --ink-inverse: oklch(0.07 0 0);
+            --accent: oklch(0.78 0.15 195);
+            --accent-hover: oklch(0.72 0.16 195);
+            --accent-active: oklch(0.66 0.17 195);
+            --accent-subtle: oklch(0.22 0.09 195);
+            --blue: oklch(0.58 0.14 250);
+            --blue-hover: oklch(0.52 0.15 250);
+            --blue-active: oklch(0.46 0.15 250);
+            --blue-subtle: oklch(0.22 0.07 250);
+            --amber: oklch(0.83 0.17 85);
+            --amber-subtle: oklch(0.24 0.08 85);
+            --green: oklch(0.79 0.17 150);
+            --green-subtle: oklch(0.20 0.07 150);
+            --red: oklch(0.70 0.19 22);
+            --red-subtle: oklch(0.22 0.09 22);
+            --indigo-maui: oklch(0.60 0.16 295);
+            --indigo-maui-subtle: oklch(0.22 0.08 295);
+            --purple: oklch(0.58 0.14 320);
+            --purple-subtle: oklch(0.22 0.08 320);
         }
 
         h1, h2, h3 { text-wrap: balance; }
@@ -49,7 +82,7 @@
         }
 
         :focus-visible {
-            outline: 2px solid var(--blue);
+            outline: 2px solid var(--accent);
             outline-offset: 2px;
         }
 
@@ -63,7 +96,7 @@
         .badge-red-fill { background: var(--red); color: var(--ink-inverse); border: 1px solid var(--red); }
         .badge-indigo-fill { background: var(--indigo-maui); color: var(--ink-inverse); border: 1px solid var(--indigo-maui); }
         .badge-slate-fill { background: var(--ink-muted); color: var(--ink-inverse); border: 1px solid var(--ink-muted); }
-        .badge-purple { background: var(--purple-subtle); color: var(--purple); border: 1px solid oklch(0.28 0.10 290 / 0.3); }
+        .badge-purple { background: var(--purple-subtle); color: var(--purple); border: 1px solid oklch(0.30 0.08 320 / 0.3); }
         .badge-purple-fill { background: var(--purple); color: var(--ink-inverse); border: 1px solid var(--purple); }
 
         body {
@@ -82,7 +115,7 @@
         .spinning { animation: spin 1s linear infinite; }
 
         .btn-primary {
-            background: var(--blue);
+            background: var(--accent);
             color: var(--ink-inverse);
             font-weight: 600;
             font-size: 0.8125rem;
@@ -91,20 +124,20 @@
             border: none;
             transition: background 150ms ease-out;
         }
-        .btn-primary:hover { background: var(--blue-hover); }
-        .btn-primary:active { background: var(--blue-active); }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:active { background: var(--accent-active); }
 
         .btn-ghost {
             background: transparent;
-            color: var(--blue);
+            color: var(--accent);
             font-weight: 500;
             font-size: 0.8125rem;
             padding: 0.5rem 0.75rem;
             border-radius: 8px;
-            border: 1px solid var(--blue-subtle);
+            border: 1px solid var(--accent-subtle);
             transition: background 150ms ease-out, border-color 150ms ease-out;
         }
-        .btn-ghost:hover { background: var(--surface-hover); border-color: var(--blue); }
+        .btn-ghost:hover { background: var(--surface-hover); border-color: var(--accent); }
         .btn-ghost:active { background: var(--surface-raised); }
 
         .badge {
@@ -117,11 +150,11 @@
             font-weight: 700;
             line-height: 1.4;
         }
-        .badge-blue { background: var(--blue-subtle); color: var(--blue); border: 1px solid oklch(0.28 0.10 260 / 0.3); }
-        .badge-amber { background: var(--amber-subtle); color: var(--amber); border: 1px solid oklch(0.30 0.08 85 / 0.3); }
-        .badge-green { background: var(--green-subtle); color: var(--green); border: 1px solid oklch(0.26 0.08 145 / 0.3); }
-        .badge-red { background: var(--red-subtle); color: var(--red); border: 1px solid oklch(0.28 0.10 25 / 0.3); }
-        .badge-indigo { background: var(--indigo-maui-subtle); color: var(--indigo-maui); border: 1px solid oklch(0.28 0.10 280 / 0.3); }
+        .badge-blue { background: var(--blue-subtle); color: var(--blue); border: 1px solid oklch(0.30 0.08 250 / 0.3); }
+        .badge-amber { background: var(--amber-subtle); color: var(--amber); border: 1px solid oklch(0.40 0.10 85 / 0.3); }
+        .badge-green { background: var(--green-subtle); color: var(--green); border: 1px solid oklch(0.28 0.08 150 / 0.3); }
+        .badge-red { background: var(--red-subtle); color: var(--red); border: 1px solid oklch(0.30 0.09 22 / 0.3); }
+        .badge-indigo { background: var(--indigo-maui-subtle); color: var(--indigo-maui); border: 1px solid oklch(0.30 0.08 295 / 0.3); }
         .badge-slate { background: rgba(255,255,255,0.04); color: var(--ink-dim); border: 1px solid var(--border); }
 
         .card {
@@ -133,11 +166,6 @@
             transition: background 150ms ease-out, border-color 200ms ease-out, box-shadow 200ms ease-out;
         }
         .card:hover { background: var(--surface-hover); box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
-        .card-accent-maui { border-left: 1px solid var(--indigo-maui); }
-        .card-accent-blazor { border-left: 1px solid var(--amber); }
-        .card-accent-unity { border-left: 1px solid var(--ink-muted); }
-        .card-accent-wpf { border-left: 1px solid var(--blue); }
-        .card-accent-classlib { border-left: 1px solid var(--border); }
 
         .skeleton {
             background: linear-gradient(90deg, var(--surface) 25%, var(--surface-hover) 50%, var(--surface) 75%);
@@ -194,7 +222,7 @@
             transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
         }
         .input::placeholder { color: var(--ink-muted); }
-        .input:focus { border-color: var(--blue); box-shadow: 0 0 0 2px oklch(0.48 0.20 260 / 0.15); }
+        .input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px oklch(0.78 0.15 195 / 0.18); }
 
         .select {
             background: var(--bg);
@@ -206,7 +234,7 @@
             outline: none;
             transition: border-color 150ms ease-out;
         }
-        .select:focus { border-color: var(--blue); }
+        .select:focus { border-color: var(--accent); }
 
         .modal-panel {
             background: var(--surface-raised);
@@ -238,7 +266,7 @@
     <!-- Header -->
     <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md px-6 py-4 flex items-center justify-between flex-shrink-0">
         <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-[var(--blue)] flex items-center justify-center font-bold text-lg shadow-lg shadow-blue-500/20">
+            <div class="w-10 h-10 rounded-xl bg-[var(--accent)] flex items-center justify-center font-bold text-lg text-[var(--ink-inverse)] shadow-lg shadow-[oklch(0.78_0.15_195_/_0.35)]">
                 MF
             </div>
             <div>
@@ -363,9 +391,14 @@
                         <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
                         <span class="text-xs font-semibold text-slate-400 tracking-wide uppercase">Build Output Terminal</span>
                     </div>
-                    <button onclick="clearConsole()" class="text-slate-500 hover:text-slate-300 text-xs px-2 py-0.5 rounded hover:bg-slate-800 transition">
-                        Clear
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button id="cancelBuildBtn" onclick="cancelBuild()" class="hidden text-red-400 hover:text-red-300 text-xs px-2 py-0.5 rounded hover:bg-slate-800 transition font-semibold">
+                            Cancel Build
+                        </button>
+                        <button onclick="clearConsole()" class="text-slate-500 hover:text-slate-300 text-xs px-2 py-0.5 rounded hover:bg-slate-800 transition">
+                            Clear
+                        </button>
+                    </div>
                 </div>
                 <div id="terminalConsole" class="flex-1 p-4 overflow-y-auto bg-slate-950 text-slate-400 font-mono text-xs space-y-1 select-text selection:bg-slate-800">
                     <div class="text-slate-600">[Info] System idle. Trigger a build or deploy to stream output here...</div>
@@ -388,6 +421,8 @@
             </div>
             <div class="p-6 space-y-4">
                 <input type="hidden" id="modalAppDir">
+                <input type="hidden" id="modalOriginalVersion">
+                <input type="hidden" id="modalOriginalBuild">
                 <div>
                     <label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Version String</label>
                     <input type="text" id="modalVersionInput" class="input w-full text-sm">
@@ -478,9 +513,14 @@
             .build();
 
         connection.on("LogReceived", function (message) {
+            if (message.startsWith("Build process completed") || message.startsWith("Build cancelled by user")) {
+                currentBuildDir = null;
+                document.getElementById("cancelBuildBtn").classList.add("hidden");
+            }
+
             const consoleEl = document.getElementById("terminalConsole");
             const wasAtBottom = consoleEl.scrollHeight - consoleEl.clientHeight <= consoleEl.scrollTop + 10;
-            
+
             const line = document.createElement("div");
             line.textContent = message;
             
@@ -581,8 +621,28 @@
             document.getElementById("modalAppDir").value = dir;
             document.getElementById("modalVersionInput").value = ver;
             document.getElementById("modalBuildInput").value = build;
+            document.getElementById("modalOriginalVersion").value = ver;
+            document.getElementById("modalOriginalBuild").value = build;
             document.getElementById("versionModal").classList.remove("hidden");
             setTimeout(function () { trapFocus("versionModal"); }, 50);
+        }
+
+        // Skips the manual-entry modal: computes version+1 / build+1 from the
+        // currently known values and jumps straight to the bump/push confirmation.
+        function quickBumpVersion(dir, currentVersion, currentBuild) {
+            var verParts = (currentVersion || "1.0.0").split(".");
+            var lastIdx = verParts.length - 1;
+            var lastNum = parseInt(verParts[lastIdx], 10);
+            verParts[lastIdx] = isNaN(lastNum) ? verParts[lastIdx] : String(lastNum + 1);
+            var newVersion = verParts.join(".");
+
+            var buildNum = parseInt(currentBuild, 10);
+            var newBuild = isNaN(buildNum) ? "1" : String(buildNum + 1);
+
+            document.getElementById("modalAppDir").value = dir;
+            document.getElementById("modalOriginalVersion").value = currentVersion || "";
+            document.getElementById("modalOriginalBuild").value = currentBuild || "";
+            showBumpConfirm(dir, newVersion, newBuild);
         }
 
         function closeVersionModal() {
@@ -623,8 +683,8 @@
             btn.dataset.version = version;
             btn.dataset.build = build;
 
-            var currentVer = document.getElementById("modalVersionInput").value || version;
-            var currentBuild = document.getElementById("modalBuildInput").value || build;
+            var currentVer = document.getElementById("modalOriginalVersion").value || version;
+            var currentBuild = document.getElementById("modalOriginalBuild").value || build;
             body.innerHTML = '<span class="text-slate-400">Version: <span class="text-green-400">' + currentVer + '</span> → <span class="text-amber-400">' + version + '</span></span><br><span class="text-slate-400">Build: <span class="text-green-400">' + currentBuild + '</span> → <span class="text-amber-400">' + build + '</span></span>';
 
             modal.classList.remove("hidden");
@@ -640,9 +700,10 @@
             var terminal = document.getElementById("terminalConsole");
             terminal.innerHTML = '<div class="text-slate-400">[Bump & Push] Writing version and pushing commits...</div>';
 
-            var dir = document.getElementById("modalAppDir").value;
-            var version = document.getElementById("modalVersionInput").value;
-            var build = document.getElementById("modalBuildInput").value;
+            var confirmBtn = document.getElementById("confirmBumpBtn");
+            var dir = confirmBtn.dataset.dir;
+            var version = confirmBtn.dataset.version;
+            var build = confirmBtn.dataset.build;
 
             try {
                 var res = await fetch(API_BASE + "/api/apps/bump-push", {
@@ -696,7 +757,7 @@
             const cardBtn = document.getElementById("layoutCardBtn");
             const listBtn = document.getElementById("layoutListBtn");
             
-            var activeClass = "px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600/20 text-blue-400 border border-blue-500/20 transition";
+            var activeClass = "px-3 py-1.5 rounded-md text-xs font-semibold bg-accent-600/20 text-accent-400 border border-accent-500/20 transition";
             var inactiveClass = "px-3 py-1.5 rounded-md text-xs font-medium text-slate-500 hover:text-slate-300 transition";
             if (currentLayout === "card") {
                 cardBtn.className = activeClass;
@@ -933,8 +994,7 @@
                 
                 filteredApps.forEach((app, idx) => {
                     const card = document.createElement("div");
-                    const accentClass = "card-accent-" + (app.projectType === "MAUI" ? "maui" : app.projectType === "Blazor" ? "blazor" : app.projectType === "Unity" ? "unity" : app.projectType === "WPF" ? "wpf" : "classlib");
-                    card.className = "card " + accentClass;
+                    card.className = "card";
                     
                     const isDirty = app.git.dirty;
                     const isBehind = app.git.behind > 0;
@@ -955,6 +1015,9 @@
                     let actionButtons = `
                         <button onclick="openVersionUpdate('${app.dir.replace(/\\/g, '\\\\')}', '${app.versions.csproj?.version || ''}', '${app.versions.csproj?.build || ''}')" class="btn-ghost text-xs py-1.5 px-2.5">
                             Version
+                        </button>
+                        <button onclick="quickBumpVersion('${app.dir.replace(/\\/g, '\\\\')}', '${app.versions.csproj?.version || ''}', '${app.versions.csproj?.build || ''}')" class="btn-ghost text-xs py-1.5 px-2.5" title="Bump version +1 and build +1">
+                            Bump +1
                         </button>
                         <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" class="btn-ghost text-xs py-1.5 px-2.5">
                             Pull
@@ -1079,6 +1142,9 @@
                     let actionButtons = `
                         <button onclick="openVersionUpdate('${app.dir.replace(/\\/g, '\\\\')}', '${app.versions.csproj?.version || ''}', '${app.versions.csproj?.build || ''}')" class="btn-ghost text-[11px] py-1 px-2">
                             Version
+                        </button>
+                        <button onclick="quickBumpVersion('${app.dir.replace(/\\/g, '\\\\')}', '${app.versions.csproj?.version || ''}', '${app.versions.csproj?.build || ''}')" class="btn-ghost text-[11px] py-1 px-2" title="Bump version +1 and build +1">
+                            Bump +1
                         </button>
                         <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" class="btn-ghost text-[11px] py-1 px-2">
                             Pull
@@ -1224,8 +1290,12 @@
             }
         }
 
+        var currentBuildDir = null;
+
         async function buildApp(dir, platform) {
             clearConsole();
+            currentBuildDir = dir;
+            document.getElementById("cancelBuildBtn").classList.remove("hidden");
             try {
                 await fetch(`${API_BASE}/api/apps/build`, {
                     method: "POST",
@@ -1234,6 +1304,21 @@
                 });
             } catch (err) {
                 console.error(err);
+            }
+        }
+
+        async function cancelBuild() {
+            if (!currentBuildDir) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/apps/build/cancel`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dir: currentBuildDir })
+                });
+                const data = await res.json();
+                if (!data.success) showToast(data.error || "No running build to cancel", "error");
+            } catch (err) {
+                showToast("Cancel failed: " + err.message, "error");
             }
         }
 
@@ -1291,8 +1376,11 @@
                                 Latest: <span class="font-mono text-slate-300">v${data.latestVersion}</span>
                             </span>
                             ${!isUpToDate ? `
+                                <button onclick="installUpdate('${data.latestVersion}')" class="btn-primary w-full py-2.5 text-sm font-semibold mb-3">
+                                    Update Now
+                                </button>
                                 <div class="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-left">
-                                    <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5">Update Command</div>
+                                    <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5">Or run manually</div>
                                     <code class="text-xs font-mono text-blue-400 select-all break-all">${data.updateCommand}</code>
                                 </div>
                             ` : `
@@ -1315,6 +1403,50 @@
                     <div class="flex flex-col items-center py-4 text-center">
                         <span class="text-sm text-red-400 mb-2">Network error</span>
                         <span class="text-xs text-slate-500">${err.message}</span>
+                    </div>
+                `;
+            }
+        }
+
+        async function installUpdate(version) {
+            const body = document.getElementById("updateModalBody");
+            body.innerHTML = `
+                <div class="flex flex-col items-center py-6 text-center gap-3">
+                    <span class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full spinning"></span>
+                    <span class="text-sm text-slate-400">Downloading and installing v${version}...</span>
+                    <span class="text-xs text-slate-600">MAUI Forge will close and relaunch automatically.</span>
+                </div>
+            `;
+            try {
+                const res = await fetch(`${API_BASE}/api/update/install`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ version })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    body.innerHTML = `
+                        <div class="flex flex-col items-center py-4 text-center">
+                            <span class="text-sm text-red-400 mb-2">Update failed to start</span>
+                            <span class="text-xs text-slate-500">${data.error || "Unknown error"}</span>
+                        </div>
+                    `;
+                    return;
+                }
+                body.innerHTML = `
+                    <div class="flex flex-col items-center py-6 text-center gap-2">
+                        <span class="text-2xl">&#x1F527;</span>
+                        <span class="text-sm text-white font-semibold">Update in progress</span>
+                        <span class="text-xs text-slate-500">This server will restart shortly on the new version. Refresh this page in a few seconds.</span>
+                    </div>
+                `;
+            } catch (err) {
+                // A network error here is expected once the server process exits mid-update.
+                body.innerHTML = `
+                    <div class="flex flex-col items-center py-6 text-center gap-2">
+                        <span class="text-2xl">&#x1F527;</span>
+                        <span class="text-sm text-white font-semibold">Update in progress</span>
+                        <span class="text-xs text-slate-500">Connection dropped — that's expected while it restarts. Refresh this page in a few seconds.</span>
                     </div>
                 `;
             }

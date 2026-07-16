@@ -2,7 +2,7 @@ namespace MauiForge.Services;
 
 public class BuildService
 {
-    public int Run(string dir, string[] args, Action<string> onLine, string? logFile = null)
+    public int Run(string dir, string[] args, Action<string> onLine, string? logFile = null, Action<System.Diagnostics.Process>? onStart = null)
     {
         StreamWriter? log = null;
         if (logFile is not null)
@@ -25,6 +25,7 @@ public class BuildService
             foreach (var a in args) psi.ArgumentList.Add(a);
 
             using var proc = System.Diagnostics.Process.Start(psi)!;
+            onStart?.Invoke(proc);
 
             proc.OutputDataReceived += (_, e) => HandleLine(e.Data, onLine, log);
             proc.ErrorDataReceived  += (_, e) => HandleLine(e.Data, onLine, log);

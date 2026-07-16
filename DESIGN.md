@@ -2,62 +2,71 @@
 
 ## Theme direction
 
-**Midnight control center.** Deep navy authority, precise blue beams, warm amber signals. The tool lives in the terminal — the web dashboard is its visual extension, not a separate product. Both surfaces share one design language: dark, confident, information-dense, with color reserved for signal, not decoration.
+**Electric terminal.** True near-black, no blue-tinted neutrals — the base is a real void, not a "dark SaaS" tint. Primary actions and current-selection state are carried by a single committed accent: a vivid electric cyan, high-voltage against the near-black surface. Blue is demoted to a secondary/technical color (info toasts, WPF category badge) — never the primary action color. Amber/gold, green, and red stay conventional for their semantic roles (warning, success, error) since git/build status benefits from familiar meaning over novelty.
 
-Color strategy: **Restrained with a committed accent.** The surface stays pure dark neutral. Blue carries primary actions, selection, and navigation highlights. Amber/gold carries warnings and build status. Green carries success. Color is a communication layer, never a decoration layer.
+Color strategy: **Restrained with a committed accent.** The surface stays pure neutral (chroma 0). Electric cyan carries primary actions, selection, and focus states exclusively. Amber/gold carries warnings and dirty/pending git status. Green carries success. Red carries errors. Color is a communication layer, never a decoration layer.
 
 ## Color Palette (OKLCH)
 
 ### Base
 
 ```css
---bg:             oklch(0.06 0.000 0);     /* near-black — terminal-like void */
---surface:        oklch(0.10 0.005 260);   /* cards, panels, sidebars */
---surface-hover:  oklch(0.14 0.008 260);   /* hover states, elevated elements */
---surface-raised:  oklch(0.18 0.010 260);  /* modals, dropdowns, focus rings */
---border:         oklch(0.20 0.012 260);   /* subtle separators */
+--bg:             oklch(0.055 0 0);        /* true near-black — no hue tint */
+--surface:        oklch(0.09 0 0);         /* cards, panels, sidebars */
+--surface-hover:  oklch(0.13 0 0);         /* hover states, elevated elements */
+--surface-raised: oklch(0.17 0 0);         /* modals, dropdowns, focus rings */
+--border:         oklch(0.22 0 0);         /* subtle separators */
 ```
 
 ### Text
 
 ```css
---ink:            oklch(0.93 0.008 260);   /* body text — cool white, ≥10:1 vs bg */
---ink-dim:        oklch(0.65 0.015 260);   /* secondary labels, metadata */
---ink-muted:      oklch(0.42 0.012 260);   /* placeholders, disabled (≥3.5:1 vs surface) */
---ink-inverse:    oklch(0.08 0.000 0);     /* text on saturated fills */
+--ink:            oklch(0.95 0 0);         /* body text — near-white, ≥10:1 vs bg */
+--ink-dim:        oklch(0.68 0 0);         /* secondary labels, metadata */
+--ink-muted:      oklch(0.48 0 0);         /* placeholders, disabled (≥3.5:1 vs surface) */
+--ink-inverse:    oklch(0.07 0 0);         /* text on saturated fills */
 ```
 
 ### Brand & Action
 
 ```css
---blue:           oklch(0.48 0.20 260);    /* primary — confident royal blue */
---blue-hover:     oklch(0.44 0.22 260);    /* darker hover */
---blue-active:    oklch(0.40 0.22 260);    /* pressed state */
---blue-subtle:    oklch(0.20 0.08 260);    /* ghost/outline backgrounds */
+--accent:         oklch(0.78 0.15 195);    /* primary — electric cyan */
+--accent-hover:   oklch(0.72 0.16 195);    /* darker hover */
+--accent-active:  oklch(0.66 0.17 195);    /* pressed state */
+--accent-subtle:  oklch(0.22 0.09 195);    /* ghost/outline backgrounds */
+```
+
+### Secondary / technical
+
+```css
+--blue:           oklch(0.58 0.14 250);    /* secondary only — info toast, WPF badge. Never primary actions. */
+--blue-hover:     oklch(0.52 0.15 250);
+--blue-active:    oklch(0.46 0.15 250);
+--blue-subtle:    oklch(0.22 0.07 250);
 ```
 
 ### Semantic
 
 ```css
---amber:          oklch(0.65 0.16 85);     /* warnings, build running, attention */
---amber-subtle:   oklch(0.22 0.06 85);     /* badge bg */
---green:          oklch(0.55 0.16 145);    /* success, clean, synced */
---green-subtle:   oklch(0.18 0.06 145);    /* badge bg */
---red:            oklch(0.50 0.20 25);     /* error, failure, behind */
---red-subtle:     oklch(0.20 0.08 25);     /* badge bg */
---purple:         oklch(0.50 0.15 290);    /* non-main branches, secondary markers */
---purple-subtle:  oklch(0.20 0.08 290);    /* badge bg */
---indigo-maui:    oklch(0.48 0.18 280);    /* MAUI project card accent */
---indigo-maui-subtle: oklch(0.20 0.08 280);/* MAUI badge bg */
+--amber:          oklch(0.83 0.17 85);     /* warnings, dirty git status, attention */
+--amber-subtle:   oklch(0.24 0.08 85);     /* badge bg */
+--green:          oklch(0.79 0.17 150);    /* success, clean, synced */
+--green-subtle:   oklch(0.20 0.07 150);    /* badge bg */
+--red:            oklch(0.70 0.19 22);     /* error, failure, behind */
+--red-subtle:     oklch(0.22 0.09 22);     /* badge bg */
+--purple:         oklch(0.58 0.14 320);    /* non-main branches, secondary markers */
+--purple-subtle:  oklch(0.22 0.08 320);    /* badge bg */
+--indigo-maui:    oklch(0.60 0.16 295);    /* MAUI tech badge */
+--indigo-maui-subtle: oklch(0.22 0.08 295);/* MAUI badge bg */
 ```
 
 ### Terminal (Spectre.Console) mapping
 
-The terminal palette mirrors the web dashboard with Spectre-compatible colors:
+The terminal still ships the prior royal-blue accent — bringing it in line with the web dashboard's electric-cyan accent is a follow-up, not yet applied to `AppListScreen.cs` / `AppDetailScreen.cs`:
 
 | Role | Web (OKLCH) | Spectre.Console |
 |------|-------------|-----------------|
-| Primary action | `--blue` | `royalblue1` (#4876FF) |
+| Primary action | `--accent` (web) / `--blue` (terminal, pending) | `royalblue1` (#4876FF) |
 | iOS label | `--blue` lighter | `skyblue1` |
 | Android label | `--green` | `green3` |
 | Warning | `--amber` | `yellow` / `gold1` |
@@ -92,14 +101,14 @@ The terminal palette mirrors the web dashboard with Spectre-compatible colors:
 
 ### Buttons
 
-**Primary fill** (`--blue` bg, `--ink-inverse` text)
+**Primary fill** (`--accent` bg, `--ink-inverse` text)
 - Border-radius: 8px (web) / rounded by Spectre
-- Hover: `--blue-hover`
-- Active: `--blue-active`
+- Hover: `--accent-hover`
+- Active: `--accent-active`
 - Disabled: 40% opacity
 - Font: 600, 13px (web)
 
-**Ghost / outline** (transparent bg, `--blue` text, `--blue-subtle` border)
+**Ghost / outline** (transparent bg, `--accent` text, `--accent-subtle` border)
 - Hover: `--surface-hover` bg
 
 **Danger** (`--red` bg or outline)
@@ -115,7 +124,7 @@ The terminal palette mirrors the web dashboard with Spectre-compatible colors:
 ### Cards (web)
 
 - Background: `--surface`
-- Border: `--border` with per-type accent border (`--indigo-maui` for MAUI, `--amber` for Blazor, `--blue` for WPF, `--ink-muted` for Unity, `--border` for ClassLib)
+- Border: `--border`, uniform across categories — the tech badge (MAUI/Blazor/WPF/Unity/ClassLib) is the sole category signal. (A per-type colored left-border accent was tried and dropped: at 1px it was a near-invisible side-stripe that duplicated the badge without adding legibility — a banned pattern in this design system regardless.)
 - Border-radius: 12px
 - Padding: 20px
 - Shadow: minimal (`box-shadow: 0 1px 3px rgba(0,0,0,0.3)`)
@@ -138,7 +147,7 @@ The terminal palette mirrors the web dashboard with Spectre-compatible colors:
 ### Form controls (web)
 
 - Input bg: `--bg` (near-black), border: `--border`
-- Focus: `--blue` ring (2px offset)
+- Focus: `--accent` ring (2px offset)
 - Placeholder: `--ink-muted`
 - Select/option: consistent with input styling
 - Text: 13px, `--ink`
