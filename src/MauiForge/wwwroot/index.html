@@ -7,7 +7,7 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- SignalR -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js" integrity="sha384-/taWmisziXYpcfnYsumSUmNaiMvG/fF/OJOUCLnqCIYTrpOZy7WbFF6FfIxwOrfL" crossorigin="anonymous"></script>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
@@ -96,15 +96,15 @@
 
         .btn-ghost {
             background: transparent;
-            color: var(--ink);
+            color: var(--blue);
             font-weight: 500;
             font-size: 0.8125rem;
             padding: 0.5rem 0.75rem;
             border-radius: 8px;
-            border: 1px solid var(--border);
+            border: 1px solid var(--blue-subtle);
             transition: background 150ms ease-out, border-color 150ms ease-out;
         }
-        .btn-ghost:hover { background: var(--surface-hover); border-color: oklch(0.30 0.015 260); }
+        .btn-ghost:hover { background: var(--surface-hover); border-color: var(--blue); }
         .btn-ghost:active { background: var(--surface-raised); }
 
         .badge {
@@ -449,6 +449,23 @@
         </div>
     </div>
 
+    <!-- Generic Confirmation Modal -->
+    <div id="confirmModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
+        <div class="modal-panel" style="max-width:24rem;">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 id="confirmModalTitle" class="font-bold text-white">Confirm</h3>
+                <button onclick="closeConfirmModal()" class="text-slate-500 hover:text-white transition text-sm" aria-label="Close confirmation">✕</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p id="confirmModalMessage" class="text-sm text-slate-300"></p>
+                <div class="flex gap-3 pt-2">
+                    <button onclick="closeConfirmModal()" class="btn-ghost flex-1 py-2.5 text-sm font-semibold">Cancel</button>
+                    <button id="confirmModalConfirmBtn" class="btn-primary flex-1 py-2.5 text-sm font-semibold" style="background:var(--red);">Remove</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_BASE = "";
         let appsList = [];
@@ -560,7 +577,6 @@
         }
 
         // Modal open helpers with focus trap
-        var origOpenVersion = openVersionUpdate;
         function openVersionUpdate(dir, ver, build) {
             document.getElementById("modalAppDir").value = dir;
             document.getElementById("modalVersionInput").value = ver;
@@ -569,12 +585,10 @@
             setTimeout(function () { trapFocus("versionModal"); }, 50);
         }
 
-        var origCloseVersion = closeVersionModal;
         function closeVersionModal() {
             document.getElementById("versionModal").classList.add("hidden");
         }
 
-        var origCloseUpdate = closeUpdateModal;
         function closeUpdateModal() {
             document.getElementById("updateModal").classList.add("hidden");
             var indicator = document.getElementById("updateCheckBtn").querySelector("span");
@@ -583,6 +597,21 @@
 
         function closeBumpConfirm() {
             document.getElementById("bumpConfirmModal").classList.add("hidden");
+        }
+
+        function closeConfirmModal() {
+            document.getElementById("confirmModal").classList.add("hidden");
+        }
+
+        function showConfirmModal(message, onConfirm) {
+            document.getElementById("confirmModalMessage").textContent = message;
+            var btn = document.getElementById("confirmModalConfirmBtn");
+            btn.onclick = function () {
+                closeConfirmModal();
+                onConfirm();
+            };
+            document.getElementById("confirmModal").classList.remove("hidden");
+            setTimeout(function () { trapFocus("confirmModal"); }, 50);
         }
 
         function showBumpConfirm(dir, version, build) {
@@ -742,18 +771,24 @@
         }
 
         async function removePath(path) {
-            if (!confirm(`Are you sure you want to stop monitoring:\n${path}`)) return;
-            try {
-                await fetch(`${API_BASE}/api/paths/delete`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ path })
-                });
-                loadPaths();
-                loadApps();
-            } catch (err) {
-                console.error("Failed to remove path:", err);
-            }
+            showConfirmModal("Are you sure you want to stop monitoring: " + path, async function () {
+                try {
+                    var res = await fetch(`${API_BASE}/api/paths/delete`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ path })
+                    });
+                    if (res.ok) {
+                        showToast("Directory removed", "success");
+                    } else {
+                        showToast(await res.text(), "error");
+                    }
+                    loadPaths();
+                    loadApps();
+                } catch (err) {
+                    console.error("Failed to remove path:", err);
+                }
+            });
         }
 
         function renderSkeletons() {
@@ -1137,17 +1172,6 @@
             }
         }
 
-        function openVersionUpdate(dir, ver, build) {
-            document.getElementById("modalAppDir").value = dir;
-            document.getElementById("modalVersionInput").value = ver;
-            document.getElementById("modalBuildInput").value = build;
-            document.getElementById("versionModal").classList.remove("hidden");
-        }
-
-        function closeVersionModal() {
-            document.getElementById("versionModal").classList.add("hidden");
-        }
-
         async function submitVersionUpdate() {
             const dir = document.getElementById("modalAppDir").value;
             const version = document.getElementById("modalVersionInput").value;
@@ -1221,11 +1245,6 @@
             } catch (err) {
                 showToast("Diagnostics failed: " + err.message, "error");
             }
-        }
-
-        function closeUpdateModal() {
-            document.getElementById("updateModal").classList.add("hidden");
-            document.getElementById("updateCheckBtn").querySelector("span").className = "w-1.5 h-1.5 rounded-full"
         }
 
         async function checkForUpdates() {

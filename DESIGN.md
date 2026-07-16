@@ -46,6 +46,9 @@ Color strategy: **Restrained with a committed accent.** The surface stays pure d
 --red:            oklch(0.50 0.20 25);     /* error, failure, behind */
 --red-subtle:     oklch(0.20 0.08 25);     /* badge bg */
 --purple:         oklch(0.50 0.15 290);    /* non-main branches, secondary markers */
+--purple-subtle:  oklch(0.20 0.08 290);    /* badge bg */
+--indigo-maui:    oklch(0.48 0.18 280);    /* MAUI project card accent */
+--indigo-maui-subtle: oklch(0.20 0.08 280);/* MAUI badge bg */
 ```
 
 ### Terminal (Spectre.Console) mapping
@@ -112,7 +115,7 @@ The terminal palette mirrors the web dashboard with Spectre-compatible colors:
 ### Cards (web)
 
 - Background: `--surface`
-- Border: `--border` with per-type accent border (blue for MAUI, amber for Blazor, etc.)
+- Border: `--border` with per-type accent border (`--indigo-maui` for MAUI, `--amber` for Blazor, `--blue` for WPF, `--ink-muted` for Unity, `--border` for ClassLib)
 - Border-radius: 12px
 - Padding: 20px
 - Shadow: minimal (`box-shadow: 0 1px 3px rgba(0,0,0,0.3)`)
