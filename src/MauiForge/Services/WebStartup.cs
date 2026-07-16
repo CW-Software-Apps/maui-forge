@@ -368,6 +368,7 @@ public static class WebStartup
             // Ignore browser launch failure
         }
 
+        app.MapHub<LogHub>("/hubs/logs");
         app.Run();
     }
 
