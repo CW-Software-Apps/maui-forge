@@ -1,0 +1,6 @@
+{
+  "files": ["src/MauiForge/wwwroot/index.html"],
+  "insertBefore": "</body>",
+  "commentSyntax": "html",
+  "cspChecked": true
+}

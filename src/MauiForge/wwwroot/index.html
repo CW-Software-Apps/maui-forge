@@ -11,33 +11,140 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg: oklch(0.06 0.000 0);
+            --surface: oklch(0.10 0.005 260);
+            --surface-hover: oklch(0.14 0.008 260);
+            --surface-raised: oklch(0.18 0.010 260);
+            --border: oklch(0.20 0.012 260);
+            --ink: oklch(0.93 0.008 260);
+            --ink-dim: oklch(0.65 0.015 260);
+            --ink-muted: oklch(0.42 0.012 260);
+            --ink-inverse: oklch(0.08 0.000 0);
+            --blue: oklch(0.48 0.20 260);
+            --blue-hover: oklch(0.44 0.22 260);
+            --blue-active: oklch(0.40 0.22 260);
+            --blue-subtle: oklch(0.20 0.08 260);
+            --amber: oklch(0.65 0.16 85);
+            --amber-subtle: oklch(0.22 0.06 85);
+            --green: oklch(0.55 0.16 145);
+            --green-subtle: oklch(0.18 0.06 145);
+            --red: oklch(0.50 0.20 25);
+            --red-subtle: oklch(0.20 0.08 25);
+            --indigo-maui: oklch(0.48 0.18 280);
+            --indigo-maui-subtle: oklch(0.20 0.08 280);
+        }
+
         body {
             font-family: 'Inter', sans-serif;
         }
         .mono {
             font-family: 'JetBrains Mono', monospace;
         }
-        /* Custom scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--ink-muted); }
+
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .spinning { animation: spin 1s linear infinite; }
+
+        .btn-primary {
+            background: var(--blue);
+            color: var(--ink-inverse);
+            font-weight: 600;
+            font-size: 0.8125rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            border: none;
+            transition: background 150ms ease-out;
         }
-        ::-webkit-scrollbar-track {
-            background: #020617;
+        .btn-primary:hover { background: var(--blue-hover); }
+        .btn-primary:active { background: var(--blue-active); }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--ink);
+            font-weight: 500;
+            font-size: 0.8125rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            transition: background 150ms ease-out, border-color 150ms ease-out;
         }
-        ::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 4px;
+        .btn-ghost:hover { background: var(--surface-hover); border-color: oklch(0.30 0.015 260); }
+        .btn-ghost:active { background: var(--surface-raised); }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.125rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.625rem;
+            font-weight: 700;
+            line-height: 1.4;
         }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #475569;
+        .badge-blue { background: var(--blue-subtle); color: var(--blue); border: 1px solid oklch(0.28 0.10 260 / 0.3); }
+        .badge-amber { background: var(--amber-subtle); color: var(--amber); border: 1px solid oklch(0.30 0.08 85 / 0.3); }
+        .badge-green { background: var(--green-subtle); color: var(--green); border: 1px solid oklch(0.26 0.08 145 / 0.3); }
+        .badge-red { background: var(--red-subtle); color: var(--red); border: 1px solid oklch(0.28 0.10 25 / 0.3); }
+        .badge-indigo { background: var(--indigo-maui-subtle); color: var(--indigo-maui); border: 1px solid oklch(0.28 0.10 280 / 0.3); }
+        .badge-slate { background: rgba(255,255,255,0.04); color: var(--ink-dim); border: 1px solid var(--border); }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: background 150ms ease-out, border-color 200ms ease-out;
         }
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+        .card:hover { background: var(--surface-hover); }
+
+        .input {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.8125rem;
+            color: var(--ink);
+            outline: none;
+            transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
         }
-        .spinning {
-            animation: spin 1s linear infinite;
+        .input::placeholder { color: var(--ink-muted); }
+        .input:focus { border-color: var(--blue); box-shadow: 0 0 0 2px oklch(0.48 0.20 260 / 0.15); }
+
+        .select {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.375rem 0.625rem;
+            font-size: 0.75rem;
+            color: var(--ink-dim);
+            outline: none;
+            transition: border-color 150ms ease-out;
+        }
+        .select:focus { border-color: var(--blue); }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        .modal-panel {
+            background: var(--surface-raised);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 24rem;
+            overflow: hidden;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
         }
     </style>
 </head>
@@ -46,23 +153,24 @@
     <!-- Header -->
     <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md px-6 py-4 flex items-center justify-between flex-shrink-0">
         <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-lg shadow-lg shadow-cyan-500/20">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-700 flex items-center justify-center font-bold text-lg shadow-lg shadow-blue-500/20">
                 MF
             </div>
             <div>
                 <div class="flex items-center gap-2">
-                    <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">MAUI Forge</h1>
+                    <h1 class="text-xl font-bold tracking-tight text-white">MAUI Forge</h1>
                     <span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">v1.5.26</span>
                 </div>
-                <p class="text-xs text-slate-400">Version & Build Manager</p>
+                <p class="text-xs text-slate-500">Version & Build Manager</p>
             </div>
         </div>
         
-        <div class="flex items-center gap-4">
-            <a href="https://github.com/CW-Software-Apps/maui-forge" target="_blank" class="text-xs text-slate-400 hover:text-white transition flex items-center gap-1">
-                🐙 GitHub Repository
+        <div class="flex items-center gap-3">
+            <a href="https://github.com/CW-Software-Apps/maui-forge" target="_blank" class="text-xs text-slate-500 hover:text-white transition flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                GitHub
             </a>
-            <button onclick="loadDiagnostics()" class="px-3 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700 bg-slate-900 text-xs font-medium text-slate-300 transition flex items-center gap-2">
+            <button onclick="loadDiagnostics()" class="btn-ghost text-xs flex items-center gap-2 py-1.5">
                 <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 Local Host Connected
             </button>
@@ -85,8 +193,8 @@
                 <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Add Folder</h3>
                 <form id="addPathForm" onsubmit="addPath(event)" class="flex flex-col gap-2">
                     <input type="text" id="newPathInput" placeholder="K:\your\projects" required
-                           class="w-full bg-slate-900 border border-slate-800 hover:border-slate-700 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 outline-none transition">
-                    <button type="submit" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-medium text-xs rounded-lg py-2 transition shadow-md shadow-cyan-500/10">
+                           class="input w-full text-xs">
+                    <button type="submit" class="btn-primary text-xs w-full py-2">
                         Add Directory
                     </button>
                 </form>
@@ -104,32 +212,31 @@
                     </h2>
                     <div class="flex items-center gap-4">
                         <!-- Background Scan Loader Indicator -->
-                        <span id="bgScanStatus" class="hidden text-xs text-cyan-400 bg-cyan-950/40 border border-cyan-800/30 px-2.5 py-1 rounded-lg flex items-center gap-1.5 animate-pulse">
-                            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
-                            🔄 Scanning in background...
+                        <span id="bgScanStatus" class="hidden text-xs text-blue-400 bg-blue-950/30 border border-blue-800/30 px-2.5 py-1 rounded-lg flex items-center gap-1.5 animate-pulse">
+                            <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"></span>
+                            Scanning in background...
                         </span>
                         <!-- Layout toggles -->
                         <div class="inline-flex rounded-lg border border-slate-800 p-0.5 bg-slate-900/50">
-                            <button id="layoutCardBtn" onclick="setLayout('card')" class="px-3 py-1.5 rounded-md text-xs font-medium transition">🎴 Cards</button>
-                            <button id="layoutListBtn" onclick="setLayout('list')" class="px-3 py-1.5 rounded-md text-xs font-medium transition">📋 List</button>
+                            <button id="layoutCardBtn" onclick="setLayout('card')" class="px-3 py-1.5 rounded-md text-xs font-medium transition">Cards</button>
+                            <button id="layoutListBtn" onclick="setLayout('list')" class="px-3 py-1.5 rounded-md text-xs font-medium transition">List</button>
                         </div>
-                        <button onclick="loadApps()" class="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-800 px-3 py-1.5 rounded-lg text-slate-300 transition flex items-center gap-1.5">
-                            🔄 Refresh All
+                        <button onclick="loadApps()" class="btn-ghost text-xs py-1.5">
+                            Refresh
                         </button>
                     </div>
                 </div>
 
                 <!-- Search and Filters bar -->
-                <div class="flex flex-col md:flex-row gap-4 mb-6 bg-slate-900/40 p-4 rounded-xl border border-slate-900">
+                <div class="flex flex-col md:flex-row gap-4 mb-6 bg-slate-900/30 p-4 rounded-xl border border-slate-900">
                     <div class="flex-1">
-                        <input type="text" id="searchInput" oninput="filterApps()" placeholder="🔍 Search applications by name or path..."
-                               class="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 outline-none transition">
+                        <input type="text" id="searchInput" oninput="filterApps()" placeholder="Search applications by name or path..."
+                               class="input w-full text-xs">
                     </div>
                     <div class="flex items-center gap-4 flex-wrap">
                         <div class="flex items-center gap-1.5">
-                            <span class="text-xs text-slate-400 font-medium">Technology:</span>
-                            <select id="techFilter" onchange="filterApps()" 
-                                    class="bg-slate-950 border border-slate-850 hover:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:border-cyan-500 outline-none transition">
+                            <span class="text-xs text-slate-500 font-medium">Technology</span>
+                            <select id="techFilter" onchange="filterApps()" class="select text-xs">
                                 <option value="all">All Technologies</option>
                                 <option value="MAUI">.NET MAUI</option>
                                 <option value="Blazor">Blazor</option>
@@ -139,9 +246,8 @@
                             </select>
                         </div>
                         <div class="flex items-center gap-1.5">
-                            <span class="text-xs text-slate-400 font-medium">Git Status:</span>
-                            <select id="gitFilter" onchange="filterApps()" 
-                                    class="bg-slate-950 border border-slate-850 hover:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:border-cyan-500 outline-none transition">
+                            <span class="text-xs text-slate-500 font-medium">Git Status</span>
+                            <select id="gitFilter" onchange="filterApps()" class="select text-xs">
                                 <option value="all">All Statuses</option>
                                 <option value="dirty">Modified (Dirty)</option>
                                 <option value="behind">Pull Pending (Behind)</option>
@@ -161,15 +267,15 @@
             <div class="h-64 border-t border-slate-800 bg-slate-950 flex flex-col overflow-hidden flex-shrink-0">
                 <div class="bg-slate-900/60 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
                     <div class="flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse"></span>
-                        <span class="text-xs font-semibold text-slate-300 tracking-wide uppercase">Build Output Terminal</span>
+                        <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                        <span class="text-xs font-semibold text-slate-400 tracking-wide uppercase">Build Output Terminal</span>
                     </div>
-                    <button onclick="clearConsole()" class="text-slate-400 hover:text-slate-200 text-xs px-2 py-0.5 rounded hover:bg-slate-800 transition">
+                    <button onclick="clearConsole()" class="text-slate-500 hover:text-slate-300 text-xs px-2 py-0.5 rounded hover:bg-slate-800 transition">
                         Clear
                     </button>
                 </div>
-                <div id="terminalConsole" class="flex-1 p-4 overflow-y-auto bg-slate-950 text-slate-300 font-mono text-xs space-y-1 select-text selection:bg-slate-800">
-                    <div class="text-slate-500">[Info] System idle. Trigger a build or deploy to stream output here...</div>
+                <div id="terminalConsole" class="flex-1 p-4 overflow-y-auto bg-slate-950 text-slate-400 font-mono text-xs space-y-1 select-text selection:bg-slate-800">
+                    <div class="text-slate-600">[Info] System idle. Trigger a build or deploy to stream output here...</div>
                 </div>
             </div>
 
@@ -178,28 +284,28 @@
 
     <!-- Modals -->
     <!-- Update Version Modal -->
-    <div id="versionModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-        <div class="bg-slate-900 border border-slate-855 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+    <div id="versionModal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:50;">
+        <div class="modal-panel">
             <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
                 <h3 class="font-bold text-white">Update Version</h3>
-                <button onclick="closeVersionModal()" class="text-slate-400 hover:text-white">✕</button>
+                <button onclick="closeVersionModal()" class="text-slate-500 hover:text-white transition text-sm">✕</button>
             </div>
             <div class="p-6 space-y-4">
                 <input type="hidden" id="modalAppDir">
                 <div>
                     <label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Version String</label>
-                    <input type="text" id="modalVersionInput" class="w-full bg-slate-950 border border-slate-855 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition">
+                    <input type="text" id="modalVersionInput" class="input w-full text-sm">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Build Number</label>
-                    <input type="text" id="modalBuildInput" class="w-full bg-slate-950 border border-slate-855 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition">
+                    <input type="text" id="modalBuildInput" class="input w-full text-sm">
                 </div>
                 <div class="flex gap-3 pt-2">
-                    <button onclick="submitVersionUpdate()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold rounded-lg py-2.5 transition text-sm">
-                        💾 Save Local
+                    <button onclick="submitVersionUpdate()" class="btn-ghost flex-1 py-2.5 text-sm font-semibold">
+                        Save Local
                     </button>
-                    <button onclick="submitVersionUpdateAndPush()" class="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold rounded-lg py-2.5 transition text-sm flex items-center justify-center gap-1.5">
-                        🚀 Bump & Push
+                    <button onclick="submitVersionUpdateAndPush()" class="btn-primary flex-1 py-2.5 text-sm font-semibold">
+                        Bump & Push
                     </button>
                 </div>
             </div>
@@ -225,13 +331,13 @@
             line.textContent = message;
             
             // Basic colored logs parsing
-            if (message.includes("error") || message.includes("Failed")) {
-                line.className = "text-rose-500";
-            } else if (message.includes("warning") || message.includes("Warning")) {
-                line.className = "text-amber-400";
-            } else if (message.startsWith("===") || message.includes("completed")) {
-                line.className = "text-cyan-400 font-bold";
-            }
+                if (message.includes("error") || message.includes("Failed")) {
+                    line.className = "text-red-400";
+                } else if (message.includes("warning") || message.includes("Warning")) {
+                    line.className = "text-amber-400";
+                } else if (message.startsWith("===") || message.includes("completed")) {
+                    line.className = "text-blue-400 font-bold";
+                }
             
             consoleEl.appendChild(line);
 
@@ -272,12 +378,14 @@
             const cardBtn = document.getElementById("layoutCardBtn");
             const listBtn = document.getElementById("layoutListBtn");
             
+            var activeClass = "px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600/20 text-blue-400 border border-blue-500/20 transition";
+            var inactiveClass = "px-3 py-1.5 rounded-md text-xs font-medium text-slate-500 hover:text-slate-300 transition";
             if (currentLayout === "card") {
-                cardBtn.className = "px-3 py-1.5 rounded-md text-xs font-semibold bg-cyan-600/20 text-cyan-400 border border-cyan-500/20 transition";
-                listBtn.className = "px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 transition";
+                cardBtn.className = activeClass;
+                listBtn.className = inactiveClass;
             } else {
-                listBtn.className = "px-3 py-1.5 rounded-md text-xs font-semibold bg-cyan-600/20 text-cyan-400 border border-cyan-500/20 transition";
-                cardBtn.className = "px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 transition";
+                listBtn.className = activeClass;
+                cardBtn.className = inactiveClass;
             }
         }
 
@@ -310,7 +418,7 @@
                     item.className = "flex items-center justify-between p-2 rounded-lg bg-slate-900/50 border border-slate-855 hover:border-slate-800 transition group";
                     item.innerHTML = `
                         <span class="text-xs font-mono truncate text-slate-300 select-all" title="${p}">${p}</span>
-                        <button onclick="removePath('${p.replace(/\\/g, '\\\\')}')" class="text-slate-500 hover:text-rose-500 text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition">✕</button>
+                        <button onclick="removePath('${p.replace(/\\/g, '\\\\')}')" class="text-slate-500 hover:text-red-400 text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition">✕</button>
                     `;
                     container.appendChild(item);
                 });
@@ -363,7 +471,7 @@
             
             // If appsList is empty, show a soft loading message. Otherwise, we keep the cached view.
             if (appsList.length === 0) {
-                container.innerHTML = '<div id="fullLoadingSpinner" class="text-center py-12 text-slate-500 text-sm animate-pulse">🔄 Loading cached dashboard...</div>';
+                container.innerHTML = '<div id="fullLoadingSpinner" class="text-center py-12 text-slate-600 text-sm animate-pulse">Loading cached dashboard...</div>';
             }
             
             showScanIndicator(true);
@@ -374,7 +482,7 @@
                 renderApps();
             } catch (err) {
                 console.error("Failed to load apps:", err);
-                container.innerHTML = '<div class="text-center py-12 text-rose-500 text-sm">Failed to connect to Localhost Web Server. Verify service status.</div>';
+                container.innerHTML = '<div class="text-center py-12 text-red-400 text-sm">Failed to connect to web server. Verify the service is running.</div>';
             }
         }
 
@@ -469,19 +577,19 @@
             }
 
             const getTechBadge = (type) => {
-                if (type === "MAUI") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-650/10 text-violet-400 border border-violet-500/20">🟣 MAUI</span>`;
-                if (type === "Blazor") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-655/10 text-amber-400 border border-amber-500/20">🟠 Blazor</span>`;
-                if (type === "Unity") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-755/20 text-slate-300 border border-slate-600/20">🎮 Unity</span>`;
-                if (type === "WPF") return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-655/10 text-blue-400 border border-blue-500/20">🖥️ WPF</span>`;
-                return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">📁 ClassLib</span>`;
+                if (type === "MAUI") return `<span class="badge badge-indigo">MAUI</span>`;
+                if (type === "Blazor") return `<span class="badge badge-amber">Blazor</span>`;
+                if (type === "Unity") return `<span class="badge badge-slate">Unity</span>`;
+                if (type === "WPF") return `<span class="badge badge-blue">WPF</span>`;
+                return `<span class="badge badge-slate">ClassLib</span>`;
             };
 
-            const getCardBorderClass = (type) => {
-                if (type === "MAUI") return "border-violet-500/20 hover:border-violet-500/50 shadow-violet-500/5";
-                if (type === "Blazor") return "border-amber-500/20 hover:border-amber-500/50 shadow-amber-500/5";
-                if (type === "Unity") return "border-slate-700/30 hover:border-slate-650/55 shadow-slate-600/5";
-                if (type === "WPF") return "border-blue-500/20 hover:border-blue-500/50 shadow-blue-500/5";
-                return "border-slate-855 hover:border-slate-700";
+            const typeAccent = (type) => {
+                if (type === "MAUI") return "indigo";
+                if (type === "Blazor") return "amber";
+                if (type === "Unity") return "slate";
+                if (type === "WPF") return "blue";
+                return "slate";
             };
 
             if (currentLayout === "card") {
@@ -490,181 +598,37 @@
                 
                 filteredApps.forEach((app, idx) => {
                     const card = document.createElement("div");
-                    card.className = `bg-slate-900/35 border rounded-xl p-5 flex flex-col gap-4 transition shadow-sm hover:shadow-md relative overflow-hidden ${getCardBorderClass(app.projectType)}`;
+                    card.className = "card";
                     
                     const isDirty = app.git.dirty;
-                    const gitStatusText = isDirty ? "Dirty" : "Clean";
-                    const gitBadgeColor = isDirty ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+                    const isBehind = app.git.behind > 0;
+                    const gitStatusText = isDirty ? "Dirty" : isBehind ? "Behind" : "Clean";
+                    const gitBadgeClass = isDirty ? "badge badge-amber" : isBehind ? "badge badge-red" : "badge badge-green";
                     
                     const iosVer = app.versions.iOS ? `${app.versions.iOS.version} (${app.versions.iOS.build})` : "N/A";
                     const androidVer = app.versions.android ? `${app.versions.android.version} (${app.versions.android.build})` : "N/A";
                     const csprojVer = app.versions.csproj ? `${app.versions.csproj.version} (${app.versions.csproj.build})` : "N/A";
 
-                    const isBehind = app.git.behind > 0;
                     const pullWarningHtml = isBehind 
                         ? `<div class="bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg p-2.5 text-xs flex items-center justify-between gap-2">
-                             <span>⚠️ <b>Pull Pending:</b> This repository is ${app.git.behind} commits behind remote.</span>
-                             <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-2 py-1 rounded transition text-[10px]">PULL NOW</button>
+                             <span><b>Pull pending:</b> ${app.git.behind} commit(s) behind remote.</span>
+                             <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-2 py-1 rounded transition text-[10px]">PULL</button>
                            </div>` 
                         : "";
 
-                    // Action buttons depending on Type
                     let actionButtons = `
-                        <button onclick="openVersionUpdate('${app.dir.replace(/\\/g, '\\\\')}', '${app.versions.csproj?.version || ''}', '${app.versions.csproj?.build || ''}')" 
-                                class="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 font-semibold text-xs px-3 py-1.5 rounded-lg transition" title="Change version details">
-                            ✏️ Edit Version
+                        <button onclick="openVersionUpdate('${app.dir.replace(/\\/g, '\\\\')}', '${app.versions.csproj?.version || ''}', '${app.versions.csproj?.build || ''}')" class="btn-ghost text-xs py-1.5 px-2.5">
+                            Version
                         </button>
-                        <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" 
-                                class="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 font-semibold text-xs px-3 py-1.5 rounded-lg transition" title="Fetch and pull git updates">
-                            ⬇️ Pull
+                        <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" class="btn-ghost text-xs py-1.5 px-2.5">
+                            Pull
                         </button>
-                        <button onclick="openFolder('${app.dir.replace(/\\/g, '\\\\')}')" 
-                                class="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-350 hover:text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition" title="Open directory in Windows Explorer">
-                            📂 Open Folder
+                        <button onclick="openFolder('${app.dir.replace(/\\/g, '\\\\')}')" class="btn-ghost text-xs py-1.5 px-2.5">
+                            Folder
                         </button>
-                        
-                        <!-- Open in IDE Dropdown Options -->
                         <div class="relative inline-block text-left group">
-                            <button class="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-350 hover:text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition">
-                                💻 IDE ▾
-                            </button>
-                            <div class="absolute bottom-full mb-1 left-0 w-32 bg-slate-900 border border-slate-800 rounded-lg shadow-xl hidden group-hover:block z-20">
-                                <button onclick="openIDE('${app.dir.replace(/\\/g, '\\\\')}', 'vs')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition">🎥 Visual Studio</button>
-                                <button onclick="openIDE('${app.dir.replace(/\\/g, '\\\\')}', 'vscode')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition">💙 VS Code</button>
-                                <button onclick="openIDE('${app.dir.replace(/\\/g, '\\\\')}', 'rider')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition">❤️ Rider</button>
-                            </div>
-                        </div>
-                    `;
-
-                    if (app.projectType === "MAUI") {
-                        actionButtons += `
-                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Android')" 
-                                    class="bg-cyan-600/10 border border-cyan-500/20 hover:border-cyan-500/50 text-cyan-400 font-semibold text-xs px-3 py-1.5 rounded-lg transition ml-auto">
-                                🤖 Build Android
-                            </button>
-                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'iOS')" 
-                                    class="bg-blue-600/10 border border-blue-500/20 hover:border-blue-500/50 text-blue-400 font-semibold text-xs px-3 py-1.5 rounded-lg transition">
-                                🍎 Build iOS
-                            </button>
-                        `;
-                    } else if (app.projectType === "WPF") {
-                        actionButtons += `
-                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Windows')" 
-                                    class="bg-blue-600/10 border border-blue-500/20 hover:border-blue-500/50 text-blue-400 font-semibold text-xs px-3 py-1.5 rounded-lg transition ml-auto">
-                                🖥️ Build Windows
-                            </button>
-                        `;
-                    } else if (app.projectType === "Blazor") {
-                        actionButtons += `
-                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Web')" 
-                                    class="bg-amber-600/10 border border-amber-500/20 hover:border-amber-500/50 text-amber-455 font-semibold text-xs px-3 py-1.5 rounded-lg transition ml-auto">
-                                🌐 Build Web
-                            </button>
-                        `;
-                    }
-
-                    const appIconHtml = app.iconBase64 
-                        ? `<img src="${app.iconBase64}" class="w-10 h-10 rounded-lg object-contain bg-slate-950/40 border border-slate-800 shadow" alt="${app.name} Icon">`
-                        : `<div class="w-10 h-10 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-xs font-bold text-slate-500 shadow select-none">MF</div>`;
-
-                    card.innerHTML = `
-                        <div class="flex items-start justify-between">
-                            <div class="flex items-center gap-3">
-                                ${appIconHtml}
-                                <div>
-                                    <div class="flex items-center gap-2 flex-wrap">
-                                        <h3 class="font-bold text-white text-base">${app.name}</h3>
-                                        ${getTechBadge(app.projectType)}
-                                        <button onclick="refreshSingleApp('${app.dir.replace(/\\/g, '\\\\')}', 'icon-card-${idx}')" 
-                                                class="text-slate-500 hover:text-slate-300 text-xs transition" title="Refresh this project">
-                                            <span id="icon-card-${idx}" class="inline-block">🔄</span>
-                                        </button>
-                                    </div>
-                                    <p class="text-xs font-mono text-slate-550 truncate max-w-xs md:max-w-md" title="${app.dir}">${app.dir}</p>
-                                </div>
-                            </div>
-                            <span class="text-xs px-2 py-0.5 rounded-full border ${gitBadgeColor} font-medium">
-                                ${app.branch} [${gitStatusText}]
-                            </span>
-                        </div>
-
-                        ${pullWarningHtml}
-
-                        <!-- Versions Grid -->
-                        <div class="grid grid-cols-3 gap-3 bg-slate-950/40 p-3 rounded-lg border border-slate-850/40">
-                            <div>
-                                <div class="text-[10px] text-slate-500 uppercase tracking-wider">Csproj / Asset</div>
-                                <div class="text-xs font-mono font-medium text-slate-300 mt-1">${csprojVer}</div>
-                            </div>
-                            <div>
-                                <div class="text-[10px] text-slate-500 uppercase tracking-wider">Android</div>
-                                <div class="text-xs font-mono font-medium text-slate-300 mt-1">${androidVer}</div>
-                            </div>
-                            <div>
-                                <div class="text-[10px] text-slate-500 uppercase tracking-wider">iOS</div>
-                                <div class="text-xs font-mono font-medium text-slate-300 mt-1">${iosVer}</div>
-                            </div>
-                        </div>
-
-                        <!-- Actions bar -->
-                        <div class="flex items-center gap-2 pt-2">
-                            ${actionButtons}
-                        </div>
-                    `;
-                    grid.appendChild(card);
-                });
-                container.appendChild(grid);
-            } else {
-                // Table View
-                const tableWrapper = document.createElement("div");
-                tableWrapper.className = "overflow-x-auto border border-slate-800 rounded-xl bg-slate-900/10";
-                
-                let tableHtml = `
-                    <table class="min-w-full divide-y divide-slate-800 text-left text-xs">
-                        <thead class="bg-slate-900/50 text-slate-400 uppercase tracking-wider font-semibold">
-                            <tr>
-                                <th class="px-4 py-3">App Name</th>
-                                <th class="px-4 py-3">Versions (Proj / Android / iOS)</th>
-                                <th class="px-4 py-3">Git Branch & Status</th>
-                                <th class="px-4 py-3 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-800 bg-slate-955/20">
-                `;
-
-                filteredApps.forEach((app, idx) => {
-                    const isDirty = app.git.dirty;
-                    const gitStatusText = isDirty ? "Dirty" : "Clean";
-                    const gitBadgeColor = isDirty ? "text-amber-400" : "text-emerald-400";
-                    
-                    const iosVer = app.versions.iOS ? `${app.versions.iOS.version} (${app.versions.iOS.build})` : "N/A";
-                    const androidVer = app.versions.android ? `${app.versions.android.version} (${app.versions.android.build})` : "N/A";
-                    const csprojVer = app.versions.csproj ? `${app.versions.csproj.version} (${app.versions.csproj.build})` : "N/A";
-
-                    const isBehind = app.git.behind > 0;
-                    const gitPullAlert = isBehind 
-                        ? `<span class="bg-amber-500/10 text-amber-550 border border-amber-500/25 px-2 py-0.5 rounded text-[10px] ml-2 animate-pulse" title="Click Pull below to update">⚠️ Pull Pending</span>` 
-                        : "";
-
-                    // Action buttons depending on Type
-                    let actionButtons = `
-                        <button onclick="openVersionUpdate('${app.dir.replace(/\\/g, '\\\\')}', '${app.versions.csproj?.version || ''}', '${app.versions.csproj?.build || ''}')" 
-                                class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold px-2 py-1 rounded transition text-[11px]">
-                            ✏️ Version
-                        </button>
-                        <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" 
-                                class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold px-2 py-1 rounded transition text-[11px]">
-                            ⬇️ Pull
-                        </button>
-                        <button onclick="openFolder('${app.dir.replace(/\\/g, '\\\\')}')" 
-                                class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold px-2 py-1 rounded transition text-[11px]">
-                            📂 Folder
-                        </button>
-                        
-                        <!-- IDE open menu -->
-                        <div class="relative inline-block text-left group">
-                            <button class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-350 hover:text-white font-semibold px-2 py-1 rounded transition text-[11px]">
-                                💻 IDE
+                            <button class="btn-ghost text-xs py-1.5 px-2.5">
+                                IDE ▾
                             </button>
                             <div class="absolute bottom-full mb-1 left-0 w-32 bg-slate-900 border border-slate-800 rounded-lg shadow-xl hidden group-hover:block z-20">
                                 <button onclick="openIDE('${app.dir.replace(/\\/g, '\\\\')}', 'vs')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition">Visual Studio</button>
@@ -676,68 +640,188 @@
 
                     if (app.projectType === "MAUI") {
                         actionButtons += `
-                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Android')" 
-                                    class="bg-cyan-600/10 border border-cyan-500/20 hover:border-cyan-500/50 text-cyan-400 font-semibold px-2 py-1 rounded transition text-[11px]">
-                                🤖 Build Android
+                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Android')" class="btn-ghost text-xs py-1.5 px-2.5 ml-auto">
+                                Android
                             </button>
-                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'iOS')" 
-                                    class="bg-blue-600/10 border border-blue-500/20 hover:border-blue-500/50 text-blue-400 font-semibold px-2 py-1 rounded transition text-[11px]">
-                                🍎 Build iOS
+                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'iOS')" class="btn-ghost text-xs py-1.5 px-2.5">
+                                iOS
                             </button>
                         `;
                     } else if (app.projectType === "WPF") {
                         actionButtons += `
-                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Windows')" 
-                                    class="bg-blue-600/10 border border-blue-500/20 hover:border-blue-500/50 text-blue-400 font-semibold px-2 py-1 rounded transition text-[11px]">
-                                🖥️ Build Windows
+                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Windows')" class="btn-ghost text-xs py-1.5 px-2.5 ml-auto">
+                                Windows
                             </button>
                         `;
                     } else if (app.projectType === "Blazor") {
                         actionButtons += `
-                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Web')" 
-                                    class="bg-amber-600/10 border border-amber-505/20 hover:border-amber-505/50 text-amber-455 font-semibold px-2 py-1 rounded transition text-[11px]">
-                                🌐 Build Web
+                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Web')" class="btn-ghost text-xs py-1.5 px-2.5 ml-auto">
+                                Web
                             </button>
                         `;
                     }
 
                     const appIconHtml = app.iconBase64 
-                        ? `<img src="${app.iconBase64}" class="w-6 h-6 rounded object-contain bg-slate-950/30 border border-slate-850 shadow" alt="${app.name} Icon">`
-                        : `<div class="w-6 h-6 rounded bg-slate-900 border border-slate-855 flex items-center justify-center text-[10px] font-bold text-slate-500 select-none">MF</div>`;
+                        ? `<img src="${app.iconBase64}" class="w-10 h-10 rounded-lg object-contain bg-slate-950/40 border border-slate-800 shadow" alt="${app.name} Icon">`
+                        : `<div class="w-10 h-10 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-xs font-bold text-slate-600 select-none">MF</div>`;
+
+                    card.innerHTML = `
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center gap-3 min-w-0">
+                                ${appIconHtml}
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <h3 class="font-bold text-white text-base truncate">${app.name}</h3>
+                                        ${getTechBadge(app.projectType)}
+                                        <button onclick="refreshSingleApp('${app.dir.replace(/\\/g, '\\\\')}', 'ic-${idx}')" class="text-slate-600 hover:text-slate-300 transition text-xs" title="Refresh">
+                                            <span id="ic-${idx}" class="inline-block">&#x21bb;</span>
+                                        </button>
+                                    </div>
+                                    <p class="text-xs font-mono text-slate-600 truncate max-w-[300px]" title="${app.dir}">${app.dir}</p>
+                                </div>
+                            </div>
+                            <span class="${gitBadgeClass} flex-shrink-0">
+                                ${app.branch} · ${gitStatusText}
+                            </span>
+                        </div>
+
+                        ${pullWarningHtml}
+
+                        <div class="grid grid-cols-3 gap-3 bg-[var(--bg)] p-3 rounded-lg border border-slate-800/40">
+                            <div>
+                                <div class="text-[10px] text-slate-600 uppercase tracking-wider">Project</div>
+                                <div class="text-xs font-mono font-medium text-slate-300 mt-0.5">${csprojVer}</div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] text-slate-600 uppercase tracking-wider">Android</div>
+                                <div class="text-xs font-mono font-medium text-slate-300 mt-0.5">${androidVer}</div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] text-slate-600 uppercase tracking-wider">iOS</div>
+                                <div class="text-xs font-mono font-medium text-slate-300 mt-0.5">${iosVer}</div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 pt-1 flex-wrap">
+                            ${actionButtons}
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+                container.appendChild(grid);
+            } else {
+                const tableWrapper = document.createElement("div");
+                tableWrapper.className = "overflow-x-auto rounded-xl border border-slate-800";
+                
+                let tableHtml = `
+                    <table class="min-w-full text-left text-xs">
+                        <thead class="bg-slate-900/50 text-slate-500 uppercase tracking-wider font-semibold">
+                            <tr>
+                                <th class="px-4 py-3">App</th>
+                                <th class="px-4 py-3">Versions</th>
+                                <th class="px-4 py-3">Git</th>
+                                <th class="px-4 py-3 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800">
+                `;
+
+                filteredApps.forEach((app, idx) => {
+                    const isDirty = app.git.dirty;
+                    const isBehind = app.git.behind > 0;
+                    const gitStatusText = isDirty ? "Dirty" : isBehind ? "Behind" : "Clean";
+                    const gitColor = isDirty ? "text-amber-400" : isBehind ? "text-red-400" : "text-emerald-400";
+                    
+                    const iosVer = app.versions.iOS ? `${app.versions.iOS.version} (${app.versions.iOS.build})` : "N/A";
+                    const androidVer = app.versions.android ? `${app.versions.android.version} (${app.versions.android.build})` : "N/A";
+                    const csprojVer = app.versions.csproj ? `${app.versions.csproj.version} (${app.versions.csproj.build})` : "N/A";
+
+                    const pullAlert = isBehind 
+                        ? `<span class="badge badge-red ml-2">${app.git.behind} behind</span>` 
+                        : "";
+
+                    let actionButtons = `
+                        <button onclick="openVersionUpdate('${app.dir.replace(/\\/g, '\\\\')}', '${app.versions.csproj?.version || ''}', '${app.versions.csproj?.build || ''}')" class="btn-ghost text-[11px] py-1 px-2">
+                            Version
+                        </button>
+                        <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" class="btn-ghost text-[11px] py-1 px-2">
+                            Pull
+                        </button>
+                        <button onclick="openFolder('${app.dir.replace(/\\/g, '\\\\')}')" class="btn-ghost text-[11px] py-1 px-2">
+                            Folder
+                        </button>
+                        <div class="relative inline-block text-left group">
+                            <button class="btn-ghost text-[11px] py-1 px-2">
+                                IDE
+                            </button>
+                            <div class="absolute bottom-full mb-1 left-0 w-32 bg-slate-900 border border-slate-800 rounded-lg shadow-xl hidden group-hover:block z-20">
+                                <button onclick="openIDE('${app.dir.replace(/\\/g, '\\\\')}', 'vs')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition">Visual Studio</button>
+                                <button onclick="openIDE('${app.dir.replace(/\\/g, '\\\\')}', 'vscode')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition">VS Code</button>
+                                <button onclick="openIDE('${app.dir.replace(/\\/g, '\\\\')}', 'rider')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition">Rider</button>
+                            </div>
+                        </div>
+                    `;
+
+                    if (app.projectType === "MAUI") {
+                        actionButtons += `
+                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Android')" class="btn-ghost text-[11px] py-1 px-2 ml-auto">
+                                Android
+                            </button>
+                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'iOS')" class="btn-ghost text-[11px] py-1 px-2">
+                                iOS
+                            </button>
+                        `;
+                    } else if (app.projectType === "WPF") {
+                        actionButtons += `
+                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Windows')" class="btn-ghost text-[11px] py-1 px-2 ml-auto">
+                                Windows
+                            </button>
+                        `;
+                    } else if (app.projectType === "Blazor") {
+                        actionButtons += `
+                            <button onclick="buildApp('${app.dir.replace(/\\/g, '\\\\')}', 'Web')" class="btn-ghost text-[11px] py-1 px-2 ml-auto">
+                                Web
+                            </button>
+                        `;
+                    }
+
+                    const appIconHtml = app.iconBase64 
+                        ? `<img src="${app.iconBase64}" class="w-6 h-6 rounded object-contain bg-[var(--bg)] border border-slate-800 shadow" alt="${app.name} Icon">`
+                        : `<div class="w-6 h-6 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-600 select-none">MF</div>`;
 
                     tableHtml += `
                         <tr class="hover:bg-slate-900/20 transition">
                             <td class="px-4 py-3.5">
                                 <div class="flex items-center gap-3">
                                     ${appIconHtml}
-                                    <div>
+                                    <div class="min-w-0">
                                         <div class="flex items-center gap-2 flex-wrap">
                                             <span class="font-bold text-white">${app.name}</span>
                                             ${getTechBadge(app.projectType)}
-                                            <button onclick="refreshSingleApp('${app.dir.replace(/\\/g, '\\\\')}', 'icon-list-${idx}')" 
-                                                    class="text-slate-500 hover:text-slate-300 transition">
-                                                <span id="icon-list-${idx}" class="inline-block">🔄</span>
+                                            <button onclick="refreshSingleApp('${app.dir.replace(/\\/g, '\\\\')}', 'il-${idx}')" class="text-slate-600 hover:text-slate-300 transition">
+                                                <span id="il-${idx}" class="inline-block">&#x21bb;</span>
                                             </button>
                                         </div>
-                                        <span class="text-[10px] font-mono text-slate-500 truncate block max-w-xs" title="${app.dir}">${app.dir}</span>
+                                        <span class="text-[10px] font-mono text-slate-600 truncate block max-w-[200px]" title="${app.dir}">${app.dir}</span>
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-4 py-3.5 font-mono text-slate-300">
-                                <div><span class="text-[10px] text-slate-500 uppercase mr-1">Proj/Asset:</span> ${csprojVer}</div>
-                                <div><span class="text-[10px] text-slate-500 uppercase mr-1">Android:</span> ${androidVer}</div>
-                                <div><span class="text-[10px] text-slate-500 uppercase mr-1">iOS:</span>  ${iosVer}</div>
+                            <td class="px-4 py-3.5 font-mono text-slate-400">
+                                <div><span class="text-[10px] text-slate-600 mr-1">Proj:</span> ${csprojVer}</div>
+                                <div><span class="text-[10px] text-slate-600 mr-1">Android:</span> ${androidVer}</div>
+                                <div><span class="text-[10px] text-slate-600 mr-1">iOS:</span> ${iosVer}</div>
                             </td>
-                            <td class="px-4 py-3.5 font-medium">
-                                <div class="flex items-center">
-                                    <span class="text-slate-200 font-mono">${app.branch}</span>
-                                    <span class="mx-2 text-slate-600">|</span>
-                                    <span class="${gitBadgeColor}">${gitStatusText}</span>
-                                    ${gitPullAlert}
+                            <td class="px-4 py-3.5">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-sm font-mono text-slate-200">${app.branch}</span>
+                                    <span class="${gitColor} text-xs font-medium">${gitStatusText}</span>
+                                    ${pullAlert}
                                 </div>
                             </td>
-                            <td class="px-4 py-3.5 text-right space-x-1.5">
-                                ${actionButtons}
+                            <td class="px-4 py-3.5 text-right">
+                                <div class="inline-flex items-center gap-1.5 flex-wrap justify-end">
+                                    ${actionButtons}
+                                </div>
                             </td>
                         </tr>
                     `;
@@ -803,7 +887,7 @@
                 const data = await res.json();
                 
                 const line = document.createElement("div");
-                line.className = data.success ? "text-emerald-400 font-bold" : "text-rose-500";
+                line.className = data.success ? "text-green-400 font-bold" : "text-red-400";
                 line.textContent = data.success 
                     ? `[Bump & Push] Successfully updated to ${data.version} #${data.build} and pushed to origin.` 
                     : `[Bump & Push] Version written, but push failed: ${data.output}`;
@@ -826,7 +910,7 @@
                 });
                 const data = await res.json();
                 const line = document.createElement("div");
-                line.className = data.success ? "text-emerald-400" : "text-rose-500";
+                line.className = data.success ? "text-green-400" : "text-red-400";
                 line.textContent = data.output || "Git pull executed.";
                 terminal.appendChild(line);
                 loadApps();

@@ -134,3 +134,12 @@ git push origin v1.4.2
 ## Origin
 
 Migrated from Gist `wagenheimer/6e27938c32dd667e2d8bf2e135dad2f1` (`maui-version.ps1`, ~2700 lines of PowerShell).
+
+## Design Context
+
+See `PRODUCT.md` (strategy) and `DESIGN.md` (visual system) at project root.
+
+- **Register**: product / **Platform**: web (web dashboard is primary design surface)
+- **Design**: Dark & Bold — near-black bg, royal blue primary, amber accents, OKLCH palette
+- **Two surfaces share one design language**: Spectre.Console TUI (terminal, keyboard-driven) + web dashboard (Tailwind/HTML, richer visual)
+- **Commands**: `/impeccable craft <feature>` to build, `/impeccable polish <target>` to refine, `/impeccable live` for in-browser iteration
