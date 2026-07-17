@@ -19,8 +19,13 @@ public static class WebStartup
     private static IHubContext<LogHub>? _hubContext;
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Diagnostics.Process> _runningBuilds = new();
 
-    public static void Start(string[] args, StateService stateService, AppDiscoveryService discoveryService, VersionService versionService, GitService gitService, BuildService buildService, DeviceService deviceService)
+    private static string? _serveToken;
+
+    public static void Start(string[] args, StateService stateService, AppDiscoveryService discoveryService, VersionService versionService, GitService gitService, BuildService buildService, DeviceService deviceService,
+        bool serveMode = false, string? token = null, int port = 5123)
     {
+        _serveToken = serveMode ? token : null;
+
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             Args = args,
@@ -30,7 +35,10 @@ public static class WebStartup
         // Configure ports
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.ListenLocalhost(5123);
+            if (serveMode)
+                options.Listen(System.Net.IPAddress.Any, port);
+            else
+                options.ListenLocalhost(port);
         });
 
         // Add services
@@ -56,7 +64,37 @@ public static class WebStartup
         app.UseDefaultFiles();
         app.UseStaticFiles();
 
+        // Token auth middleware (for serve/remote mode)
+        app.Use(async (context, next) =>
+        {
+            if (_serveToken != null && context.Request.Path.StartsWithSegments("/api"))
+            {
+                if (context.Request.Path == "/api/remote/info")
+                {
+                    await next(); return;
+                }
+                if (!context.Request.Headers.TryGetValue("X-MauiForge-Token", out var token) || token != _serveToken)
+                {
+                    context.Response.StatusCode = 401;
+                    await context.Response.WriteAsJsonAsync(new { error = "Unauthorized. Provide X-MauiForge-Token header." });
+                    return;
+                }
+            }
+            await next();
+        });
+
         _hubContext = app.Services.GetRequiredService<IHubContext<LogHub>>();
+
+        // Remote info endpoint (no auth required)
+        app.MapGet("/api/remote/info", () =>
+        {
+            return Results.Ok(new
+            {
+                version = typeof(WebStartup).Assembly.GetName().Version?.ToString() ?? "unknown",
+                hostname = Environment.MachineName,
+                requiresToken = _serveToken != null
+            });
+        });
 
         // Paths Endpoints
         app.MapGet("/api/paths", (StateService state) =>

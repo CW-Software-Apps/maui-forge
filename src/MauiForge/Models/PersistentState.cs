@@ -14,6 +14,16 @@ public class PersistentState
     public bool UseLocalMac { get; set; } = false;
     public Dictionary<string, AppBuildConfig> AppBuildConfigs { get; set; } = [];
     public List<AppEntry> CachedApps { get; set; } = [];
+    public List<SavedRemote> KnownRemotes { get; set; } = [];
+}
+
+public class SavedRemote
+{
+    public string Host { get; set; } = "";
+    public int Port { get; set; } = 5123;
+    public string Hostname { get; set; } = "";
+    public string? Token { get; set; }
+    public DateTime LastUsed { get; set; }
 }
 
 public class VersionSnapshot

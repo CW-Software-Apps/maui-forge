@@ -12,6 +12,7 @@ public record DiagnosticsRequested : ListResult;
 public record CheckUpdatesRequested : ListResult;
 public record FilterChanged(string? NameFilter, string PlatformFilter) : ListResult;
 public record WebInterfaceRequested : ListResult;
+public record RemoteConnectRequested : ListResult;
 public record ListQuit : ListResult;
 
 public static class AppListScreen
@@ -222,6 +223,7 @@ public static class AppListScreen
             $"[cyan1] >[/]  [white]Search Projects:[/] {searchLabel}",
             "[cyan1] >[/]  [white]Environment Settings[/] [dim](Mac / SSH)[/]",
             "[cyan1] >[/]  [white]Diagnostics & Health[/]",
+            "[cyan1] >[/]  [white]Connect to Remote...[/] [dim](network discovery)[/]",
             updateLabel,
             "[cyan1] >[/]  [white]Exit[/]",
         ]);
@@ -283,6 +285,7 @@ public static class AppListScreen
             }
             if (choice.Contains("Environment Settings")) return new MacConfigRequested();
             if (choice.Contains("Diagnostics & Health")) return new DiagnosticsRequested();
+            if (choice.Contains("Connect to Remote")) return new RemoteConnectRequested();
             if (choice.Contains("Check for Updates")) return new CheckUpdatesRequested();
             return new ListQuit();
         }

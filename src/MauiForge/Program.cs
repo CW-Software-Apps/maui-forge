@@ -44,6 +44,9 @@ var cliPath     = (string?)null;
 var runTerminal = false;
 var runUpdate   = false;
 var runHelp     = false;
+var serveMode   = false;
+var serveToken  = (string?)null;
+var servePort   = 5123;
 
 for (int i = 0; i < args.Length; i++)
 {
@@ -52,6 +55,9 @@ for (int i = 0; i < args.Length; i++)
     if (args[i] == "--cli" || args[i] == "--terminal") runTerminal = true;
     if (args[i] == "--update") runUpdate = true;
     if (args[i] == "--help" || args[i] == "-h" || args[i] == "/?") runHelp = true;
+    if (args[i] == "--serve") serveMode = true;
+    if (args[i] == "--token" && i + 1 < args.Length) serveToken = args[i + 1];
+    if (args[i] == "--port"  && i + 1 < args.Length && int.TryParse(args[i + 1], out var p)) servePort = p;
 }
 
 if (runHelp)
@@ -61,6 +67,8 @@ if (runHelp)
     AnsiConsole.MarkupLine("  [cyan1]maui-forge[/]                         Starts the local Web Dashboard (default)");
     AnsiConsole.MarkupLine("  [cyan1]maui-forge --cli[/]                  Starts the traditional terminal interface");
     AnsiConsole.MarkupLine("  [cyan1]maui-forge --update[/]               Forces check and installs updates");
+    AnsiConsole.MarkupLine("  [cyan1]maui-forge --serve --token X[/]      Starts in remote server mode (binds 0.0.0.0)");
+    AnsiConsole.MarkupLine("  [cyan1]maui-forge --serve --port 9000[/]    Server mode on custom port");
     AnsiConsole.MarkupLine("  [cyan1]maui-forge --help[/]                 Shows this help message");
     return;
 }
@@ -110,7 +118,25 @@ if (!runTerminal)
     var versionSvc = services.GetRequiredService<VersionService>();
     var gitSvc     = services.GetRequiredService<GitService>();
     var buildSvc   = services.GetRequiredService<BuildService>();
-    WebStartup.Start(args, stateService, discovery, versionSvc, gitSvc, buildSvc, deviceSvc);
+
+    if (serveMode)
+    {
+        if (string.IsNullOrEmpty(serveToken))
+        {
+            serveToken = Guid.NewGuid().ToString("N")[..12];
+            AnsiConsole.MarkupLine($"[yellow]Remote access token: [bold]{serveToken}[/][/]");
+        }
+        AnsiConsole.MarkupLine($"[dim]Server mode on port [white]{servePort}[/]. Clients connect via [cyan1]http://<this-ip>:{servePort}[/][/]");
+        AnsiConsole.MarkupLine($"[dim]Token required: [white]{serveToken}[/][/]");
+        System.Threading.Thread.Sleep(1500);
+
+        // Start UDP discovery responder
+        var discoverySvc = new RemoteDiscoveryService();
+        discoverySvc.StartResponder(webPort: servePort, token: serveToken);
+    }
+
+    WebStartup.Start(args, stateService, discovery, versionSvc, gitSvc, buildSvc, deviceSvc,
+        serveMode: serveMode, token: serveToken, port: servePort);
     return;
 }
 
@@ -282,6 +308,17 @@ while (true)
         stateService.Save(st);
         AnsiConsole.MarkupLine("  [green]ok  Settings saved.[/]");
         AnsiConsole.Prompt(new TextPrompt<string>("\n  [dim]Press Enter to return to dashboard...[/]").AllowEmpty());
+        continue;
+    }
+
+    if (result is RemoteConnectRequested)
+    {
+        var remoteClient = RemoteConnectScreen.Show(stateService);
+        if (remoteClient?.IsConnected == true)
+        {
+            AnsiConsole.MarkupLine($"[green]✓ Connected. Remote server is ready.[/]");
+            AnsiConsole.Prompt(new TextPrompt<string>("[dim]Press Enter to return to dashboard...[/]").AllowEmpty());
+        }
         continue;
     }
 
