@@ -388,6 +388,9 @@ public static class WebStartup
                     await SendLog($"Config: {req.Configuration} | Framework: {req.Framework}");
                     await SendLog("=========================================");
 
+                    var outputLines = new List<string>();
+                    void OnLine(string line) { _ = SendLog(line); lock (outputLines) { outputLines.Add(line); } }
+
                     if (req.Platform.Equals("ios", StringComparison.OrdinalIgnoreCase))
                     {
                         // Step 1: build
@@ -410,13 +413,12 @@ public static class WebStartup
                             buildArgs.Add($"-p:ServerUser={st.MacUser}");
                         }
 
-                        await SendLog("Building iOS app...");
-                        int exit = builder.Run(req.Dir, buildArgs.ToArray(),
-                            line => _ = SendLog(line),
+                        await SendLog("===STEP:BUILD===");
+                        int exit = builder.Run(req.Dir, buildArgs.ToArray(), OnLine,
                             onStart: proc => _runningBuilds[req.Dir] = proc);
                         _runningBuilds.TryRemove(req.Dir, out _);
 
-                        if (exit != 0) { await SendLog("[Error] iOS build failed. Aborting run."); return; }
+                        if (exit != 0) { await SendLog("===STEP:FAILED==="); return; }
 
                         // Step 2: run
                         var runArgs = new List<string>
@@ -438,18 +440,25 @@ public static class WebStartup
                             runArgs.Add($"-p:ServerUser={st.MacUser}");
                         }
 
-                        await SendLog("Launching iOS app...");
-                        exit = builder.Run(req.Dir, runArgs.ToArray(),
-                            line => _ = SendLog(line),
+                        await SendLog("===STEP:DEPLOY===");
+                        exit = builder.Run(req.Dir, runArgs.ToArray(), OnLine,
                             onStart: proc => _runningBuilds[req.Dir] = proc);
                         _runningBuilds.TryRemove(req.Dir, out _);
+
+                        // mlaunch often exits 134 after successfully launching the app
+                        // (it tries to read stdin for --wait-for-exit in non-interactive context)
+                        if (exit != 0 && outputLines.Any(l => l.Contains("Launched application", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            await SendLog("[Warning] mlaunch reported an error but the app was launched successfully.");
+                            exit = 0;
+                        }
 
                         SaveRunConfig(st, req, csproj);
                         state.Save(st);
 
-                        await SendLog("=========================================");
+                        if (exit == 0) await SendLog("===STEP:DONE===");
+                        else await SendLog("===STEP:FAILED===");
                         await SendLog(exit == 0 ? "iOS app launched successfully." : $"iOS launch failed (exit {exit}).");
-                        await SendLog("=========================================");
                     }
                     else if (req.Platform.Equals("android", StringComparison.OrdinalIgnoreCase))
                     {
@@ -466,24 +475,23 @@ public static class WebStartup
                             if (serial is null) { await SendLog("[Error] Emulator did not start in time."); return; }
                         }
 
+                        await SendLog("===STEP:BUILD===");
                         var runArgs = new List<string>
                         {
                             "build", csproj, "-t:Run", "-f", req.Framework, "-c", req.Configuration,
                             $"-p:AdbTarget=-s {serial}"
                         };
 
-                        await SendLog("Building and deploying Android app...");
-                        int exit = builder.Run(req.Dir, runArgs.ToArray(),
-                            line => _ = SendLog(line),
+                        int exit = builder.Run(req.Dir, runArgs.ToArray(), OnLine,
                             onStart: proc => _runningBuilds[req.Dir] = proc);
                         _runningBuilds.TryRemove(req.Dir, out _);
 
                         SaveRunConfig(st, req, csproj);
                         state.Save(st);
 
-                        await SendLog("=========================================");
+                        if (exit == 0) await SendLog("===STEP:DONE===");
+                        else await SendLog("===STEP:FAILED===");
                         await SendLog(exit == 0 ? "Android app launched successfully." : $"Android launch failed (exit {exit}).");
-                        await SendLog("=========================================");
                     }
                 }
                 catch (Exception ex)

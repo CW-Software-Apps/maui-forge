@@ -622,6 +622,67 @@
         </div>
     </div>
 
+    <!-- Build Progress Modal -->
+    <div id="buildProgressModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="buildProgressTitle">
+        <div class="modal-panel" style="max-width:40rem;">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 id="buildProgressTitle" class="font-bold text-white flex items-center gap-2">
+                    <span id="bpHeaderIcon" class="inline-block w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
+                    Build & Run
+                </h3>
+                <span id="bpTimer" class="text-xs font-mono text-slate-500">0:00</span>
+            </div>
+            <div class="p-6 space-y-4" id="buildProgressBody">
+                <!-- Device info card -->
+                <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-3 grid grid-cols-3 gap-3">
+                    <div>
+                        <div class="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Device</div>
+                        <div id="bpDeviceName" class="text-sm text-white font-medium truncate mt-0.5"></div>
+                    </div>
+                    <div>
+                        <div class="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Platform</div>
+                        <div id="bpPlatform" class="text-sm text-white font-medium mt-0.5"></div>
+                    </div>
+                    <div>
+                        <div class="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Config</div>
+                        <div id="bpConfig" class="text-sm text-white font-medium mt-0.5"></div>
+                    </div>
+                </div>
+
+                <!-- Status / steps -->
+                <div id="bpStatusBar" class="flex items-center gap-3 text-sm">
+                    <span id="bpStatusDot" class="inline-block w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse flex-shrink-0"></span>
+                    <span id="bpStatusText" class="text-slate-300">Starting...</span>
+                </div>
+
+                <!-- Log area -->
+                <div class="relative">
+                    <div id="bpLogContainer" class="bg-slate-950 rounded-lg p-3 h-44 overflow-y-auto font-mono text-xs space-y-0.5 select-text border border-slate-800/50">
+                        <div class="text-slate-600 italic">Waiting for build output...</div>
+                    </div>
+                </div>
+
+                <!-- Result (hidden until done) -->
+                <div id="bpResult" class="hidden flex flex-col items-center py-4 text-center gap-2">
+                    <div id="bpResultIcon" class="text-4xl"></div>
+                    <div id="bpResultText" class="text-base font-semibold"></div>
+                    <div id="bpResultDetail" class="text-xs text-slate-500"></div>
+                    <button onclick="closeBuildProgress()" class="btn-ghost mt-1 px-6 py-2 text-sm font-semibold" title="Close progress panel">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        #bpLogContainer::-webkit-scrollbar { width: 4px; }
+        #bpLogContainer::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 2px; }
+        .bp-log-error { color: var(--red); }
+        .bp-log-warn { color: var(--amber); }
+        .bp-log-ok { color: var(--green); }
+        .bp-log-step { color: var(--accent); font-weight: 600; }
+        .bp-log-info { color: rgb(148 163 184); }
+    </style>
+
     <script>
         const API_BASE = "";
         let appsList = [];
@@ -629,6 +690,9 @@
         let currentLayout = localStorage.getItem("layout") || "card";
         let buildRunDir = null;
         let buildRunPlatform = null;
+        let buildProgressActive = false;
+        let buildProgressStartTime = null;
+        let bpTimerInterval = null;
 
         // Establish SignalR connection for build logs
         const connection = new signalR.HubConnectionBuilder()
@@ -637,6 +701,26 @@
             .build();
 
         connection.on("LogReceived", function (message) {
+            // ---- Step markers for progress modal ----
+            if (buildProgressActive) {
+                if (message === "===STEP:BUILD===") { updateBuildStep("build"); return; }
+                if (message === "===STEP:DEPLOY===") { updateBuildStep("deploy"); return; }
+                if (message === "===STEP:DONE===") { finalizeBuildProgress(true); return; }
+                if (message === "===STEP:FAILED===") { finalizeBuildProgress(false); return; }
+                if (message.indexOf("launched successfully") >= 0) {
+                    appendBuildLog(message, "bp-log-ok");
+                    finalizeBuildProgress(true);
+                    return;
+                }
+                if (message.indexOf("launch failed") >= 0) {
+                    finalizeBuildProgress(false);
+                    return;
+                }
+                appendBuildLog(message);
+                return;
+            }
+
+            // ---- Terminal routing (Build Only) ----
             if (message.startsWith("Build process completed") || message.startsWith("Build cancelled by user") || message.indexOf("launched successfully") >= 0 || message.indexOf("launch failed") >= 0) {
                 currentBuildDir = null;
                 document.getElementById("cancelBuildBtn").classList.add("hidden");
@@ -649,7 +733,6 @@
             const line = document.createElement("div");
             line.textContent = message;
             
-            // Basic colored logs parsing
                 if (message.includes("error") || message.includes("Failed")) {
                     line.className = "text-red-400";
                 } else if (message.includes("warning") || message.includes("Warning")) {
@@ -2006,13 +2089,8 @@
             var deviceType = selectedDevice.getAttribute("data-type");
 
             closeBuildRunModal();
-            clearConsole();
-            openTerminal();
+            showBuildProgress(deviceName, buildRunPlatform, config);
             currentBuildDir = buildRunDir;
-            document.getElementById("cancelBuildBtn").classList.remove("hidden");
-
-            var terminal = document.getElementById("terminalConsole");
-            terminal.innerHTML = '<div class="text-slate-400">[Build & Run] Starting ' + buildRunPlatform + ' build on ' + deviceName + '...</div>';
 
             try {
                 await fetch(API_BASE + "/api/apps/run", {
@@ -2028,10 +2106,100 @@
                         framework: framework
                     })
                 });
-                showToast("Building for " + deviceName + "...", "info");
             } catch (err) {
+                finalizeBuildProgress(false);
                 showToast("Failed to start build & run: " + err.message, "error");
             }
+        }
+
+        /* ── Build & Run Progress Modal ─────────────────────────── */
+
+        function showBuildProgress(deviceName, platform, config) {
+            buildProgressActive = true;
+            buildProgressStartTime = Date.now();
+
+            document.getElementById("bpDeviceName").textContent = deviceName;
+            document.getElementById("bpPlatform").textContent = platform;
+            document.getElementById("bpConfig").textContent = config;
+
+            var dot = document.getElementById("bpStatusDot");
+            dot.className = "inline-block w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse flex-shrink-0";
+            document.getElementById("bpStatusText").textContent = "Starting...";
+            document.getElementById("bpHeaderIcon").className = "inline-block w-2 h-2 rounded-full bg-blue-400 animate-pulse";
+
+            document.getElementById("bpResult").classList.add("hidden");
+            document.getElementById("bpLogContainer").innerHTML = "";
+            document.getElementById("bpTimer").textContent = "0:00";
+
+            if (bpTimerInterval) clearInterval(bpTimerInterval);
+            bpTimerInterval = setInterval(function () {
+                var elapsed = Math.floor((Date.now() - buildProgressStartTime) / 1000);
+                var m = Math.floor(elapsed / 60);
+                var s = elapsed % 60;
+                document.getElementById("bpTimer").textContent = m + ":" + (s < 10 ? "0" : "") + s;
+            }, 500);
+
+            document.getElementById("buildProgressModal").classList.remove("hidden");
+        }
+
+        function updateBuildStep(step) {
+            var labels = { build: "Building...", deploy: "Deploying..." };
+            var text = labels[step] || step;
+            document.getElementById("bpStatusText").textContent = text;
+            var dot = document.getElementById("bpStatusDot");
+            dot.className = "inline-block w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse flex-shrink-0";
+        }
+
+        function appendBuildLog(message, className) {
+            var container = document.getElementById("bpLogContainer");
+            var line = document.createElement("div");
+            line.textContent = message;
+            line.className = className || "bp-log-info";
+            container.appendChild(line);
+            container.scrollTop = container.scrollHeight;
+
+            if (container.querySelector(".italic")) {
+                container.innerHTML = "";
+            }
+        }
+
+        function finalizeBuildProgress(success) {
+            buildProgressActive = false;
+            currentBuildDir = null;
+            if (bpTimerInterval) { clearInterval(bpTimerInterval); bpTimerInterval = null; }
+
+            var dot = document.getElementById("bpStatusDot");
+            var headerIcon = document.getElementById("bpHeaderIcon");
+
+            if (success) {
+                dot.className = "inline-block w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0";
+                headerIcon.className = "inline-block w-2 h-2 rounded-full bg-green-500";
+                document.getElementById("bpStatusText").textContent = "Done \u2713";
+                document.getElementById("bpResultIcon").textContent = "\u2705";
+                document.getElementById("bpResultText").textContent = "Launched successfully";
+                document.getElementById("bpResultText").className = "text-base font-semibold text-green-400";
+            } else {
+                dot.className = "inline-block w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0";
+                headerIcon.className = "inline-block w-2 h-2 rounded-full bg-red-500";
+                document.getElementById("bpStatusText").textContent = "Failed \u2717";
+                document.getElementById("bpResultIcon").textContent = "\u274C";
+                document.getElementById("bpResultText").textContent = "Launch failed";
+                document.getElementById("bpResultText").className = "text-base font-semibold text-red-400";
+            }
+
+            var elapsed = Math.floor((Date.now() - buildProgressStartTime) / 1000);
+            var m = Math.floor(elapsed / 60);
+            var s = elapsed % 60;
+            document.getElementById("bpResultDetail").textContent = "Completed in " + m + ":" + (s < 10 ? "0" : "") + s;
+
+            document.getElementById("bpResult").classList.remove("hidden");
+        }
+
+        function closeBuildProgress() {
+            if (bpTimerInterval) { clearInterval(bpTimerInterval); bpTimerInterval = null; }
+            buildProgressActive = false;
+            currentBuildDir = null;
+            document.getElementById("buildProgressModal").classList.add("hidden");
         }
     </script>
 </body>
