@@ -306,6 +306,196 @@ public static class WebStartup
             return Results.Accepted();
         });
 
+        // Devices Endpoint — lista devices iOS ou Android (compatível com os 3 parsers do CLI)
+        app.MapPost("/api/apps/devices", (DeviceService devices, StateService state, DevicesRequest req) =>
+        {
+            var st = state.Load();
+
+            if (req.Platform.Equals("ios", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!st.UseLocalMac && (string.IsNullOrEmpty(st.MacHost) || string.IsNullOrEmpty(st.MacUser)))
+                    return Results.Ok(new DevicesResponse([]));
+
+                var deviceList = st.UseLocalMac
+                    ? devices.GetiOSDevicesLocal()
+                    : devices.GetiOSDevices(st.MacHost!, st.MacUser!);
+
+                return Results.Ok(new DevicesResponse(
+                    deviceList.Select(d => new DeviceItem(d.Udid, d.Name, d.Type)).ToList()));
+            }
+
+            if (req.Platform.Equals("android", StringComparison.OrdinalIgnoreCase))
+            {
+                var (running, avds, _) = devices.GetAndroidDevicesAndAvds();
+                var items = new List<DeviceItem>();
+
+                foreach (var d in running.Where(x => !x.Serial.StartsWith("emulator-", StringComparison.OrdinalIgnoreCase)))
+                    items.Add(new DeviceItem(d.Serial, d.Model, "Device"));
+
+                var runningEmuSerials = running
+                    .Where(x => x.Serial.StartsWith("emulator-", StringComparison.OrdinalIgnoreCase))
+                    .Select(d => d.Serial)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var d in running.Where(x => runningEmuSerials.Contains(x.Serial)))
+                    items.Add(new DeviceItem(d.Serial, d.Model, "Emulator"));
+
+                var runningAvdNames = running
+                    .Where(x => x.Serial.StartsWith("emulator-", StringComparison.OrdinalIgnoreCase))
+                    .Select(d => d.Model.Replace(' ', '_'))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var a in avds.Where(a => !runningAvdNames.Contains(a.Replace(' ', '_'))))
+                    items.Add(new DeviceItem("avd:" + a, a, "AVD"));
+
+                return Results.Ok(new DevicesResponse(items));
+            }
+
+            return Results.BadRequest(new { error = "Unsupported platform" });
+        });
+
+        // Config Endpoint — frameworks e build configurations disponíveis
+        app.MapPost("/api/apps/config", (VersionService versions, ConfigRequest req) =>
+        {
+            var csproj = Directory.EnumerateFiles(req.Dir, "*.csproj").FirstOrDefault();
+            List<string> configs = ["Debug", "Release"];
+            List<string> frameworks = [];
+
+            if (csproj is not null)
+            {
+                var fromProject = versions.GetBuildConfigurations(csproj);
+                if (fromProject.Count > 0) configs = fromProject;
+                frameworks = versions.GetTargetFrameworks(csproj, req.Platform);
+            }
+
+            return Results.Ok(new ConfigResponse(configs, frameworks));
+        });
+
+        // Run Endpoint — build + deploy num device específico
+        app.MapPost("/api/apps/run", (BuildService builder, StateService state, RunRequest req) =>
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var st = state.Load();
+                    var csproj = Directory.EnumerateFiles(req.Dir, "*.csproj").FirstOrDefault();
+                    if (csproj is null) { await SendLog("[Error] No .csproj found."); return; }
+
+                    await SendLog("=========================================");
+                    await SendLog($"Starting {req.Platform} build & run...");
+                    await SendLog($"Device: {req.DeviceName} ({req.DeviceId})");
+                    await SendLog($"Config: {req.Configuration} | Framework: {req.Framework}");
+                    await SendLog("=========================================");
+
+                    if (req.Platform.Equals("ios", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Step 1: build
+                        var buildArgs = new List<string>
+                        {
+                            "build", csproj, "-f", req.Framework, "-c", req.Configuration, "--no-incremental"
+                        };
+                        if (req.DeviceType == "Device")
+                        {
+                            buildArgs.Add("-p:RuntimeIdentifier=ios-arm64");
+                            buildArgs.Add($"-p:_DeviceName={req.DeviceId}");
+                        }
+                        else
+                        {
+                            buildArgs.Add($"-p:_DeviceName=:v2:udid={req.DeviceId}");
+                        }
+                        if (!st.UseLocalMac)
+                        {
+                            buildArgs.Add($"-p:ServerAddress={st.MacHost}");
+                            buildArgs.Add($"-p:ServerUser={st.MacUser}");
+                        }
+
+                        await SendLog("Building iOS app...");
+                        int exit = builder.Run(req.Dir, buildArgs.ToArray(),
+                            line => _ = SendLog(line),
+                            onStart: proc => _runningBuilds[req.Dir] = proc);
+                        _runningBuilds.TryRemove(req.Dir, out _);
+
+                        if (exit != 0) { await SendLog("[Error] iOS build failed. Aborting run."); return; }
+
+                        // Step 2: run
+                        var runArgs = new List<string>
+                        {
+                            "build", csproj, "-t:Run", "-f", req.Framework, "-c", req.Configuration
+                        };
+                        if (req.DeviceType == "Device")
+                        {
+                            runArgs.Add("-p:RuntimeIdentifier=ios-arm64");
+                            runArgs.Add($"-p:_DeviceName={req.DeviceId}");
+                        }
+                        else
+                        {
+                            runArgs.Add($"-p:_DeviceName=:v2:udid={req.DeviceId}");
+                        }
+                        if (!st.UseLocalMac)
+                        {
+                            runArgs.Add($"-p:ServerAddress={st.MacHost}");
+                            runArgs.Add($"-p:ServerUser={st.MacUser}");
+                        }
+
+                        await SendLog("Launching iOS app...");
+                        exit = builder.Run(req.Dir, runArgs.ToArray(),
+                            line => _ = SendLog(line),
+                            onStart: proc => _runningBuilds[req.Dir] = proc);
+                        _runningBuilds.TryRemove(req.Dir, out _);
+
+                        SaveRunConfig(st, req, csproj);
+                        state.Save(st);
+
+                        await SendLog("=========================================");
+                        await SendLog(exit == 0 ? "iOS app launched successfully." : $"iOS launch failed (exit {exit}).");
+                        await SendLog("=========================================");
+                    }
+                    else if (req.Platform.Equals("android", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string? serial = req.DeviceId;
+
+                        if (serial.StartsWith("avd:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var avdName = serial[4..];
+                            var adbPath = DeviceService.FindAdb();
+                            if (adbPath is null) { await SendLog("[Error] adb not found."); await SendLog("[Hint] Set ANDROID_HOME or install Android SDK platform-tools."); return; }
+
+                            await SendLog($"Starting emulator: {avdName}...");
+                            serial = await StartAvdAndWaitForWeb(avdName, adbPath);
+                            if (serial is null) { await SendLog("[Error] Emulator did not start in time."); return; }
+                        }
+
+                        var runArgs = new List<string>
+                        {
+                            "build", csproj, "-t:Run", "-f", req.Framework, "-c", req.Configuration,
+                            $"-p:AdbTarget=-s {serial}"
+                        };
+
+                        await SendLog("Building and deploying Android app...");
+                        int exit = builder.Run(req.Dir, runArgs.ToArray(),
+                            line => _ = SendLog(line),
+                            onStart: proc => _runningBuilds[req.Dir] = proc);
+                        _runningBuilds.TryRemove(req.Dir, out _);
+
+                        SaveRunConfig(st, req, csproj);
+                        state.Save(st);
+
+                        await SendLog("=========================================");
+                        await SendLog(exit == 0 ? "Android app launched successfully." : $"Android launch failed (exit {exit}).");
+                        await SendLog("=========================================");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _runningBuilds.TryRemove(req.Dir, out _);
+                    await SendLog($"[Error] Build & Run failed: {ex.Message}");
+                }
+            });
+
+            return Results.Accepted();
+        });
+
         // Cancel a running build
         app.MapPost("/api/apps/build/cancel", (BuildCancelRequest req) =>
         {
@@ -502,6 +692,99 @@ public static class WebStartup
         catch { }
     }
 
+    private static void SaveRunConfig(PersistentState st, RunRequest req, string csproj)
+    {
+        if (!st.AppBuildConfigs.TryGetValue(req.Dir, out var cfg))
+        {
+            cfg = new AppBuildConfig();
+            st.AppBuildConfigs[req.Dir] = cfg;
+        }
+
+        cfg.BuildConfiguration = req.Configuration;
+
+        if (req.Platform.Equals("ios", StringComparison.OrdinalIgnoreCase))
+        {
+            cfg.iOSDeviceId = req.DeviceId;
+            cfg.iOSDeviceName = req.DeviceName;
+            cfg.iOSDeviceType = req.DeviceType;
+            cfg.iOSFramework = req.Framework;
+        }
+        else
+        {
+            cfg.AndroidDeviceSerial = req.DeviceId;
+            cfg.AndroidDeviceName = req.DeviceName;
+            cfg.AndroidFramework = req.Framework;
+        }
+    }
+
+    private static async Task<string?> StartAvdAndWaitForWeb(string avdName, string adbPath)
+    {
+        var emulatorPath = DeviceService.FindEmulator();
+        if (emulatorPath is null) { await SendLog("[Error] emulator binary not found."); return null; }
+
+        await SendLog($"Starting emulator: {emulatorPath} -avd {avdName}...");
+        var psi = new System.Diagnostics.ProcessStartInfo(emulatorPath)
+        {
+            UseShellExecute = false,
+        };
+        psi.ArgumentList.Add("-avd");
+        psi.ArgumentList.Add(avdName);
+        System.Diagnostics.Process.Start(psi);
+
+        string? found = null;
+
+        // Phase 1: wait for emulator in adb devices (up to 60s)
+        for (var i = 0; i < 30 && found is null; i++)
+        {
+            await Task.Delay(2000);
+            var adbPsi = new System.Diagnostics.ProcessStartInfo(adbPath)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+            adbPsi.ArgumentList.Add("devices");
+            using var proc = System.Diagnostics.Process.Start(adbPsi)!;
+            var output = proc.StandardOutput.ReadToEnd();
+            proc.WaitForExit(5000);
+
+            var emLine = output.Split('\n').Skip(1)
+                .FirstOrDefault(l =>
+                {
+                    var parts = l.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+                    return parts.Length >= 2 && parts[0].StartsWith("emulator-") && parts[1] == "device";
+                });
+
+            if (emLine is not null)
+                found = emLine.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries)[0];
+        }
+
+        if (found is null) { await SendLog("[Error] Emulator did not appear in adb devices after 60s."); return null; }
+        await SendLog($"Emulator online: {found}");
+
+        // Phase 2: wait for sys.boot_completed (up to 90s)
+        await SendLog("Waiting for Android to finish booting...");
+        for (var i = 0; i < 45; i++)
+        {
+            await Task.Delay(2000);
+            var bootPsi = new System.Diagnostics.ProcessStartInfo(adbPath)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+            bootPsi.ArgumentList.Add("-s"); bootPsi.ArgumentList.Add(found);
+            bootPsi.ArgumentList.Add("shell"); bootPsi.ArgumentList.Add("getprop"); bootPsi.ArgumentList.Add("sys.boot_completed");
+            using var bootProc = System.Diagnostics.Process.Start(bootPsi)!;
+            var bootOut = bootProc.StandardOutput.ReadToEnd().Trim();
+            bootProc.WaitForExit(5000);
+            if (bootOut == "1") { await SendLog("Android boot completed."); return found; }
+        }
+
+        await SendLog("[Warning] Emulator boot check timeout — proceeding anyway.");
+        return found;
+    }
+
     private static async Task SendLog(string message)
     {
         if (_hubContext != null)
@@ -522,3 +805,9 @@ public record RefreshRequest(string Dir);
 public record BumpPushRequest(string Dir, string Version, string Build);
 public record OpenFolderRequest(string Dir);
 public record OpenIdeRequest(string Dir, string Ide);
+public record DevicesRequest(string Dir, string Platform);
+public record DeviceItem(string Id, string Name, string Type);
+public record DevicesResponse(List<DeviceItem> Devices);
+public record ConfigRequest(string Dir, string Platform);
+public record ConfigResponse(List<string> Configurations, List<string> Frameworks);
+public record RunRequest(string Dir, string Platform, string DeviceId, string DeviceName, string DeviceType, string Configuration, string Framework);

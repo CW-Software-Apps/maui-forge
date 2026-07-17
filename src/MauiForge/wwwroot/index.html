@@ -606,11 +606,29 @@
         </div>
     </div>
 
+    <!-- Build & Run Modal -->
+    <div id="buildRunModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="buildRunModalTitle">
+        <div class="modal-panel" style="max-width:36rem;">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 id="buildRunModalTitle" class="font-bold text-white">Build & Run</h3>
+                <button onclick="closeBuildRunModal()" class="text-slate-500 hover:text-white transition text-sm" aria-label="Close build & run" title="Close">✕</button>
+            </div>
+            <div class="p-6 space-y-4" id="buildRunModalBody">
+                <div class="flex items-center justify-center py-6">
+                    <span class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full spinning"></span>
+                    <span class="ml-3 text-sm text-slate-400">Loading devices...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_BASE = "";
         let appsList = [];
         let monitoredPaths = [];
         let currentLayout = localStorage.getItem("layout") || "card";
+        let buildRunDir = null;
+        let buildRunPlatform = null;
 
         // Establish SignalR connection for build logs
         const connection = new signalR.HubConnectionBuilder()
@@ -619,7 +637,7 @@
             .build();
 
         connection.on("LogReceived", function (message) {
-            if (message.startsWith("Build process completed") || message.startsWith("Build cancelled by user")) {
+            if (message.startsWith("Build process completed") || message.startsWith("Build cancelled by user") || message.indexOf("launched successfully") >= 0 || message.indexOf("launch failed") >= 0) {
                 currentBuildDir = null;
                 document.getElementById("cancelBuildBtn").classList.add("hidden");
             }
@@ -692,10 +710,12 @@
                 var um = document.getElementById("updateModal");
                 var bm = document.getElementById("bumpConfirmModal");
                 var cm = document.getElementById("confirmModal");
+                var brm = document.getElementById("buildRunModal");
                 if (!vm.classList.contains("hidden")) closeVersionModal();
                 if (!um.classList.contains("hidden")) closeUpdateModal();
                 if (!bm.classList.contains("hidden")) closeBumpConfirm();
                 if (!cm.classList.contains("hidden")) closeConfirmModal();
+                if (!brm.classList.contains("hidden")) closeBuildRunModal();
                 closeRowMenu();
             }
             if (e.key === "Tab") {
@@ -803,9 +823,14 @@
         function openBuildMenu(e, dir) {
             e.stopPropagation();
             showGlobalMenu(e.currentTarget, "build:" + dir, `
-                <button onclick="buildApp('${dir}', 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition flex items-center gap-2" title="Build Android (Debug)">${ICON_BUILD}Android</button>
-                <button onclick="buildApp('${dir}', 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition flex items-center gap-2" title="Build iOS (Debug)">${ICON_BUILD}iOS</button>
-            `, 160);
+                <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-2 pb-1">Build Only</div>
+                <button onclick="buildApp('${dir}', 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build Android (Debug)">${ICON_BUILD}Android</button>
+                <button onclick="buildApp('${dir}', 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build iOS (Debug)">${ICON_BUILD}iOS</button>
+                <div class="border-t border-slate-800 my-1"></div>
+                <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Build & Run</div>
+                <button onclick="openBuildRun('${dir}', 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build & run on Android device/emulator">▶ Android</button>
+                <button onclick="openBuildRun('${dir}', 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition flex items-center gap-2" title="Build & run on iOS device/simulator">▶ iOS</button>
+            `, 200);
         }
 
         function closeRowMenu() {
@@ -1839,6 +1864,173 @@
                         <span class="text-xs text-slate-500">Connection dropped — that's expected while it restarts. Refresh this page in a few seconds.</span>
                     </div>
                 `;
+            }
+        }
+
+        // ── Build & Run ────────────────────────────────────────────────────────────
+
+        function openBuildRun(dir, platform) {
+            buildRunDir = dir;
+            buildRunPlatform = platform;
+
+            const modal = document.getElementById("buildRunModal");
+            const title = document.getElementById("buildRunModalTitle");
+            const body = document.getElementById("buildRunModalBody");
+
+            title.textContent = "Build & Run — " + platform;
+            body.innerHTML = `
+                <div class="flex items-center justify-center py-6">
+                    <span class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full spinning"></span>
+                    <span class="ml-3 text-sm text-slate-400">Loading devices...</span>
+                </div>
+            `;
+            modal.classList.remove("hidden");
+
+            loadBuildRunData(dir, platform);
+        }
+
+        function closeBuildRunModal() {
+            document.getElementById("buildRunModal").classList.add("hidden");
+        }
+
+        async function loadBuildRunData(dir, platform) {
+            try {
+                const [devicesRes, configRes] = await Promise.all([
+                    fetch(API_BASE + "/api/apps/devices", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ dir: dir, platform: platform })
+                    }),
+                    fetch(API_BASE + "/api/apps/config", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ dir: dir, platform: platform })
+                    })
+                ]);
+
+                const devicesData = await devicesRes.json();
+                const configData = await configRes.json();
+
+                renderBuildRunForm(devicesData.devices || devicesData, configData, platform);
+            } catch (err) {
+                const body = document.getElementById("buildRunModalBody");
+                body.innerHTML = '<div class="text-red-400 text-sm text-center py-6">Failed to load: ' + err.message + '</div>';
+            }
+        }
+
+        function renderBuildRunForm(devices, config, platform) {
+            const body = document.getElementById("buildRunModalBody");
+
+            const configs = config.configurations || ["Debug", "Release"];
+            const frameworks = config.frameworks || (platform === "ios" ? ["net10.0-ios"] : ["net10.0-android"]);
+
+            let devicesHtml = "";
+            let prevType = "";
+            devices.forEach(function (d, i) {
+                var label = "";
+                if (d.type === "Device") label = "Physical";
+                else if (d.type === "Simulator") label = "Simulator";
+                else if (d.type === "Emulator") label = "Emulator";
+                else if (d.type === "AVD") label = "AVD";
+                else label = d.type;
+
+                if (label !== prevType) {
+                    var mt = prevType ? "3" : "0";
+                    devicesHtml += '<div class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold px-1 mt-' + mt + ' mb-1">' + label + "</div>";
+                    prevType = label;
+                }
+
+                var shortId = d.id.length > 24 ? d.id.substring(0, 24) + "..." : d.id;
+                devicesHtml +=
+                    '<label class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-800/50 cursor-pointer transition">' +
+                        '<input type="radio" name="brDevice" value="' + d.id + '" data-name="' + d.name + '" data-type="' + d.type + '"' + (i === 0 ? " checked" : "") + ' class="accent-blue-500">' +
+                        '<div>' +
+                            '<div class="text-sm text-white">' + d.name + '</div>' +
+                            '<div class="text-[10px] text-slate-500 font-mono">' + shortId + "</div>" +
+                        "</div>" +
+                    "</label>";
+            });
+
+            if (devices.length === 0) {
+                devicesHtml = '<div class="text-slate-500 text-sm text-center py-4">No devices found.</div>';
+            }
+
+            var configHtml = "";
+            configs.forEach(function (c, i) {
+                var checked = i === 0 ? "checked" : "";
+                configHtml +=
+                    '<label class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800/50 cursor-pointer transition border border-slate-800' + (i === 0 ? " bg-blue-500/10 border-blue-500/30" : "") + '">' +
+                        '<input type="radio" name="brConfig" value="' + c + '" ' + checked + ' class="accent-blue-500">' +
+                        '<span class="text-sm text-white">' + c + "</span>" +
+                    "</label>";
+            });
+
+            var frameworksHtml = "";
+            frameworks.forEach(function (f) {
+                frameworksHtml += '<option value="' + f + '">' + f + "</option>";
+            });
+
+            body.innerHTML =
+                '<div>' +
+                    '<label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Device</label>' +
+                    '<div class="bg-slate-900/50 border border-slate-800 rounded-lg max-h-48 overflow-y-auto space-y-0.5 p-1">' +
+                        devicesHtml +
+                    "</div>" +
+                "</div>" +
+                '<div>' +
+                    '<label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Build Configuration</label>' +
+                    '<div class="flex gap-2 flex-wrap">' +
+                        configHtml +
+                    "</div>" +
+                "</div>" +
+                '<div>' +
+                    '<label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Target Framework</label>' +
+                    '<select id="brFramework" class="input w-full text-sm">' +
+                        frameworksHtml +
+                    "</select>" +
+                "</div>" +
+                '<div class="flex gap-3 pt-2">' +
+                    '<button onclick="closeBuildRunModal()" class="btn-ghost flex-1 py-2.5 text-sm font-semibold">Cancel</button>' +
+                    '<button onclick="executeBuildRun()" class="btn-primary flex-1 py-2.5 text-sm font-semibold" style="background:var(--accent);" title="Build and deploy">\u{1F680} Build & Run</button>' +
+                "</div>";
+        }
+
+        async function executeBuildRun() {
+            var selectedDevice = document.querySelector('input[name="brDevice"]:checked');
+            if (!selectedDevice) { showToast("Please select a device", "error"); return; }
+
+            var config = document.querySelector('input[name="brConfig"]:checked').value;
+            var framework = document.getElementById("brFramework").value;
+            var deviceId = selectedDevice.value;
+            var deviceName = selectedDevice.getAttribute("data-name");
+            var deviceType = selectedDevice.getAttribute("data-type");
+
+            closeBuildRunModal();
+            clearConsole();
+            openTerminal();
+            currentBuildDir = buildRunDir;
+            document.getElementById("cancelBuildBtn").classList.remove("hidden");
+
+            var terminal = document.getElementById("terminalConsole");
+            terminal.innerHTML = '<div class="text-slate-400">[Build & Run] Starting ' + buildRunPlatform + ' build on ' + deviceName + '...</div>';
+
+            try {
+                await fetch(API_BASE + "/api/apps/run", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        dir: buildRunDir,
+                        platform: buildRunPlatform,
+                        deviceId: deviceId,
+                        deviceName: deviceName,
+                        deviceType: deviceType,
+                        configuration: config,
+                        framework: framework
+                    })
+                });
+                showToast("Building for " + deviceName + "...", "info");
+            } catch (err) {
+                showToast("Failed to start build & run: " + err.message, "error");
             }
         }
     </script>
