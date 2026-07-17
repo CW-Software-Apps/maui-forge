@@ -408,7 +408,7 @@
                 </div>
             </div>
 
-            <div class="border-t border-slate-800/60 pt-4">
+            <div class="border-t border-slate-800/60 pt-4 local-only">
                 <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Add Folder</h3>
                 <form id="addPathForm" onsubmit="addPath(event)" class="flex flex-col gap-2">
                     <input type="text" id="newPathInput" placeholder="K:\your\projects" required
@@ -450,10 +450,13 @@
 
                 <!-- Server mode info (after enabling) -->
                 <div id="serverModeInfo" class="hidden space-y-2">
-                    <div class="text-xs bg-blue-950/30 border border-blue-800/30 rounded-lg px-3 py-2 space-y-1">
+                    <div class="text-xs bg-blue-950/30 border border-blue-800/30 rounded-lg px-3 py-2 space-y-1.5">
                         <div class="text-blue-400 font-medium">Server token ready</div>
                         <div id="serverModeToken" class="text-white font-mono text-[10px] break-all"></div>
                         <div id="serverModeCommand" class="text-slate-500 text-[10px]"></div>
+                        <button id="restartServerBtn" onclick="restartInServerMode()" class="btn-primary text-[10px] w-full py-1.5">
+                            Restart in Server Mode
+                        </button>
                     </div>
                     <button onclick="hideServerModeInfo()" class="btn-ghost text-xs w-full py-2">Dismiss</button>
                 </div>
@@ -468,6 +471,10 @@
                     <h2 class="text-lg font-semibold text-white flex items-center gap-2">
                         Applications
                         <span id="appCount" class="text-xs font-normal text-slate-400 bg-slate-900 px-2 py-0.5 rounded-full">0</span>
+                        <span id="remoteBadge" class="hidden text-[10px] font-normal bg-green-950/60 border border-green-700/40 text-green-400 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                            <span id="remoteBadgeText">Remote</span>
+                        </span>
                     </h2>
                     <div class="flex items-center gap-4">
                         <!-- Background Scan Loader Indicator -->
@@ -743,6 +750,7 @@
         .bp-ind-active { background: var(--accent); animation: pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite; }
         .bp-ind-done { background: var(--green); }
         .bp-ind-failed { background: var(--red); }
+        .remote-mode .local-only { display: none; }
     </style>
 
     <script>
@@ -856,7 +864,18 @@
         connection.start().catch(err => console.error("SignalR Connection Error: ", err));
         }
 
+        localApiBase = API_BASE;
         initSignalR();
+        (function autoConnectRemote() {
+            var saved = localStorage.getItem("mauiForgeRemote");
+            if (!saved) return;
+            try {
+                var r = JSON.parse(saved);
+                if (r && r.host && r.port) {
+                    connectToRemote(r.host, r.port, false, r.token);
+                }
+            } catch (e) {}
+        })();
 
         // Toast notification system
         function showToast(message, type) {
@@ -1303,6 +1322,16 @@
             container.innerHTML = html;
         }
 
+        function setRemoteBadge(show, text) {
+            var badge = document.getElementById("remoteBadge");
+            if (show) {
+                document.getElementById("remoteBadgeText").textContent = text || "Remote";
+                badge.classList.remove("hidden");
+            } else {
+                badge.classList.add("hidden");
+            }
+        }
+
         async function enableServerMode() {
             try {
                 const res = await fetch(`${API_BASE}/api/remote/enable-server`, { method: "POST" });
@@ -1310,8 +1339,9 @@
                 document.getElementById("serverModeToken").textContent = "Token: " + data.token;
                 document.getElementById("serverModeCommand").textContent = "Restart: maui-forge --serve --token " + data.token;
                 document.getElementById("serverModeInfo").classList.remove("hidden");
+                showToast("Server token generated. Restart with --serve to bind to 0.0.0.0.", "success");
             } catch (err) {
-                showToast("Failed to enable server mode: " + err.message, "error");
+                showToast("Failed: " + err.message, "error");
             }
         }
 
@@ -1319,54 +1349,89 @@
             document.getElementById("serverModeInfo").classList.add("hidden");
         }
 
+        async function restartInServerMode() {
+            if (!confirm("Restart MAUI Forge in server mode?\n\nThe dashboard will close and reopen on port 5123 accessible from other machines.")) return;
+            var btn = document.getElementById("restartServerBtn");
+            btn.disabled = true;
+            btn.textContent = "Restarting...";
+            try {
+                var res = await fetch(API_BASE + "/api/remote/start-server", { method: "POST" });
+                var data = await res.json();
+                if (data.willRestart) {
+                    showToast("Server restarting... Batch script created. Closing now.", "success");
+                    setTimeout(function () {
+                        fetch(API_BASE + "/api/shutdown", { method: "POST" }).catch(function(){});
+                    }, 300);
+                }
+            } catch (err) {
+                showToast("Failed to restart: " + err.message, "error");
+                btn.disabled = false;
+                btn.textContent = "Restart in Server Mode";
+            }
+        }
+
+        var localApiBase = ""; // always points to local server for scan etc.
+
         async function scanRemoteServers() {
-            const container = document.getElementById("serverScanResult");
-            container.innerHTML = '<div class="text-xs text-slate-500 text-center py-2 animate-pulse">Scanning network...</div>';
+            var loading = '<div class="text-xs text-slate-500 text-center py-2 animate-pulse">Scanning network...</div>';
+            var none = '<div class="text-xs text-slate-500 text-center py-2">No servers found on network</div>';
+            var container = document.getElementById("serverScanResult");
+            container.innerHTML = loading;
             container.classList.remove("hidden");
             try {
-                const res = await fetch(`${API_BASE}/api/remote/scan`);
-                const servers = await res.json();
-                if (servers.length === 0) {
-                    container.innerHTML = '<div class="text-xs text-slate-500 text-center py-2">No servers found on network</div>';
-                    return;
-                }
-                container.innerHTML = '';
+                var res = await fetch(localApiBase + "/api/remote/scan");
+                var servers = await res.json();
+                if (servers.length === 0) { container.innerHTML = none; return; }
+                container.innerHTML = "";
                 servers.forEach(function(s) {
-                    var div = document.createElement("div");
-                    div.className = "flex items-center justify-between bg-slate-900/40 rounded-lg px-2.5 py-2 gap-2";
-                    div.innerHTML = '<div class="flex-1 min-w-0"><div class="text-xs text-white truncate">' + (s.hostname || s.host) + '</div><div class="text-[10px] text-slate-500">' + s.host + ':' + s.port + (s.tokenRequired ? ' · token required' : '') + '</div></div><button onclick="connectToRemote(\'' + s.host + '\',' + s.port + ',' + s.tokenRequired + ')" class="btn-primary text-[10px] px-2.5 py-1">Connect</button>';
-                    container.appendChild(div);
+                    var d = document.createElement("div");
+                    d.className = "flex items-center justify-between bg-slate-900/40 rounded-lg px-2.5 py-2 gap-2";
+                    d.innerHTML = '<div class="flex-1 min-w-0"><div class="text-xs text-white truncate">' + (s.hostname || s.host) + '</div><div class="text-[10px] text-slate-500">' + s.host + ':' + s.port + (s.tokenRequired ? ' · token' : '') + '</div></div><button onclick="connectToRemote(\'' + s.host + '\',' + s.port + ',' + s.tokenRequired + ')" class="btn-primary text-[10px] px-2.5 py-1">Connect</button>';
+                    container.appendChild(d);
                 });
             } catch (err) {
                 container.innerHTML = '<div class="text-xs text-red-400 text-center py-2">Scan failed: ' + err.message + '</div>';
             }
         }
 
-        async function connectToRemote(host, port, tokenRequired) {
-            var token = '';
-            if (tokenRequired) {
-                token = prompt("Enter token for " + host + ":" + port);
+        async function connectToRemote(host, port, tokenRequired, existingToken) {
+            var token = existingToken || "";
+            if (tokenRequired && !token) {
+                token = prompt("Token for " + host + ":" + port);
                 if (!token) return;
+            }
+            try {
+                var test = await origFetch("http://" + host + ":" + port + "/api/remote/info");
+                if (!test.ok) { showToast("Server not reachable at " + host + ":" + port, "error"); return; }
+            } catch (e) {
+                showToast("Server not reachable at " + host + ":" + port, "error");
+                return;
             }
             remoteInfo = { host: host, port: port, token: token };
             API_BASE = "http://" + host + ":" + port;
-            document.getElementById("remoteStatusText").textContent = 'Connected to ' + host + ':' + port;
+            localStorage.setItem("mauiForgeRemote", JSON.stringify(remoteInfo));
+            document.getElementById("remoteStatusText").textContent = host + ":" + port;
             document.getElementById("remoteNotConnected").classList.add("hidden");
             document.getElementById("remoteConnected").classList.remove("hidden");
             document.getElementById("serverScanResult").classList.add("hidden");
+            document.getElementById("sidebar").classList.add("remote-mode");
+            setRemoteBadge(true, host);
             initSignalR();
             loadApps();
-            showToast("Connected to remote server " + host + ":" + port, "success");
+            showToast("Connected to " + host + ":" + port, "success");
         }
 
         function disconnectRemote() {
             remoteInfo = null;
-            API_BASE = "";
+            API_BASE = localApiBase;
+            localStorage.removeItem("mauiForgeRemote");
             document.getElementById("remoteNotConnected").classList.remove("hidden");
             document.getElementById("remoteConnected").classList.add("hidden");
+            document.getElementById("sidebar").classList.remove("remote-mode");
+            setRemoteBadge(false);
             initSignalR();
             loadApps();
-            showToast("Disconnected from remote server", "info");
+            showToast("Disconnected", "info");
         }
 
         async function loadApps() {

@@ -18,12 +18,13 @@ public static class WebStartup
 {
     private static IHubContext<LogHub>? _hubContext;
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Diagnostics.Process> _runningBuilds = new();
-
+    public static string[]? OriginalArgs { get; set; }
     private static string? _serveToken;
 
     public static void Start(string[] args, StateService stateService, AppDiscoveryService discoveryService, VersionService versionService, GitService gitService, BuildService buildService, DeviceService deviceService,
         bool serveMode = false, string? token = null, int port = 5123)
     {
+        OriginalArgs = args;
         _serveToken = serveMode ? token : null;
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -104,6 +105,65 @@ public static class WebStartup
             st.ServeToken = token;
             state.Save(st);
             return Results.Ok(new { token, message = "Server mode configured. Restart with --serve to bind to 0.0.0.0." });
+        });
+
+        // Start server mode (auto-restart)
+        app.MapPost("/api/remote/start-server", (StateService state) =>
+        {
+            var st = state.Load();
+            var token = st.ServeToken ?? Guid.NewGuid().ToString("N")[..12];
+            st.ServeToken = token;
+            state.Save(st);
+
+            var pid = Environment.ProcessId;
+            var selfExe = Environment.ProcessPath ?? "maui-forge";
+            var origArgs = OriginalArgs ?? [];
+            var argStr = string.Join(" ", origArgs.Where(a => a != "--serve" && !a.StartsWith("--token")));
+            var serveArgs = $"--serve --token {token} {argStr}".TrimEnd();
+
+            if (OperatingSystem.IsWindows())
+            {
+                var script = Path.Combine(Path.GetTempPath(), "maui-forge-serve.bat");
+                var batch = "@echo off\r\n" +
+                    "chcp 65001 > nul\r\n" +
+                    "title MAUI Forge Server\r\n" +
+                    $"set \"PID={pid}\"\r\n" +
+                    ":wait\r\n" +
+                    "tasklist /FI \"PID eq %PID%\" 2>NUL | find \"%PID%\" >NUL\r\n" +
+                    "if %ERRORLEVEL% == 0 (timeout /t 1 /nobreak >nul & goto wait)\r\n" +
+                    $"\"{selfExe}\" {serveArgs}\r\n";
+                File.WriteAllText(script, batch);
+                var psi = new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c start \"\" \"{script}\"")
+                {
+                    UseShellExecute = true,
+                    CreateNoWindow = true
+                };
+                System.Diagnostics.Process.Start(psi);
+            }
+            else
+            {
+                var script = Path.Combine(Path.GetTempPath(), "maui-forge-serve.sh");
+                var sh = "#!/bin/bash\n" +
+                    $"PID={pid}\n" +
+                    "while kill -0 $PID 2>/dev/null; do sleep 1; done\n" +
+                    $"exec {selfExe} {serveArgs}\n";
+                File.WriteAllText(script, sh);
+                System.Diagnostics.Process.Start("chmod", $"+x {script}");
+                System.Diagnostics.Process.Start("nohup", $"{script} &");
+            }
+
+            return Results.Ok(new { token, message = "Server restarting...", willRestart = true });
+        });
+
+        // Shutdown server (for restart or quit)
+        app.MapPost("/api/shutdown", () =>
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(300);
+                Environment.Exit(0);
+            });
+            return Results.Ok(new { message = "Server shutting down..." });
         });
 
         // Scan network for remote servers
