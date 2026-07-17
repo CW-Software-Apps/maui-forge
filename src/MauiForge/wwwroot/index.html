@@ -171,6 +171,8 @@
         .spinning { animation: spin 1s linear infinite; }
 
         .btn-primary {
+            display: inline-flex;
+            align-items: center;
             background: var(--accent);
             color: var(--ink-inverse);
             font-weight: 600;
@@ -184,6 +186,8 @@
         .btn-primary:active { background: var(--accent-active); }
 
         .btn-ghost {
+            display: inline-flex;
+            align-items: center;
             background: transparent;
             color: var(--accent);
             font-weight: 500;
@@ -1076,9 +1080,10 @@
         };
         function typeMeta(type) { return TYPE_META[type] || TYPE_META.ClassLibrary; }
 
+        const BRANCH_ICON = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M6 8.5v7M8.5 6H14a4 4 0 0 1 4 4v0"/></svg>`;
         function branchChip(branch) {
             const isMainline = branch === "main" || branch === "master";
-            return `<span class="badge ${isMainline ? "badge-slate" : "badge-purple"}">${branch}</span>`;
+            return `<span class="badge ${isMainline ? "badge-slate" : "badge-purple"} gap-1">${BRANCH_ICON}${branch}</span>`;
         }
 
         // "3d atrás" / "agora" style relative time from the git service's last-commit date.
@@ -1160,6 +1165,10 @@
                 </div>`;
         }
 
+        const ICON_BUMP = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
+        const ICON_BUILD = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12l8.73-5.04M12 22.08V12"/></svg>`;
+        const ICON_FOLDER = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>`;
+
         // Single primary action (Bump & Push) + platform build button(s) + one overflow
         // menu for everything else, instead of 7 same-weight buttons per row.
         function buildRowActions(app, sizeClass) {
@@ -1170,20 +1179,20 @@
             let buildButtons = '';
             if (app.projectType === 'MAUI') {
                 buildButtons = `
-                    <button onclick="buildApp('${dir}', 'Android')" class="btn-ghost ${sizeClass}">Android</button>
-                    <button onclick="buildApp('${dir}', 'iOS')" class="btn-ghost ${sizeClass}">iOS</button>
+                    <button onclick="buildApp('${dir}', 'Android')" class="btn-ghost ${sizeClass} gap-1.5">${ICON_BUILD}Android</button>
+                    <button onclick="buildApp('${dir}', 'iOS')" class="btn-ghost ${sizeClass} gap-1.5">${ICON_BUILD}iOS</button>
                 `;
             } else if (app.projectType === 'WPF') {
-                buildButtons = `<button onclick="buildApp('${dir}', 'Windows')" class="btn-ghost ${sizeClass}">Windows</button>`;
+                buildButtons = `<button onclick="buildApp('${dir}', 'Windows')" class="btn-ghost ${sizeClass} gap-1.5">${ICON_BUILD}Windows</button>`;
             } else if (app.projectType === 'Blazor') {
-                buildButtons = `<button onclick="buildApp('${dir}', 'Web')" class="btn-ghost ${sizeClass}">Web</button>`;
+                buildButtons = `<button onclick="buildApp('${dir}', 'Web')" class="btn-ghost ${sizeClass} gap-1.5">${ICON_BUILD}Web</button>`;
             } else {
-                buildButtons = `<button onclick="openFolder('${dir}')" class="btn-ghost ${sizeClass}">Open Folder</button>`;
+                buildButtons = `<button onclick="openFolder('${dir}')" class="btn-ghost ${sizeClass} gap-1.5">${ICON_FOLDER}Open Folder</button>`;
             }
 
             return `
-                <button onclick="quickBumpVersion('${dir}', '${ver}', '${build}')" class="btn-primary ${sizeClass} font-semibold" title="Bump version +1 and build +1">
-                    Bump +1
+                <button onclick="quickBumpVersion('${dir}', '${ver}', '${build}')" class="btn-primary ${sizeClass} font-semibold gap-1.5" title="Bump version +1 and build +1">
+                    ${ICON_BUMP}Bump +1
                 </button>
                 ${buildButtons}
                 <div class="relative inline-block text-left">
@@ -1290,7 +1299,7 @@
                                </div>`
                             : "";
 
-                        const actionButtons = buildRowActions(app, "text-xs py-1.5 px-2.5");
+                        const actionButtons = buildRowActions(app, "text-[13px] py-2 px-3.5");
 
                         const iconRing = `border-color: color-mix(in oklch, var(${meta.accentVar}) 55%, var(--border)); border-width: 1.5px;`;
                         const appIconHtml = app.iconBase64
@@ -1299,7 +1308,10 @@
 
                         const lastActive = relativeTime(app.git.lastCommit);
                         const lastActiveHtml = lastActive
-                            ? `<span class="text-[11px] text-[var(--ink-muted)] flex-shrink-0" title="Last commit">${lastActive}</span>`
+                            ? `<span class="inline-flex items-center gap-1 text-[11px] text-[var(--ink-muted)] flex-shrink-0" title="Last commit">
+                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+                                 ${lastActive}
+                               </span>`
                             : "";
 
                         card.innerHTML = `
@@ -1315,13 +1327,16 @@
                                                     <span id="ic-${idx}" class="inline-block">&#x21bb;</span>
                                                 </button>
                                             </div>
-                                            <p class="text-xs font-mono text-[var(--ink-muted)] truncate max-w-[300px]" title="${app.dir}">${app.dir}</p>
+                                            <p class="flex items-center gap-1 text-xs font-mono text-[var(--ink-muted)] truncate max-w-[300px]" title="${app.dir}">
+                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+                                                <span class="truncate">${app.dir}</span>
+                                            </p>
                                         </div>
                                     </div>
                                     <div class="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
                                         ${lastActiveHtml}
                                         ${branchChip(app.branch)}
-                                        <span class="${gitBadgeClass}">${gitStatusText}</span>
+                                        <span class="${gitBadgeClass}"><span class="inline-block w-1.5 h-1.5 rounded-full bg-current mr-1 align-middle"></span>${gitStatusText}</span>
                                     </div>
                                 </div>
 
