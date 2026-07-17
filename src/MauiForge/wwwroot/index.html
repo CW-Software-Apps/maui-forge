@@ -1057,6 +1057,45 @@
             return `<span class="inline-flex items-center justify-center w-4 h-4 rounded-[3px] text-[9px] font-bold bg-slate-800 text-slate-500 align-middle">${letter}</span>`;
         }
 
+        // Per-type visual identity: icon shape + accent var, reused for icon ring,
+        // version-row target label, and (via getTechBadge) the tech pill.
+        const TYPE_META = {
+            MAUI: { accentVar: "--indigo-maui", shape: "rounded-xl", targetLabel: "iOS + Android" },
+            Blazor: { accentVar: "--amber", shape: "rounded-full", targetLabel: "Web target" },
+            WPF: { accentVar: "--blue", shape: "rounded-md", targetLabel: "Windows target" },
+            Unity: { accentVar: "--purple", shape: "rounded-[10px]", targetLabel: "Unity project" },
+            ClassLibrary: { accentVar: "--ink-muted", shape: "rounded", targetLabel: "Class library" },
+        };
+        function typeMeta(type) { return TYPE_META[type] || TYPE_META.ClassLibrary; }
+
+        function branchChip(branch) {
+            const isMainline = branch === "main" || branch === "master";
+            return `<span class="badge ${isMainline ? "badge-slate" : "badge-purple"}">${branch}</span>`;
+        }
+
+        // Version panel adapts to what the project actually has instead of a fixed
+        // 3-column P/A/i grid that shows "N/A" twice for non-MAUI projects.
+        function versionPanelHtml(app) {
+            const csprojVer = app.versions.csproj ? `${app.versions.csproj.version} (${app.versions.csproj.build})` : "N/A";
+
+            if (app.projectType === "MAUI") {
+                const iosVer = app.versions.iOS ? `${app.versions.iOS.version} (${app.versions.iOS.build})` : "N/A";
+                const androidVer = app.versions.android ? `${app.versions.android.version} (${app.versions.android.build})` : "N/A";
+                return `
+                    <div class="grid grid-cols-3 gap-3 bg-[var(--bg)] p-3 rounded-lg border border-slate-800/40">
+                        <div class="flex items-center gap-1.5 min-w-0">${platformChip("P")}<span class="text-xs font-mono font-medium text-slate-300 truncate">${csprojVer}</span></div>
+                        <div class="flex items-center gap-1.5 min-w-0">${platformChip("A")}<span class="text-xs font-mono font-medium text-slate-300 truncate">${androidVer}</span></div>
+                        <div class="flex items-center gap-1.5 min-w-0">${platformChip("i")}<span class="text-xs font-mono font-medium text-slate-300 truncate">${iosVer}</span></div>
+                    </div>`;
+            }
+
+            return `
+                <div class="flex items-center justify-between gap-3 bg-[var(--bg)] p-3 rounded-lg border border-slate-800/40">
+                    <div class="flex items-center gap-1.5 min-w-0">${platformChip("P")}<span class="text-xs font-mono font-medium text-slate-300 truncate">${csprojVer}</span></div>
+                    <span class="text-[10px] uppercase tracking-wider text-slate-600 font-semibold flex-shrink-0">${typeMeta(app.projectType).targetLabel}</span>
+                </div>`;
+        }
+
         // Single primary action (Bump & Push) + platform build button(s) + one overflow
         // menu for everything else, instead of 7 same-weight buttons per row.
         function buildRowActions(app, sizeClass) {
@@ -1074,6 +1113,8 @@
                 buildButtons = `<button onclick="buildApp('${dir}', 'Windows')" class="btn-ghost ${sizeClass}">Windows</button>`;
             } else if (app.projectType === 'Blazor') {
                 buildButtons = `<button onclick="buildApp('${dir}', 'Web')" class="btn-ghost ${sizeClass}">Web</button>`;
+            } else {
+                buildButtons = `<button onclick="openFolder('${dir}')" class="btn-ghost ${sizeClass}">Open Folder</button>`;
             }
 
             return `
@@ -1136,43 +1177,45 @@
                 return `<span class="badge badge-slate">ClassLib</span>`;
             };
 
-            const typeAccent = (type) => {
-                if (type === "MAUI") return "indigo";
-                if (type === "Blazor") return "amber";
-                if (type === "Unity") return "slate";
-                if (type === "WPF") return "blue";
-                return "slate";
-            };
-
             if (currentLayout === "card") {
                 const grid = document.createElement("div");
                 grid.className = "grid grid-cols-1 xl:grid-cols-2 gap-6";
-                
+
                 filteredApps.forEach((app, idx) => {
                     const card = document.createElement("div");
-                    card.className = "card";
-                    
                     const isDirty = app.git.dirty;
                     const isBehind = app.git.behind > 0;
                     const gitStatusText = isDirty ? "Dirty" : isBehind ? "Behind" : "Clean";
                     const gitBadgeClass = isDirty ? "badge badge-amber" : isBehind ? "badge badge-red" : "badge badge-green";
-                    
-                    const iosVer = app.versions.iOS ? `${app.versions.iOS.version} (${app.versions.iOS.build})` : "N/A";
-                    const androidVer = app.versions.android ? `${app.versions.android.version} (${app.versions.android.build})` : "N/A";
-                    const csprojVer = app.versions.csproj ? `${app.versions.csproj.version} (${app.versions.csproj.build})` : "N/A";
+                    const meta = typeMeta(app.projectType);
 
-                    const pullWarningHtml = isBehind 
+                    // Behind-remote is the one state that earns extra width: it has an
+                    // action (Pull) the developer actually needs to see, not just note.
+                    let stateStyle = "";
+                    if (isBehind) {
+                        card.className = "card xl:col-span-2";
+                        stateStyle = `border-color: color-mix(in oklch, var(--red) 45%, var(--border));`;
+                    } else if (isDirty) {
+                        card.className = "card";
+                        stateStyle = `border-color: color-mix(in oklch, var(--amber) 40%, var(--border));`;
+                    } else {
+                        card.className = "card";
+                    }
+                    if (stateStyle) card.setAttribute("style", stateStyle);
+
+                    const pullWarningHtml = isBehind
                         ? `<div class="bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg p-2.5 text-xs flex items-center justify-between gap-2">
                              <span><b>Pull pending:</b> ${app.git.behind} commit(s) behind remote.</span>
                              <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" class="bg-amber-500 hover:bg-amber-600 text-[var(--ink-inverse)] font-bold px-2 py-1 rounded transition text-[10px]">PULL</button>
-                           </div>` 
+                           </div>`
                         : "";
 
                     const actionButtons = buildRowActions(app, "text-xs py-1.5 px-2.5");
 
+                    const iconRing = `border-color: color-mix(in oklch, var(${meta.accentVar}) 45%, var(--border));`;
                     const appIconHtml = app.iconBase64
-                        ? `<img src="${app.iconBase64}" class="w-10 h-10 rounded-lg object-contain bg-slate-950/40 border border-slate-800 shadow" alt="${app.name} Icon">`
-                        : iconFallbackHtml(app, "w-10 h-10 rounded-lg border border-slate-800", "text-sm");
+                        ? `<img src="${app.iconBase64}" class="w-10 h-10 ${meta.shape} object-contain bg-slate-950/40 border shadow" style="${iconRing}" alt="${app.name} Icon">`
+                        : iconFallbackHtml(app, `w-10 h-10 ${meta.shape} border`, "text-sm");
 
                     card.innerHTML = `
                         <div class="flex flex-col gap-3.5">
@@ -1190,27 +1233,15 @@
                                         <p class="text-xs font-mono text-slate-600 truncate max-w-[300px]" title="${app.dir}">${app.dir}</p>
                                     </div>
                                 </div>
-                                <span class="${gitBadgeClass} flex-shrink-0 max-w-[180px] truncate" title="${app.branch} · ${gitStatusText}">
-                                    ${app.branch} · ${gitStatusText}
-                                </span>
+                                <div class="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
+                                    ${branchChip(app.branch)}
+                                    <span class="${gitBadgeClass}">${gitStatusText}</span>
+                                </div>
                             </div>
 
                             ${pullWarningHtml}
 
-                            <div class="grid grid-cols-3 gap-3 bg-[var(--bg)] p-3 rounded-lg border border-slate-800/40">
-                                <div class="flex items-center gap-1.5 min-w-0">
-                                    ${platformChip("P")}
-                                    <span class="text-xs font-mono font-medium text-slate-300 truncate">${csprojVer}</span>
-                                </div>
-                                <div class="flex items-center gap-1.5 min-w-0">
-                                    ${platformChip("A")}
-                                    <span class="text-xs font-mono font-medium text-slate-300 truncate">${androidVer}</span>
-                                </div>
-                                <div class="flex items-center gap-1.5 min-w-0">
-                                    ${platformChip("i")}
-                                    <span class="text-xs font-mono font-medium text-slate-300 truncate">${iosVer}</span>
-                                </div>
-                            </div>
+                            ${versionPanelHtml(app)}
 
                             <div class="flex items-center gap-2 flex-wrap">
                                 ${actionButtons}
