@@ -110,7 +110,7 @@ public class AppDiscoveryService(VersionService versions, GitService git)
             if (unityV is null) return null;
 
             var branchU = git.GetBranch(dir);
-            var statusU = git.GetStatus(dir);
+            var statusU = git.FetchAndGetStatus(dir);
             var iconU   = GetAppIconBase64(dir);
 
             return new AppEntry(
@@ -156,7 +156,7 @@ public class AppDiscoveryService(VersionService versions, GitService git)
         if (ios is null && android is null && csprojV is null) return null;
 
         var branch = git.GetBranch(dir);
-        var status = git.GetStatus(dir);
+        var status = git.FetchAndGetStatus(dir);
         var icon   = GetAppIconBase64(dir);
 
         return new AppEntry(

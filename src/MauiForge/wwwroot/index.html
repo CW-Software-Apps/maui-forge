@@ -649,10 +649,16 @@
                     </div>
                 </div>
 
-                <!-- Status / steps -->
-                <div id="bpStatusBar" class="flex items-center gap-3 text-sm">
-                    <span id="bpStatusDot" class="inline-block w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse flex-shrink-0"></span>
-                    <span id="bpStatusText" class="text-slate-300">Starting...</span>
+                <!-- Progress bar + step milestones -->
+                <div class="space-y-2" id="bpProgressArea">
+                    <div class="h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div id="bpProgressFill" class="h-full bg-blue-500 rounded-full transition-all duration-700 ease-out" style="width:0%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs px-0.5">
+                        <div id="bpStepBuild" class="flex items-center gap-1.5 text-slate-500"><span id="bpIndBuild" class="bp-ind bp-ind-pending"></span>Build</div>
+                        <div id="bpStepDeploy" class="flex items-center gap-1.5 text-slate-500"><span id="bpIndDeploy" class="bp-ind bp-ind-pending"></span>Deploy</div>
+                        <div id="bpStepDone" class="flex items-center gap-1.5 text-slate-500"><span id="bpIndDone" class="bp-ind bp-ind-pending"></span>Launch</div>
+                    </div>
                 </div>
 
                 <!-- Log area -->
@@ -681,6 +687,11 @@
         .bp-log-ok { color: var(--green); }
         .bp-log-step { color: var(--accent); font-weight: 600; }
         .bp-log-info { color: rgb(148 163 184); }
+        .bp-ind { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .bp-ind-pending { background: rgb(71 85 105); }
+        .bp-ind-active { background: var(--accent); animation: pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite; }
+        .bp-ind-done { background: var(--green); }
+        .bp-ind-failed { background: var(--red); }
     </style>
 
     <script>
@@ -2122,10 +2133,21 @@
             document.getElementById("bpPlatform").textContent = platform;
             document.getElementById("bpConfig").textContent = config;
 
-            var dot = document.getElementById("bpStatusDot");
-            dot.className = "inline-block w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse flex-shrink-0";
-            document.getElementById("bpStatusText").textContent = "Starting...";
             document.getElementById("bpHeaderIcon").className = "inline-block w-2 h-2 rounded-full bg-blue-400 animate-pulse";
+
+            // Reset progress bar
+            document.getElementById("bpProgressFill").style.width = "0%";
+            document.getElementById("bpProgressFill").className = "h-full bg-blue-500 rounded-full transition-all duration-700 ease-out";
+
+            // Reset step indicators
+            ["Build","Deploy","Done"].forEach(function(s){
+                var ind = document.getElementById("bpInd" + s);
+                ind.className = "bp-ind bp-ind-pending";
+                document.getElementById("bpStep" + s).className = "flex items-center gap-1.5 text-slate-500";
+            });
+            // Activate first step
+            document.getElementById("bpIndBuild").className = "bp-ind bp-ind-active";
+            document.getElementById("bpStepBuild").className = "flex items-center gap-1.5 text-white font-medium";
 
             document.getElementById("bpResult").classList.add("hidden");
             document.getElementById("bpLogContainer").innerHTML = "";
@@ -2143,11 +2165,23 @@
         }
 
         function updateBuildStep(step) {
-            var labels = { build: "Building...", deploy: "Deploying..." };
-            var text = labels[step] || step;
-            document.getElementById("bpStatusText").textContent = text;
-            var dot = document.getElementById("bpStatusDot");
-            dot.className = "inline-block w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse flex-shrink-0";
+            var map = {
+                build:  { pct: 50, done: "Build",       next: "Deploy", nextLabel: "Deploy" },
+                deploy: { pct: 85, done: "Deploy",       next: "Done",   nextLabel: "Launch" }
+            };
+            var info = map[step];
+            if (!info) return;
+
+            // Mark done step
+            document.getElementById("bpInd" + info.done).className = "bp-ind bp-ind-done";
+            document.getElementById("bpStep" + info.done).className = "flex items-center gap-1.5 text-green-400 font-medium";
+
+            // Activate next step
+            document.getElementById("bpInd" + info.next).className = "bp-ind bp-ind-active";
+            document.getElementById("bpStep" + info.next).className = "flex items-center gap-1.5 text-white font-medium";
+
+            // Animate bar
+            document.getElementById("bpProgressFill").style.width = info.pct + "%";
         }
 
         function appendBuildLog(message, className) {
@@ -2168,20 +2202,29 @@
             currentBuildDir = null;
             if (bpTimerInterval) { clearInterval(bpTimerInterval); bpTimerInterval = null; }
 
-            var dot = document.getElementById("bpStatusDot");
             var headerIcon = document.getElementById("bpHeaderIcon");
+            var bar = document.getElementById("bpProgressFill");
 
             if (success) {
-                dot.className = "inline-block w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0";
                 headerIcon.className = "inline-block w-2 h-2 rounded-full bg-green-500";
-                document.getElementById("bpStatusText").textContent = "Done \u2713";
+                bar.style.width = "100%";
+                bar.className = "h-full bg-green-500 rounded-full transition-all duration-700 ease-out";
+                document.getElementById("bpIndDone").className = "bp-ind bp-ind-done";
+                document.getElementById("bpStepDone").className = "flex items-center gap-1.5 text-green-400 font-medium";
                 document.getElementById("bpResultIcon").textContent = "\u2705";
                 document.getElementById("bpResultText").textContent = "Launched successfully";
                 document.getElementById("bpResultText").className = "text-base font-semibold text-green-400";
             } else {
-                dot.className = "inline-block w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0";
                 headerIcon.className = "inline-block w-2 h-2 rounded-full bg-red-500";
-                document.getElementById("bpStatusText").textContent = "Failed \u2717";
+                bar.className = "h-full bg-red-500 rounded-full transition-all duration-700 ease-out";
+                // Mark active step as failed
+                ["Build","Deploy","Done"].forEach(function(s){
+                    var ind = document.getElementById("bpInd" + s);
+                    if (ind.className.indexOf("bp-ind-active") >= 0 || ind.className.indexOf("bp-ind-pending") >= 0) {
+                        ind.className = "bp-ind bp-ind-failed";
+                        document.getElementById("bpStep" + s).className = "flex items-center gap-1.5 text-red-400 font-medium";
+                    }
+                });
                 document.getElementById("bpResultIcon").textContent = "\u274C";
                 document.getElementById("bpResultText").textContent = "Launch failed";
                 document.getElementById("bpResultText").className = "text-base font-semibold text-red-400";
