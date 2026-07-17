@@ -508,6 +508,17 @@
         </main>
     </div>
 
+    <!-- Footer -->
+    <div class="flex-shrink-0 border-t border-slate-800/50 bg-slate-950 px-6 py-2.5 flex items-center justify-between text-[11px] text-slate-600">
+        <span>
+            Developed by
+            <a href="https://cwsoftware.com.br" target="_blank" rel="noopener noreferrer" class="text-slate-500 hover:text-[var(--accent)] transition-colors font-medium">CW SOFTWARE - SOLUÇÕES DIGITAIS</a>
+        </span>
+        <a href="https://cwsoftware.com.br" target="_blank" rel="noopener noreferrer" class="text-slate-600 hover:text-[var(--accent)] transition-colors">
+            cwsoftware.com.br
+        </a>
+    </div>
+
     <!-- Toast notifications -->
     <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
@@ -724,6 +735,7 @@
                     return;
                 }
                 if (message.indexOf("launch failed") >= 0) {
+                    appendBuildLog(message, "bp-log-error");
                     finalizeBuildProgress(false);
                     return;
                 }
@@ -2188,7 +2200,19 @@
             var container = document.getElementById("bpLogContainer");
             var line = document.createElement("div");
             line.textContent = message;
-            line.className = className || "bp-log-info";
+
+            if (className) {
+                line.className = className;
+            } else if (/[Ee]rror|FAILED|failed|error MSB|: error\b/.test(message)) {
+                line.className = "bp-log-error";
+            } else if (/[Ww]arning/.test(message)) {
+                line.className = "bp-log-warn";
+            } else if (message.startsWith("===")) {
+                line.className = "bp-log-step";
+            } else {
+                line.className = "bp-log-info";
+            }
+
             container.appendChild(line);
             container.scrollTop = container.scrollHeight;
 
@@ -2204,6 +2228,10 @@
 
             var headerIcon = document.getElementById("bpHeaderIcon");
             var bar = document.getElementById("bpProgressFill");
+            var elapsed = Math.floor((Date.now() - buildProgressStartTime) / 1000);
+            var m = Math.floor(elapsed / 60);
+            var s = elapsed % 60;
+            document.getElementById("bpResultDetail").textContent = "Completed in " + m + ":" + (s < 10 ? "0" : "") + s;
 
             if (success) {
                 headerIcon.className = "inline-block w-2 h-2 rounded-full bg-green-500";
@@ -2217,7 +2245,8 @@
             } else {
                 headerIcon.className = "inline-block w-2 h-2 rounded-full bg-red-500";
                 bar.className = "h-full bg-red-500 rounded-full transition-all duration-700 ease-out";
-                // Mark active step as failed
+
+                // Mark active/pending steps as failed
                 ["Build","Deploy","Done"].forEach(function(s){
                     var ind = document.getElementById("bpInd" + s);
                     if (ind.className.indexOf("bp-ind-active") >= 0 || ind.className.indexOf("bp-ind-pending") >= 0) {
@@ -2225,15 +2254,46 @@
                         document.getElementById("bpStep" + s).className = "flex items-center gap-1.5 text-red-400 font-medium";
                     }
                 });
+
+                // Collect last error lines from logs
+                var logContainer = document.getElementById("bpLogContainer");
+                var errorLines = logContainer.querySelectorAll(".bp-log-error");
+                var lastErrors = [];
+                for (var i = Math.max(0, errorLines.length - 5); i < errorLines.length; i++) {
+                    lastErrors.push(errorLines[i].textContent);
+                }
+
                 document.getElementById("bpResultIcon").textContent = "\u274C";
                 document.getElementById("bpResultText").textContent = "Launch failed";
                 document.getElementById("bpResultText").className = "text-base font-semibold text-red-400";
-            }
 
-            var elapsed = Math.floor((Date.now() - buildProgressStartTime) / 1000);
-            var m = Math.floor(elapsed / 60);
-            var s = elapsed % 60;
-            document.getElementById("bpResultDetail").textContent = "Completed in " + m + ":" + (s < 10 ? "0" : "") + s;
+                // Add error excerpt below result header
+                var existingExcerpt = document.getElementById("bpErrorExcerpt");
+                if (existingExcerpt) existingExcerpt.remove();
+
+                if (lastErrors.length > 0) {
+                    var excerpt = document.createElement("div");
+                    excerpt.id = "bpErrorExcerpt";
+                    excerpt.className = "w-full text-left";
+                    var title = document.createElement("div");
+                    title.className = "text-[10px] uppercase tracking-wider text-red-500 font-semibold mb-1";
+                    title.textContent = "Last errors";
+                    excerpt.appendChild(title);
+                    lastErrors.forEach(function(err){
+                        var e = document.createElement("div");
+                        e.textContent = err;
+                        e.className = "text-xs text-red-400 font-mono leading-relaxed";
+                        excerpt.appendChild(e);
+                    });
+                    // Insert after result icon
+                    document.getElementById("bpResultIcon").after(excerpt);
+                }
+
+                // Scroll log to show error lines
+                if (errorLines.length > 0) {
+                    errorLines[errorLines.length - 1].scrollIntoView({ block: "nearest" });
+                }
+            }
 
             document.getElementById("bpResult").classList.remove("hidden");
         }
