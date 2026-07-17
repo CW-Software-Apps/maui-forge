@@ -162,6 +162,15 @@
             font-family: 'JetBrains Mono', monospace;
         }
 
+        /* Fits as many columns as actually fit the available width instead of a
+           hard 1-column/2-column jump at a fixed breakpoint (sidebar width, window
+           size, and monitor size all shift what "fits" means). */
+        .app-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+            gap: 1.25rem;
+        }
+
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: var(--bg); }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -954,7 +963,7 @@
 
         function renderSkeletons() {
             const container = document.getElementById("appsContainer");
-            var html = '<div class="grid grid-cols-1 xl:grid-cols-2 gap-6">';
+            var html = '<div class="app-grid">';
             for (var i = 0; i < 4; i++) {
                 html += '<div class="card"><div class="flex items-start justify-between"><div class="flex items-center gap-3"><div class="skeleton" style="width:40px;height:40px;"></div><div><div class="skeleton" style="width:120px;height:16px;margin-bottom:6px;"></div><div class="skeleton" style="width:200px;height:12px;"></div></div></div><div class="skeleton" style="width:80px;height:18px;"></div></div><div class="skeleton" style="width:100%;height:48px;margin-top:12px;"></div><div class="grid grid-cols-3 gap-3" style="margin-top:12px;"><div class="skeleton" style="height:36px;"></div><div class="skeleton" style="height:36px;"></div><div class="skeleton" style="height:36px;"></div></div></div>';
             }
@@ -1267,7 +1276,7 @@
                     section.appendChild(header);
 
                     const grid = document.createElement("div");
-                    grid.className = "grid grid-cols-1 xl:grid-cols-2 gap-5";
+                    grid.className = "app-grid";
 
                     sortByUrgency(groupAppsRaw).forEach((app) => {
                         const idx = globalIdx++;
@@ -1282,7 +1291,7 @@
                         // action (Pull) the developer actually needs to see, not just note.
                         let stateStyle = "";
                         if (isBehind) {
-                            card.className = "card xl:col-span-2";
+                            card.className = "card col-span-2";
                             stateStyle = `border-color: color-mix(in oklch, var(--red) 45%, var(--border));`;
                         } else if (isDirty) {
                             card.className = "card";
