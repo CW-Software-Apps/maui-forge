@@ -354,7 +354,7 @@
             <div>
                 <div class="flex items-center gap-2">
                     <h1 class="text-xl font-bold tracking-tight text-white">MAUI Forge</h1>
-                    <span id="versionBadge" class="badge badge-slate mono">v---</span>
+                    <span id="versionBadge" class="badge badge-slate mono" title="Checking installed version...">…</span>
                 </div>
                 <p class="text-xs text-slate-500">Version & Build Manager</p>
             </div>
@@ -691,10 +691,33 @@
                 var vm = document.getElementById("versionModal");
                 var um = document.getElementById("updateModal");
                 var bm = document.getElementById("bumpConfirmModal");
+                var cm = document.getElementById("confirmModal");
                 if (!vm.classList.contains("hidden")) closeVersionModal();
                 if (!um.classList.contains("hidden")) closeUpdateModal();
                 if (!bm.classList.contains("hidden")) closeBumpConfirm();
+                if (!cm.classList.contains("hidden")) closeConfirmModal();
                 closeRowMenu();
+            }
+            if (e.key === "Tab") {
+                // Real focus cycling: previously only the first field got initial
+                // focus on open, so Tab/Shift+Tab could walk a keyboard user
+                // straight out of the modal and behind the overlay.
+                var openModal = Array.from(document.querySelectorAll(".modal-overlay")).find(function (m) { return !m.classList.contains("hidden"); });
+                if (openModal) {
+                    var focusable = Array.from(openModal.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+                        .filter(function (el) { return !el.disabled && el.offsetParent !== null; });
+                    if (focusable.length > 0) {
+                        var first = focusable[0];
+                        var last = focusable[focusable.length - 1];
+                        if (e.shiftKey && document.activeElement === first) {
+                            e.preventDefault();
+                            last.focus();
+                        } else if (!e.shiftKey && document.activeElement === last) {
+                            e.preventDefault();
+                            first.focus();
+                        }
+                    }
+                }
             }
             if ((e.ctrlKey || e.metaKey) && e.key === "f") {
                 e.preventDefault();
@@ -742,15 +765,28 @@
         // main content area, which clips (or paints under) anything that extends
         // past its bounds or the sidebar next to it — position:fixed escapes that
         // stacking/overflow context entirely, per the dropdown-clipping rule.
-        function openRowMenu(e, dir, ver, build) {
-            e.stopPropagation();
+        function showGlobalMenu(trigger, key, html, menuWidth) {
             const menu = document.getElementById("globalRowMenu");
-            const trigger = e.currentTarget;
-            const reopening = menu.dataset.openFor === dir && !menu.classList.contains("hidden");
+            const reopening = menu.dataset.openFor === key && !menu.classList.contains("hidden");
             closeRowMenu();
             if (reopening) return;
 
-            menu.innerHTML = `
+            menu.innerHTML = html;
+            const width = menuWidth || 192;
+            const rect = trigger.getBoundingClientRect();
+            const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8));
+            menu.style.width = width + "px";
+            menu.style.left = left + "px";
+            menu.style.bottom = (window.innerHeight - rect.top + 6) + "px";
+            menu.style.top = "auto";
+            menu.dataset.openFor = key;
+            menu.classList.remove("hidden");
+            trigger.setAttribute("aria-expanded", "true");
+        }
+
+        function openRowMenu(e, dir, ver, build) {
+            e.stopPropagation();
+            showGlobalMenu(e.currentTarget, "row:" + dir, `
                 <button onclick="openVersionUpdate('${dir}', '${ver}', '${build}'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition flex items-center gap-2" title="Manually set version and build number">${ICON_HASH}Update Version</button>
                 <button onclick="pullGit('${dir}'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="git pull from remote">${ICON_PULL}Pull</button>
                 <button onclick="openFolder('${dir}'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project folder in File Explorer">${ICON_FOLDER}Open Folder</button>
@@ -758,17 +794,18 @@
                 <button onclick="openIDE('${dir}', 'vs'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project in Visual Studio">${ICON_IDE}Visual Studio</button>
                 <button onclick="openIDE('${dir}', 'vscode'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project in VS Code">${ICON_IDE}VS Code</button>
                 <button onclick="openIDE('${dir}', 'rider'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition flex items-center gap-2" title="Open project in Rider">${ICON_IDE}Rider</button>
-            `;
+            `);
+        }
 
-            const rect = trigger.getBoundingClientRect();
-            const menuWidth = 192;
-            const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
-            menu.style.left = left + "px";
-            menu.style.bottom = (window.innerHeight - rect.top + 6) + "px";
-            menu.style.top = "auto";
-            menu.dataset.openFor = dir;
-            menu.classList.remove("hidden");
-            trigger.setAttribute("aria-expanded", "true");
+        // Collapses the Android/iOS build buttons into one "Build" trigger — a MAUI
+        // card previously showed 5 same-weight buttons (Bump+1, Build+1, Android,
+        // iOS, overflow), past the ~4-choice cognitive load guideline.
+        function openBuildMenu(e, dir) {
+            e.stopPropagation();
+            showGlobalMenu(e.currentTarget, "build:" + dir, `
+                <button onclick="buildApp('${dir}', 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition flex items-center gap-2" title="Build Android (Debug)">${ICON_BUILD}Android</button>
+                <button onclick="buildApp('${dir}', 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition flex items-center gap-2" title="Build iOS (Debug)">${ICON_BUILD}iOS</button>
+            `, 160);
         }
 
         function closeRowMenu() {
@@ -942,8 +979,11 @@
                 const data = await res.json();
                 const badge = document.getElementById("versionBadge");
                 badge.textContent = `v${data.currentVersion}`;
+                badge.title = "";
             } catch {
-                document.getElementById("versionBadge").textContent = "v---";
+                const badge = document.getElementById("versionBadge");
+                badge.textContent = "v?";
+                badge.title = "Could not determine installed version";
             }
         }
 
@@ -1007,6 +1047,7 @@
                 });
             } catch (err) {
                 console.error("Failed to load paths:", err);
+                showToast("Failed to load monitored folders: " + err.message, "error");
             }
         }
 
@@ -1032,6 +1073,7 @@
                 }
             } catch (err) {
                 console.error("Failed to add path:", err);
+                showToast("Failed to add directory: " + err.message, "error");
             }
         }
 
@@ -1052,6 +1094,7 @@
                     loadApps();
                 } catch (err) {
                     console.error("Failed to remove path:", err);
+                    showToast("Failed to remove directory: " + err.message, "error");
                 }
             });
         }
@@ -1108,6 +1151,7 @@
                 }
             } catch (err) {
                 console.error("Failed to refresh app:", err);
+                showToast("Failed to refresh: " + err.message, "error");
             } finally {
                 if (icon) icon.classList.remove("spinning");
             }
@@ -1122,6 +1166,7 @@
                 });
             } catch (err) {
                 console.error(err);
+                showToast("Failed to open folder: " + err.message, "error");
             }
         }
 
@@ -1137,6 +1182,7 @@
                 }
             } catch (err) {
                 console.error(err);
+                showToast("Failed to open IDE: " + err.message, "error");
             }
         }
 
@@ -1169,11 +1215,6 @@
             return `<div class="${boxClass} flex items-center justify-center ${textClass} font-bold select-none" style="background:${bg};color:${fg};">${initial}</div>`;
         }
 
-        const PLATFORM_CHIP_LABEL = { P: "Project file (.csproj) version", A: "Android version", i: "iOS version" };
-        function platformChip(letter) {
-            return `<span class="inline-flex items-center justify-center w-4 h-4 rounded-[3px] text-[9px] font-bold bg-slate-800 text-slate-500 align-middle" title="${PLATFORM_CHIP_LABEL[letter] || letter}">${letter}</span>`;
-        }
-
         // Per-type visual identity: icon shape + accent var, reused for icon ring,
         // version-row target label, and (via getTechBadge) the tech pill.
         const TYPE_META = {
@@ -1192,22 +1233,22 @@
             return `<span class="badge ${isMainline ? "badge-slate" : "badge-purple"} gap-1" title="${title}">${BRANCH_ICON}${branch}</span>`;
         }
 
-        // "3d atrás" / "agora" style relative time from the git service's last-commit date.
+        // "3d ago" / "now" style relative time from the git service's last-commit date.
         function relativeTime(iso) {
             if (!iso) return null;
             const then = new Date(iso).getTime();
             if (Number.isNaN(then)) return null;
             const diffMs = Date.now() - then;
             const diffMin = Math.floor(diffMs / 60000);
-            if (diffMin < 1) return "agora";
-            if (diffMin < 60) return `${diffMin}min atrás`;
+            if (diffMin < 1) return "now";
+            if (diffMin < 60) return `${diffMin}min ago`;
             const diffHr = Math.floor(diffMin / 60);
-            if (diffHr < 24) return `${diffHr}h atrás`;
+            if (diffHr < 24) return `${diffHr}h ago`;
             const diffDay = Math.floor(diffHr / 24);
-            if (diffDay < 30) return `${diffDay}d atrás`;
+            if (diffDay < 30) return `${diffDay}d ago`;
             const diffMonth = Math.floor(diffDay / 30);
-            if (diffMonth < 12) return `${diffMonth}m atrás`;
-            return `${Math.floor(diffMonth / 12)}a atrás`;
+            if (diffMonth < 12) return `${diffMonth}mo ago`;
+            return `${Math.floor(diffMonth / 12)}y ago`;
         }
 
         // Groups apps under the monitored root that actually contains them (longest
@@ -1267,34 +1308,65 @@
                 </div>`;
         }
 
+        // Single source of truth for "what version fields does this app actually
+        // have" — consumed by both the card grid panel and the table/list row, so
+        // they can never drift out of sync with each other again (they did once:
+        // List view kept the old fixed P/A/i layout after Card view was fixed).
+        function versionEntries(app) {
+            const csprojVer = app.versions.csproj ? `${app.versions.csproj.version} (${app.versions.csproj.build})` : "N/A";
+            if (app.projectType === "MAUI") {
+                const androidVer = app.versions.android ? `${app.versions.android.version} (${app.versions.android.build})` : "N/A";
+                const iosVer = app.versions.iOS ? `${app.versions.iOS.version} (${app.versions.iOS.build})` : "N/A";
+                return [
+                    { icon: ICON_PROJECT, label: "Project", value: csprojVer, title: "Project file (.csproj) version — used as the source of truth for Bump +1" },
+                    { icon: ICON_ANDROID, label: "Android", value: androidVer, title: "Android version, read from AndroidManifest.xml" },
+                    { icon: ICON_IOS, label: "iOS", value: iosVer, title: "iOS version, read from Info.plist" },
+                ];
+            }
+            return [
+                { icon: ICON_PROJECT, label: "Project", value: csprojVer, title: "Project file (.csproj) version — used as the source of truth for Bump +1" },
+            ];
+        }
+
         // Version panel adapts to what the project actually has instead of a fixed
         // 3-column P/A/i grid that shows "N/A" twice for non-MAUI projects.
         function versionPanelHtml(app) {
-            const csprojVer = app.versions.csproj ? `${app.versions.csproj.version} (${app.versions.csproj.build})` : "N/A";
-
-            if (app.projectType === "MAUI") {
-                const iosVer = app.versions.iOS ? `${app.versions.iOS.version} (${app.versions.iOS.build})` : "N/A";
-                const androidVer = app.versions.android ? `${app.versions.android.version} (${app.versions.android.build})` : "N/A";
+            const entries = versionEntries(app);
+            if (entries.length === 3) {
                 return `
                     <div class="grid grid-cols-3 gap-3 bg-[var(--bg)] p-3 rounded-lg border border-slate-800/40">
-                        ${versionField(ICON_PROJECT, "Project", csprojVer, "Project file (.csproj) version — used as the source of truth for Bump +1")}
-                        ${versionField(ICON_ANDROID, "Android", androidVer, "Android version, read from AndroidManifest.xml")}
-                        ${versionField(ICON_IOS, "iOS", iosVer, "iOS version, read from Info.plist")}
+                        ${entries.map(e => versionField(e.icon, e.label, e.value, e.title)).join("")}
                     </div>`;
             }
 
             return `
                 <div class="flex items-center justify-between gap-3 bg-[var(--bg)] p-3 rounded-lg border border-slate-800/40">
-                    ${versionField(ICON_PROJECT, "Project", csprojVer, "Project file (.csproj) version — used as the source of truth for Bump +1")}
+                    ${versionField(entries[0].icon, entries[0].label, entries[0].value, entries[0].title)}
                     <span class="text-[10px] uppercase tracking-wider text-slate-600 font-semibold flex-shrink-0" title="This project type builds for this target only">${typeMeta(app.projectType).targetLabel}</span>
                 </div>`;
+        }
+
+        // Compact stacked rendering of the same versionEntries() data, sized for a
+        // dense table row instead of the boxed card panel.
+        function tableVersionHtml(app) {
+            const entries = versionEntries(app);
+            const rows = entries.map(e => `
+                <div class="flex items-center gap-1.5 mb-1 last:mb-0" title="${e.title}">
+                    <span class="flex-shrink-0 text-[var(--ink-muted)]">${e.icon}</span>
+                    <span class="text-[9px] uppercase tracking-wider text-[var(--ink-muted)] font-semibold w-12 flex-shrink-0">${e.label}</span>
+                    <span class="font-mono">${e.value}</span>
+                </div>`).join("");
+            if (entries.length === 1) {
+                return rows + `<div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold mt-1">${typeMeta(app.projectType).targetLabel}</div>`;
+            }
+            return rows;
         }
 
         const ICON_BUMP = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
         const ICON_BUILD = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12l8.73-5.04M12 22.08V12"/></svg>`;
         const ICON_FOLDER = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>`;
         const ICON_HASH = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L7 20M17 4l-2 16M4 9h16M3 15h16"/></svg>`;
-        const ICON_CHEVRON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>`;
+        const ICON_CHEVRON_SM = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`;
         const ICON_PULL = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>`;
         const ICON_IDE = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13 6l-2 12"/></svg>`;
 
@@ -1308,8 +1380,7 @@
             let buildButtons = '';
             if (app.projectType === 'MAUI') {
                 buildButtons = `
-                    <button onclick="buildApp('${dir}', 'Android')" class="btn-ghost ${sizeClass} gap-1.5" title="Build Android (Debug)">${ICON_BUILD}Android</button>
-                    <button onclick="buildApp('${dir}', 'iOS')" class="btn-ghost ${sizeClass} gap-1.5" title="Build iOS (Debug)">${ICON_BUILD}iOS</button>
+                    <button onclick="openBuildMenu(event, '${dir}')" class="btn-ghost ${sizeClass} gap-1.5" aria-haspopup="true" aria-expanded="false" title="Build for Android or iOS (Debug)">${ICON_BUILD}Build${ICON_CHEVRON_SM}</button>
                 `;
             } else if (app.projectType === 'WPF') {
                 buildButtons = `<button onclick="buildApp('${dir}', 'Windows')" class="btn-ghost ${sizeClass} gap-1.5" title="Build Windows (Debug)">${ICON_BUILD}Windows</button>`;
@@ -1497,10 +1568,6 @@
                 filteredApps.forEach((app, idx) => {
                     const isBehind = app.git.behind > 0;
 
-                    const iosVer = app.versions.iOS ? `${app.versions.iOS.version} (${app.versions.iOS.build})` : "N/A";
-                    const androidVer = app.versions.android ? `${app.versions.android.version} (${app.versions.android.build})` : "N/A";
-                    const csprojVer = app.versions.csproj ? `${app.versions.csproj.version} (${app.versions.csproj.build})` : "N/A";
-
                     const pullAlert = isBehind
                         ? `<span class="badge badge-red">${app.git.behind} behind</span>`
                         : "";
@@ -1529,9 +1596,7 @@
                                 </div>
                             </td>
                             <td class="px-4 py-3.5 font-mono text-slate-400">
-                                <div class="flex items-center gap-1.5 mb-1">${platformChip("P")}<span>${csprojVer}</span></div>
-                                <div class="flex items-center gap-1.5 mb-1">${platformChip("A")}<span>${androidVer}</span></div>
-                                <div class="flex items-center gap-1.5">${platformChip("i")}<span>${iosVer}</span></div>
+                                ${tableVersionHtml(app)}
                             </td>
                             <td class="px-4 py-3.5">
                                 <div class="flex items-center gap-1.5 flex-wrap">
@@ -1578,6 +1643,7 @@
                 }
             } catch (err) {
                 console.error("Failed to update version:", err);
+                showToast("Failed to update version: " + err.message, "error");
             }
         }
 
@@ -1608,6 +1674,7 @@
                 refreshSingleApp(dir);
             } catch (err) {
                 console.error(err);
+                showToast("Pull failed: " + err.message, "error");
             }
         }
 
@@ -1626,6 +1693,7 @@
                 });
             } catch (err) {
                 console.error(err);
+                showToast("Failed to start build: " + err.message, "error");
             }
         }
 
