@@ -171,6 +171,21 @@
             gap: 1.25rem;
         }
 
+        #sidebar {
+            transition: width 200ms ease-out, padding 200ms ease-out, opacity 150ms ease-out;
+        }
+        #sidebar.sidebar-collapsed {
+            width: 0 !important;
+            min-width: 0 !important;
+            padding: 0 !important;
+            opacity: 0;
+            border-color: transparent !important;
+            overflow: hidden;
+        }
+
+        #terminalPanel { transition: height 200ms ease-out; }
+        #terminalToggleIcon { transition: transform 200ms ease-out; }
+
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: var(--bg); }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -373,10 +388,20 @@
         <!-- Mobile sidebar backdrop -->
         <div id="sidebarBackdrop" class="sidebar-drawer-backdrop" onclick="toggleSidebar()"></div>
 
+        <!-- Collapsed-state re-expand handle -->
+        <button id="sidebarExpandTab" onclick="toggleSidebarCollapse()" class="hidden items-center justify-center w-5 border-r border-[var(--border)] bg-[var(--chrome)] hover:bg-[var(--surface-hover)] transition flex-shrink-0" aria-label="Expand monitored folders" title="Expand monitored folders">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+
         <!-- Sidebar: Monitored Folders -->
         <aside id="sidebar" class="w-80 border-r border-slate-800 bg-[var(--chrome)] p-6 flex flex-col gap-6 overflow-y-auto flex-shrink-0 sidebar-drawer">
             <div>
-                <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Monitored Folders</h2>
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Monitored Folders</h2>
+                    <button onclick="toggleSidebarCollapse()" class="text-[var(--ink-muted)] hover:text-[var(--ink)] transition" aria-label="Collapse monitored folders" title="Collapse monitored folders">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                </div>
                 <div id="pathsList" class="flex flex-col gap-2">
                     <!-- Path items injected here -->
                 </div>
@@ -456,18 +481,20 @@
                 </div>
             </div>
 
-            <!-- Real-time Terminal Logs section -->
-            <div class="h-64 border-t border-slate-800 bg-slate-950 flex flex-col overflow-hidden flex-shrink-0">
-                <div class="bg-slate-900/60 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+            <!-- Real-time Terminal Logs section: closed by default, opens itself
+                 whenever a build/pull/bump-push actually produces output. -->
+            <div id="terminalPanel" class="border-t border-slate-800 bg-slate-950 flex flex-col overflow-hidden flex-shrink-0" style="height: 2.75rem;">
+                <div class="bg-slate-900/60 px-4 py-2 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
+                    <button onclick="toggleTerminal()" class="flex items-center gap-2 min-w-0" aria-label="Toggle terminal" title="Show/hide build output">
+                        <svg id="terminalToggleIcon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                        <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse flex-shrink-0"></span>
                         <span class="text-xs font-semibold text-slate-400 tracking-wide uppercase">Build Output Terminal</span>
-                    </div>
+                    </button>
                     <div class="flex items-center gap-2">
                         <button id="cancelBuildBtn" onclick="cancelBuild()" class="hidden text-red-400 hover:text-red-300 text-xs px-2 py-0.5 rounded hover:bg-slate-800 transition font-semibold">
                             Cancel Build
                         </button>
-                        <button onclick="clearConsole()" class="text-slate-500 hover:text-slate-300 text-xs px-2 py-0.5 rounded hover:bg-slate-800 transition">
+                        <button onclick="clearConsole()" class="text-slate-500 hover:text-slate-300 text-xs px-2 py-0.5 rounded hover:bg-slate-800 transition" title="Clear terminal output">
                             Clear
                         </button>
                     </div>
@@ -591,6 +618,7 @@
                 document.getElementById("cancelBuildBtn").classList.add("hidden");
             }
 
+            openTerminal();
             const consoleEl = document.getElementById("terminalConsole");
             const wasAtBottom = consoleEl.scrollHeight - consoleEl.clientHeight <= consoleEl.scrollTop + 10;
 
@@ -676,6 +704,31 @@
             backdrop.classList.toggle("open");
         }
 
+        // Desktop sidebar collapse (separate from the mobile drawer above),
+        // persisted across sessions since it's a workspace preference.
+        function applySidebarCollapsed(collapsed) {
+            document.getElementById("sidebar").classList.toggle("sidebar-collapsed", collapsed);
+            var tab = document.getElementById("sidebarExpandTab");
+            tab.classList.toggle("hidden", !collapsed);
+            tab.classList.toggle("flex", collapsed);
+        }
+        function toggleSidebarCollapse() {
+            var collapsed = !document.getElementById("sidebar").classList.contains("sidebar-collapsed");
+            applySidebarCollapsed(collapsed);
+            localStorage.setItem("sidebarCollapsed", collapsed ? "1" : "0");
+        }
+
+        // Terminal: closed by default every load; opens itself the moment a build,
+        // pull, or bump-push actually produces output the user needs to see.
+        let terminalOpen = false;
+        function setTerminalOpen(open) {
+            terminalOpen = open;
+            document.getElementById("terminalPanel").style.height = open ? "16rem" : "2.75rem";
+            document.getElementById("terminalToggleIcon").style.transform = open ? "rotate(90deg)" : "rotate(0deg)";
+        }
+        function toggleTerminal() { setTerminalOpen(!terminalOpen); }
+        function openTerminal() { if (!terminalOpen) setTerminalOpen(true); }
+
         // Row overflow menu toggle (click-based, not hover-only)
         function toggleRowMenu(e) {
             e.stopPropagation();
@@ -737,6 +790,18 @@
             showBumpConfirm(dir, newVersion, newBuild);
         }
 
+        // Same push pipeline as quickBumpVersion, but leaves the version string
+        // untouched and only increments the build number (CI/internal test builds).
+        function quickBumpBuildOnly(dir, currentVersion, currentBuild) {
+            var buildNum = parseInt(currentBuild, 10);
+            var newBuild = isNaN(buildNum) ? "1" : String(buildNum + 1);
+
+            document.getElementById("modalAppDir").value = dir;
+            document.getElementById("modalOriginalVersion").value = currentVersion || "";
+            document.getElementById("modalOriginalBuild").value = currentBuild || "";
+            showBumpConfirm(dir, currentVersion || "1.0.0", newBuild);
+        }
+
         function closeVersionModal() {
             document.getElementById("versionModal").classList.add("hidden");
         }
@@ -789,6 +854,7 @@
 
         async function executeBumpPush() {
             closeBumpConfirm();
+            openTerminal();
             var terminal = document.getElementById("terminalConsole");
             terminal.innerHTML = '<div class="text-slate-400">[Bump & Push] Writing version and pushing commits...</div>';
 
@@ -825,6 +891,7 @@
             updateLayoutButtons();
             loadVersionInfo();
             updateThemeToggle();
+            applySidebarCollapsed(localStorage.getItem("sidebarCollapsed") === "1");
         });
 
         // Theme (data-theme is already set pre-paint by the inline script in <head>)
@@ -1074,8 +1141,9 @@
             return `<div class="${boxClass} flex items-center justify-center ${textClass} font-bold select-none" style="background:${bg};color:${fg};">${initial}</div>`;
         }
 
+        const PLATFORM_CHIP_LABEL = { P: "Project file (.csproj) version", A: "Android version", i: "iOS version" };
         function platformChip(letter) {
-            return `<span class="inline-flex items-center justify-center w-4 h-4 rounded-[3px] text-[9px] font-bold bg-slate-800 text-slate-500 align-middle">${letter}</span>`;
+            return `<span class="inline-flex items-center justify-center w-4 h-4 rounded-[3px] text-[9px] font-bold bg-slate-800 text-slate-500 align-middle" title="${PLATFORM_CHIP_LABEL[letter] || letter}">${letter}</span>`;
         }
 
         // Per-type visual identity: icon shape + accent var, reused for icon ring,
@@ -1092,7 +1160,8 @@
         const BRANCH_ICON = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M6 8.5v7M8.5 6H14a4 4 0 0 1 4 4v0"/></svg>`;
         function branchChip(branch) {
             const isMainline = branch === "main" || branch === "master";
-            return `<span class="badge ${isMainline ? "badge-slate" : "badge-purple"} gap-1">${BRANCH_ICON}${branch}</span>`;
+            const title = isMainline ? `Mainline branch: ${branch}` : `Feature branch: ${branch}`;
+            return `<span class="badge ${isMainline ? "badge-slate" : "badge-purple"} gap-1" title="${title}">${BRANCH_ICON}${branch}</span>`;
         }
 
         // "3d atrás" / "agora" style relative time from the git service's last-commit date.
@@ -1177,6 +1246,10 @@
         const ICON_BUMP = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
         const ICON_BUILD = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12l8.73-5.04M12 22.08V12"/></svg>`;
         const ICON_FOLDER = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>`;
+        const ICON_HASH = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L7 20M17 4l-2 16M4 9h16M3 15h16"/></svg>`;
+        const ICON_CHEVRON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>`;
+        const ICON_PULL = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>`;
+        const ICON_IDE = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13 6l-2 12"/></svg>`;
 
         // Single primary action (Bump & Push) + platform build button(s) + one overflow
         // menu for everything else, instead of 7 same-weight buttons per row.
@@ -1200,20 +1273,23 @@
             }
 
             return `
-                <button onclick="quickBumpVersion('${dir}', '${ver}', '${build}')" class="btn-primary ${sizeClass} font-semibold gap-1.5" title="Bump version +1 and build +1">
+                <button onclick="quickBumpVersion('${dir}', '${ver}', '${build}')" class="btn-primary ${sizeClass} font-semibold gap-1.5" title="Bump version +1 and build +1, then push to remote">
                     ${ICON_BUMP}Bump +1
+                </button>
+                <button onclick="quickBumpBuildOnly('${dir}', '${ver}', '${build}')" class="btn-ghost ${sizeClass} gap-1.5" title="Keep version ${ver || 'as-is'}, bump build number only, then push">
+                    ${ICON_HASH}Build +1
                 </button>
                 ${buildButtons}
                 <div class="relative inline-block text-left">
-                    <button onclick="toggleRowMenu(event)" class="btn-ghost ${sizeClass}" aria-haspopup="true" aria-expanded="false" aria-label="More actions for ${app.name}">&#x22EF;</button>
-                    <div class="row-menu absolute bottom-full mb-1 right-0 w-44 bg-slate-900 border border-slate-800 rounded-lg shadow-xl hidden z-20">
-                        <button onclick="openVersionUpdate('${dir}', '${ver}', '${build}')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition">Update Version</button>
-                        <button onclick="pullGit('${dir}')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition">Pull</button>
-                        <button onclick="openFolder('${dir}')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition">Open Folder</button>
+                    <button onclick="toggleRowMenu(event)" class="btn-ghost ${sizeClass}" aria-haspopup="true" aria-expanded="false" aria-label="More actions for ${app.name}" title="More actions">&#x22EF;</button>
+                    <div class="row-menu absolute bottom-full mb-1 right-0 w-48 bg-slate-900 border border-slate-800 rounded-lg shadow-xl hidden z-20">
+                        <button onclick="openVersionUpdate('${dir}', '${ver}', '${build}')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition flex items-center gap-2" title="Manually set version and build number">${ICON_HASH}Update Version</button>
+                        <button onclick="pullGit('${dir}')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="git pull from remote">${ICON_PULL}Pull</button>
+                        <button onclick="openFolder('${dir}')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project folder in File Explorer">${ICON_FOLDER}Open Folder</button>
                         <div class="border-t border-slate-800 my-1"></div>
-                        <button onclick="openIDE('${dir}', 'vs')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition">Visual Studio</button>
-                        <button onclick="openIDE('${dir}', 'vscode')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition">VS Code</button>
-                        <button onclick="openIDE('${dir}', 'rider')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition">Rider</button>
+                        <button onclick="openIDE('${dir}', 'vs')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project in Visual Studio">${ICON_IDE}Visual Studio</button>
+                        <button onclick="openIDE('${dir}', 'vscode')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project in VS Code">${ICON_IDE}VS Code</button>
+                        <button onclick="openIDE('${dir}', 'rider')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition flex items-center gap-2" title="Open project in Rider">${ICON_IDE}Rider</button>
                     </div>
                 </div>
             `;
@@ -1252,11 +1328,11 @@
             }
 
             const getTechBadge = (type) => {
-                if (type === "MAUI") return `<span class="badge badge-indigo">MAUI</span>`;
-                if (type === "Blazor") return `<span class="badge badge-amber">Blazor</span>`;
-                if (type === "Unity") return `<span class="badge badge-slate">Unity</span>`;
-                if (type === "WPF") return `<span class="badge badge-blue">WPF</span>`;
-                return `<span class="badge badge-slate">ClassLib</span>`;
+                if (type === "MAUI") return `<span class="badge badge-indigo" title="Technology: .NET MAUI">MAUI</span>`;
+                if (type === "Blazor") return `<span class="badge badge-amber" title="Technology: Blazor">Blazor</span>`;
+                if (type === "Unity") return `<span class="badge badge-slate" title="Technology: Unity">Unity</span>`;
+                if (type === "WPF") return `<span class="badge badge-blue" title="Technology: WPF">WPF</span>`;
+                return `<span class="badge badge-slate" title="Technology: Class Library / Other">ClassLib</span>`;
             };
 
             if (currentLayout === "card") {
@@ -1285,6 +1361,7 @@
                         const isBehind = app.git.behind > 0;
                         const gitStatusText = isDirty ? "Dirty" : isBehind ? "Behind" : "Clean";
                         const gitBadgeClass = isDirty ? "badge badge-amber" : isBehind ? "badge badge-red" : "badge badge-green";
+                        const gitStatusTitle = isDirty ? "Uncommitted local changes" : isBehind ? `${app.git.behind} commit(s) behind remote` : "Everything committed and up to date";
                         const meta = typeMeta(app.projectType);
 
                         // Behind-remote is the one state that earns extra width: it has an
@@ -1345,7 +1422,7 @@
                                     <div class="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
                                         ${lastActiveHtml}
                                         ${branchChip(app.branch)}
-                                        <span class="${gitBadgeClass}"><span class="inline-block w-1.5 h-1.5 rounded-full bg-current mr-1 align-middle"></span>${gitStatusText}</span>
+                                        <span class="${gitBadgeClass}" title="${gitStatusTitle}"><span class="inline-block w-1.5 h-1.5 rounded-full bg-current mr-1 align-middle"></span>${gitStatusText}</span>
                                     </div>
                                 </div>
 
@@ -1478,6 +1555,7 @@
         }
 
         async function pullGit(dir) {
+            openTerminal();
             const terminal = document.getElementById("terminalConsole");
             terminal.innerHTML = '<div class="text-slate-400">[Git] Running git pull...</div>';
             try {
@@ -1501,6 +1579,7 @@
 
         async function buildApp(dir, platform) {
             clearConsole();
+            openTerminal();
             currentBuildDir = dir;
             document.getElementById("cancelBuildBtn").classList.remove("hidden");
             try {
