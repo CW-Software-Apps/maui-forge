@@ -14,6 +14,7 @@ public class PersistentState
     public bool UseLocalMac { get; set; } = false;
     public Dictionary<string, AppBuildConfig> AppBuildConfigs { get; set; } = [];
     public List<AppEntry> CachedApps { get; set; } = [];
+    public string? ServeToken { get; set; }
     public List<SavedRemote> KnownRemotes { get; set; } = [];
 }
 

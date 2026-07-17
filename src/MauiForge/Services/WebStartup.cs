@@ -96,6 +96,26 @@ public static class WebStartup
             });
         });
 
+        // Enable server mode (generate/save token, show restart command)
+        app.MapPost("/api/remote/enable-server", (StateService state) =>
+        {
+            var st = state.Load();
+            var token = Guid.NewGuid().ToString("N")[..12];
+            st.ServeToken = token;
+            state.Save(st);
+            return Results.Ok(new { token, message = "Server mode configured. Restart with --serve to bind to 0.0.0.0." });
+        });
+
+        // Scan network for remote servers
+        app.MapGet("/api/remote/scan", () =>
+        {
+            var servers = RemoteDiscoveryService.Discover(timeoutMs: 4000);
+            return Results.Ok(servers.Select(s => new
+            {
+                s.Host, s.Port, s.Hostname, s.TokenRequired
+            }));
+        });
+
         // Paths Endpoints
         app.MapGet("/api/paths", (StateService state) =>
         {
