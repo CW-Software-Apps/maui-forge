@@ -1,3 +1,3 @@
 namespace MauiForge.Models;
 
-public record GitStatus(int Ahead, int Behind, bool Dirty);
+public record GitStatus(int Ahead, int Behind, bool Dirty, DateTimeOffset? LastCommit = null);

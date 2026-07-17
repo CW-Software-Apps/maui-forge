@@ -29,7 +29,14 @@ public class GitService
             }
         }
 
-        return new GitStatus(Ahead: ahead, Behind: behind, Dirty: dirty);
+        DateTimeOffset? lastCommit = null;
+        var commitDate = RunGit(dir, "log", "-1", "--format=%cI").Trim();
+        if (DateTimeOffset.TryParse(commitDate, out var parsed))
+        {
+            lastCommit = parsed;
+        }
+
+        return new GitStatus(Ahead: ahead, Behind: behind, Dirty: dirty, LastCommit: lastCommit);
     }
 
     public GitStatus FetchAndGetStatus(string dir)
