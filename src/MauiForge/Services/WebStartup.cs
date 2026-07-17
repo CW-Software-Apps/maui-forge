@@ -449,7 +449,12 @@ public static class WebStartup
                         // (it tries to read stdin for --wait-for-exit in non-interactive context)
                         if (exit != 0 && outputLines.Any(l => l.Contains("Launched application", StringComparison.OrdinalIgnoreCase)))
                         {
-                            await SendLog("[Warning] mlaunch reported an error but the app was launched successfully.");
+                            await SendLog("── APP LAUNCHED SUCCESSFULLY ──────────────────────────────");
+                            await SendLog("The iOS deploy tool (mlaunch) reported an exit code " + exit + ",");
+                            await SendLog("but this is a KNOWN false positive — mlaunch crashes after");
+                            await SendLog("launch because it cannot read stdin in non-interactive mode.");
+                            await SendLog("Your app IS running on " + req.DeviceName + ".");
+                            await SendLog("───────────────────────────────────────────────────────────");
                             exit = 0;
                         }
 
