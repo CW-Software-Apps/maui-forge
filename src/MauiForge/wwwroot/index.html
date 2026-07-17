@@ -317,7 +317,7 @@
     <!-- Header -->
     <header class="border-b border-slate-800 bg-[var(--chrome)] backdrop-blur-md px-6 py-4 flex items-center justify-between flex-shrink-0">
         <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-[var(--accent)] flex items-center justify-center font-bold text-lg text-[var(--ink-inverse)] shadow-lg" style="box-shadow: 0 10px 15px -3px color-mix(in oklch, var(--accent) 35%, transparent);"
+            <div class="w-10 h-10 rounded-xl bg-[var(--accent)] flex items-center justify-center font-bold text-lg text-[var(--ink-inverse)] shadow-lg flex-shrink-0" style="box-shadow: 0 10px 15px -3px color-mix(in oklch, var(--accent) 35%, transparent);">
                 MF
             </div>
             <div>
@@ -1175,44 +1175,46 @@
                         : iconFallbackHtml(app, "w-10 h-10 rounded-lg border border-slate-800", "text-sm");
 
                     card.innerHTML = `
-                        <div class="flex items-start justify-between">
-                            <div class="flex items-center gap-3 min-w-0">
-                                ${appIconHtml}
-                                <div class="min-w-0">
-                                    <div class="flex items-center gap-2 flex-wrap">
-                                        <h3 class="font-bold text-white text-base truncate">${app.name}</h3>
-                                        ${getTechBadge(app.projectType)}
-                                        <button onclick="refreshSingleApp('${app.dir.replace(/\\/g, '\\\\')}', 'ic-${idx}')" class="text-slate-600 hover:text-slate-300 transition text-xs" aria-label="Refresh ${app.name}" title="Refresh">
-                                            <span id="ic-${idx}" class="inline-block">&#x21bb;</span>
-                                        </button>
+                        <div class="flex flex-col gap-3.5">
+                            <div class="flex items-start justify-between gap-3 flex-wrap">
+                                <div class="flex items-center gap-3 min-w-0">
+                                    ${appIconHtml}
+                                    <div class="min-w-0">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <h3 class="font-bold text-white text-base truncate">${app.name}</h3>
+                                            ${getTechBadge(app.projectType)}
+                                            <button onclick="refreshSingleApp('${app.dir.replace(/\\/g, '\\\\')}', 'ic-${idx}')" class="text-slate-600 hover:text-slate-300 transition text-xs" aria-label="Refresh ${app.name}" title="Refresh">
+                                                <span id="ic-${idx}" class="inline-block">&#x21bb;</span>
+                                            </button>
+                                        </div>
+                                        <p class="text-xs font-mono text-slate-600 truncate max-w-[300px]" title="${app.dir}">${app.dir}</p>
                                     </div>
-                                    <p class="text-xs font-mono text-slate-600 truncate max-w-[300px]" title="${app.dir}">${app.dir}</p>
+                                </div>
+                                <span class="${gitBadgeClass} flex-shrink-0 max-w-[180px] truncate" title="${app.branch} · ${gitStatusText}">
+                                    ${app.branch} · ${gitStatusText}
+                                </span>
+                            </div>
+
+                            ${pullWarningHtml}
+
+                            <div class="grid grid-cols-3 gap-3 bg-[var(--bg)] p-3 rounded-lg border border-slate-800/40">
+                                <div class="flex items-center gap-1.5 min-w-0">
+                                    ${platformChip("P")}
+                                    <span class="text-xs font-mono font-medium text-slate-300 truncate">${csprojVer}</span>
+                                </div>
+                                <div class="flex items-center gap-1.5 min-w-0">
+                                    ${platformChip("A")}
+                                    <span class="text-xs font-mono font-medium text-slate-300 truncate">${androidVer}</span>
+                                </div>
+                                <div class="flex items-center gap-1.5 min-w-0">
+                                    ${platformChip("i")}
+                                    <span class="text-xs font-mono font-medium text-slate-300 truncate">${iosVer}</span>
                                 </div>
                             </div>
-                            <span class="${gitBadgeClass} flex-shrink-0">
-                                ${app.branch} · ${gitStatusText}
-                            </span>
-                        </div>
 
-                        ${pullWarningHtml}
-
-                        <div class="grid grid-cols-3 gap-3 bg-[var(--bg)] p-3 rounded-lg border border-slate-800/40">
-                            <div class="flex items-center gap-1.5">
-                                ${platformChip("P")}
-                                <span class="text-xs font-mono font-medium text-slate-300">${csprojVer}</span>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                ${actionButtons}
                             </div>
-                            <div class="flex items-center gap-1.5">
-                                ${platformChip("A")}
-                                <span class="text-xs font-mono font-medium text-slate-300">${androidVer}</span>
-                            </div>
-                            <div class="flex items-center gap-1.5">
-                                ${platformChip("i")}
-                                <span class="text-xs font-mono font-medium text-slate-300">${iosVer}</span>
-                            </div>
-                        </div>
-
-                        <div class="flex items-center gap-2 pt-1 flex-wrap">
-                            ${actionButtons}
                         </div>
                     `;
                     grid.appendChild(card);
