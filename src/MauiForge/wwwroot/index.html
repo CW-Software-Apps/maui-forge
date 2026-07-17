@@ -286,8 +286,6 @@
         @keyframes toast-in { from { opacity: 0; transform: translateX(1rem); } to { opacity: 1; transform: translateX(0); } }
         @keyframes toast-out { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(1rem); } }
 
-        .row-menu.visible { display: block; }
-
         @media (max-width: 1023px) {
             .sidebar-drawer { position: fixed; inset: 0; z-index: 40; display: none; }
             .sidebar-drawer.open { display: flex; }
@@ -366,16 +364,16 @@
             <button id="themeToggle" onclick="toggleTheme()" class="btn-ghost text-xs py-1.5 px-2.5" aria-label="Switch to light theme" title="Switch theme">
                 <span id="themeToggleIcon">&#x2600;</span>
             </button>
-            <button id="sidebarToggle" class="btn-ghost text-xs flex items-center gap-1.5 py-1.5 lg:hidden" aria-label="Toggle sidebar">☰</button>
-            <a href="https://github.com/CW-Software-Apps/maui-forge" target="_blank" class="text-xs text-slate-500 hover:text-white transition flex items-center gap-1.5">
+            <button id="sidebarToggle" class="btn-ghost text-xs flex items-center gap-1.5 py-1.5 lg:hidden" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+            <a href="https://github.com/CW-Software-Apps/maui-forge" target="_blank" class="text-xs text-slate-500 hover:text-white transition flex items-center gap-1.5" title="Open GitHub repository">
                 <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
                 GitHub
             </a>
-            <button id="updateCheckBtn" onclick="checkForUpdates()" class="btn-ghost text-xs flex items-center gap-1.5 py-1.5">
+            <button id="updateCheckBtn" onclick="checkForUpdates()" class="btn-ghost text-xs flex items-center gap-1.5 py-1.5" title="Check NuGet for a newer version">
                 <span class="w-1.5 h-1.5 rounded-full"></span>
                 Check Updates
             </button>
-            <button onclick="loadDiagnostics()" class="btn-ghost text-xs flex items-center gap-2 py-1.5">
+            <button onclick="loadDiagnostics()" class="btn-ghost text-xs flex items-center gap-2 py-1.5" title="Show OS and .NET diagnostics">
                 <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
                 Local Host Connected
             </button>
@@ -388,9 +386,12 @@
         <!-- Mobile sidebar backdrop -->
         <div id="sidebarBackdrop" class="sidebar-drawer-backdrop" onclick="toggleSidebar()"></div>
 
-        <!-- Collapsed-state re-expand handle -->
-        <button id="sidebarExpandTab" onclick="toggleSidebarCollapse()" class="hidden items-center justify-center w-5 border-r border-[var(--border)] bg-[var(--chrome)] hover:bg-[var(--surface-hover)] transition flex-shrink-0" aria-label="Expand monitored folders" title="Expand monitored folders">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        <!-- Collapsed-state re-expand handle: deliberately higher-contrast than the
+             sidebar it replaces (surface bg + accent icon + shadow), since a thin
+             low-contrast sliver reads as "edge of the page", not "click me". -->
+        <button id="sidebarExpandTab" onclick="toggleSidebarCollapse()" class="hidden flex-col items-center justify-center gap-2 w-9 py-4 border-r border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--accent-subtle)] text-[var(--accent)] transition-colors flex-shrink-0 shadow-sm" aria-label="Expand monitored folders" title="Expand monitored folders">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            <span class="text-[10px] font-bold tracking-wider" style="writing-mode: vertical-rl;">FOLDERS</span>
         </button>
 
         <!-- Sidebar: Monitored Folders -->
@@ -412,7 +413,7 @@
                 <form id="addPathForm" onsubmit="addPath(event)" class="flex flex-col gap-2">
                     <input type="text" id="newPathInput" placeholder="K:\your\projects" required
                            class="input w-full text-xs">
-                    <button type="submit" class="btn-primary text-xs w-full py-2">
+                    <button type="submit" class="btn-primary text-xs w-full py-2" title="Start monitoring this directory for apps">
                         Add Directory
                     </button>
                 </form>
@@ -436,10 +437,10 @@
                         </span>
                         <!-- Layout toggles -->
                         <div class="inline-flex rounded-lg border border-slate-800 p-0.5 bg-slate-900/50">
-                            <button id="layoutCardBtn" onclick="setLayout('card')" class="px-3 py-1.5 rounded-md text-xs font-medium transition">Cards</button>
-                            <button id="layoutListBtn" onclick="setLayout('list')" class="px-3 py-1.5 rounded-md text-xs font-medium transition">List</button>
+                            <button id="layoutCardBtn" onclick="setLayout('card')" class="px-3 py-1.5 rounded-md text-xs font-medium transition" title="Card view">Cards</button>
+                            <button id="layoutListBtn" onclick="setLayout('list')" class="px-3 py-1.5 rounded-md text-xs font-medium transition" title="Table view">List</button>
                         </div>
-                        <button onclick="loadApps()" class="btn-ghost text-xs py-1.5">
+                        <button onclick="loadApps()" class="btn-ghost text-xs py-1.5" title="Rescan all monitored folders">
                             Refresh
                         </button>
                     </div>
@@ -491,7 +492,7 @@
                         <span class="text-xs font-semibold text-slate-400 tracking-wide uppercase">Build Output Terminal</span>
                     </button>
                     <div class="flex items-center gap-2">
-                        <button id="cancelBuildBtn" onclick="cancelBuild()" class="hidden text-red-400 hover:text-red-300 text-xs px-2 py-0.5 rounded hover:bg-slate-800 transition font-semibold">
+                        <button id="cancelBuildBtn" onclick="cancelBuild()" class="hidden text-red-400 hover:text-red-300 text-xs px-2 py-0.5 rounded hover:bg-slate-800 transition font-semibold" title="Stop the currently running build">
                             Cancel Build
                         </button>
                         <button onclick="clearConsole()" class="text-slate-500 hover:text-slate-300 text-xs px-2 py-0.5 rounded hover:bg-slate-800 transition" title="Clear terminal output">
@@ -510,13 +511,18 @@
     <!-- Toast notifications -->
     <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
+    <!-- Single shared row-overflow menu, positioned via JS relative to whichever
+         "..." trigger opened it. Fixed positioning keeps it above the sidebar and
+         out of the scrollable content area's clipping/stacking context. -->
+    <div id="globalRowMenu" class="hidden fixed w-48 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl" style="z-index: 60;"></div>
+
     <!-- Modals -->
     <!-- Update Version Modal -->
     <div id="versionModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="versionModalTitle">
         <div class="modal-panel">
             <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
                 <h3 id="versionModalTitle" class="font-bold text-white">Update Version</h3>
-                <button onclick="closeVersionModal()" class="text-slate-500 hover:text-white transition text-sm" aria-label="Close version modal">✕</button>
+                <button onclick="closeVersionModal()" class="text-slate-500 hover:text-white transition text-sm" aria-label="Close version modal" title="Close">✕</button>
             </div>
             <div class="p-6 space-y-4">
                 <input type="hidden" id="modalAppDir">
@@ -531,10 +537,10 @@
                     <input type="text" id="modalBuildInput" class="input w-full text-sm">
                 </div>
                 <div class="flex gap-3 pt-2">
-                    <button onclick="submitVersionUpdate()" class="btn-ghost flex-1 py-2.5 text-sm font-semibold">
+                    <button onclick="submitVersionUpdate()" class="btn-ghost flex-1 py-2.5 text-sm font-semibold" title="Write these values to project files only, no git push">
                         Save Local
                     </button>
-                    <button onclick="submitVersionUpdateAndPush()" class="btn-primary flex-1 py-2.5 text-sm font-semibold">
+                    <button onclick="submitVersionUpdateAndPush()" class="btn-primary flex-1 py-2.5 text-sm font-semibold" title="Write these values and push to remote git">
                         Bump & Push
                     </button>
                 </div>
@@ -546,7 +552,7 @@
         <div class="modal-panel" style="max-width:28rem;">
             <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
                 <h3 class="font-bold text-white" id="updateModalTitle">Check for Updates</h3>
-                <button onclick="closeUpdateModal()" class="text-slate-500 hover:text-white transition text-sm" aria-label="Close update modal">✕</button>
+                <button onclick="closeUpdateModal()" class="text-slate-500 hover:text-white transition text-sm" aria-label="Close update modal" title="Close">✕</button>
             </div>
             <div class="p-6 space-y-4" id="updateModalBody">
                 <div class="flex items-center justify-center py-6">
@@ -562,7 +568,7 @@
         <div class="modal-panel" style="max-width:28rem;">
             <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
                 <h3 id="bumpConfirmTitle" class="font-bold text-white">Confirm Bump & Push</h3>
-                <button onclick="closeBumpConfirm()" class="text-slate-500 hover:text-white transition text-sm" aria-label="Close confirmation">✕</button>
+                <button onclick="closeBumpConfirm()" class="text-slate-500 hover:text-white transition text-sm" aria-label="Close confirmation" title="Close">✕</button>
             </div>
             <div class="p-6 space-y-4" id="bumpConfirmBody">
                 <div class="bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg p-3 text-xs flex items-start gap-2">
@@ -576,8 +582,8 @@
                     </div>
                 </div>
                 <div class="flex gap-3 pt-2">
-                    <button onclick="closeBumpConfirm()" class="btn-ghost flex-1 py-2.5 text-sm font-semibold">Cancel</button>
-                    <button id="confirmBumpBtn" onclick="executeBumpPush()" class="btn-primary flex-1 py-2.5 text-sm font-semibold" style="background:var(--red);">Confirm & Push</button>
+                    <button onclick="closeBumpConfirm()" class="btn-ghost flex-1 py-2.5 text-sm font-semibold" title="Cancel, no changes made">Cancel</button>
+                    <button id="confirmBumpBtn" onclick="executeBumpPush()" class="btn-primary flex-1 py-2.5 text-sm font-semibold" style="background:var(--red);" title="Write version and push to remote — cannot be undone">Confirm & Push</button>
                 </div>
             </div>
         </div>
@@ -588,13 +594,13 @@
         <div class="modal-panel" style="max-width:24rem;">
             <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
                 <h3 id="confirmModalTitle" class="font-bold text-white">Confirm</h3>
-                <button onclick="closeConfirmModal()" class="text-slate-500 hover:text-white transition text-sm" aria-label="Close confirmation">✕</button>
+                <button onclick="closeConfirmModal()" class="text-slate-500 hover:text-white transition text-sm" aria-label="Close confirmation" title="Close">✕</button>
             </div>
             <div class="p-6 space-y-4">
                 <p id="confirmModalMessage" class="text-sm text-slate-300"></p>
                 <div class="flex gap-3 pt-2">
-                    <button onclick="closeConfirmModal()" class="btn-ghost flex-1 py-2.5 text-sm font-semibold">Cancel</button>
-                    <button id="confirmModalConfirmBtn" class="btn-primary flex-1 py-2.5 text-sm font-semibold" style="background:var(--red);">Remove</button>
+                    <button onclick="closeConfirmModal()" class="btn-ghost flex-1 py-2.5 text-sm font-semibold" title="Cancel, no changes made">Cancel</button>
+                    <button id="confirmModalConfirmBtn" class="btn-primary flex-1 py-2.5 text-sm font-semibold" style="background:var(--red);" title="Confirm this action">Remove</button>
                 </div>
             </div>
         </div>
@@ -688,6 +694,7 @@
                 if (!vm.classList.contains("hidden")) closeVersionModal();
                 if (!um.classList.contains("hidden")) closeUpdateModal();
                 if (!bm.classList.contains("hidden")) closeBumpConfirm();
+                closeRowMenu();
             }
             if ((e.ctrlKey || e.metaKey) && e.key === "f") {
                 e.preventDefault();
@@ -729,29 +736,50 @@
         function toggleTerminal() { setTerminalOpen(!terminalOpen); }
         function openTerminal() { if (!terminalOpen) setTerminalOpen(true); }
 
-        // Row overflow menu toggle (click-based, not hover-only)
-        function toggleRowMenu(e) {
+        // Row overflow menu: a single element fixed-positioned relative to the
+        // viewport and appended at the end of <body>, instead of one absolute-
+        // positioned menu per card. A per-card menu sits inside the scrollable
+        // main content area, which clips (or paints under) anything that extends
+        // past its bounds or the sidebar next to it — position:fixed escapes that
+        // stacking/overflow context entirely, per the dropdown-clipping rule.
+        function openRowMenu(e, dir, ver, build) {
             e.stopPropagation();
-            var all = document.querySelectorAll(".row-menu");
-            var allTriggers = document.querySelectorAll('[aria-haspopup="true"]');
-            var target = e.currentTarget.nextElementSibling;
-            var isOpen = target && target.classList.contains("visible");
-            all.forEach(function (d) { d.classList.remove("visible"); d.classList.add("hidden"); });
-            allTriggers.forEach(function (t) { t.setAttribute("aria-expanded", "false"); });
-            if (!isOpen && target) {
-                target.classList.remove("hidden"); target.classList.add("visible");
-                e.currentTarget.setAttribute("aria-expanded", "true");
-            }
+            const menu = document.getElementById("globalRowMenu");
+            const trigger = e.currentTarget;
+            const reopening = menu.dataset.openFor === dir && !menu.classList.contains("hidden");
+            closeRowMenu();
+            if (reopening) return;
+
+            menu.innerHTML = `
+                <button onclick="openVersionUpdate('${dir}', '${ver}', '${build}'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition flex items-center gap-2" title="Manually set version and build number">${ICON_HASH}Update Version</button>
+                <button onclick="pullGit('${dir}'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="git pull from remote">${ICON_PULL}Pull</button>
+                <button onclick="openFolder('${dir}'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project folder in File Explorer">${ICON_FOLDER}Open Folder</button>
+                <div class="border-t border-slate-800 my-1"></div>
+                <button onclick="openIDE('${dir}', 'vs'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project in Visual Studio">${ICON_IDE}Visual Studio</button>
+                <button onclick="openIDE('${dir}', 'vscode'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project in VS Code">${ICON_IDE}VS Code</button>
+                <button onclick="openIDE('${dir}', 'rider'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition flex items-center gap-2" title="Open project in Rider">${ICON_IDE}Rider</button>
+            `;
+
+            const rect = trigger.getBoundingClientRect();
+            const menuWidth = 192;
+            const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+            menu.style.left = left + "px";
+            menu.style.bottom = (window.innerHeight - rect.top + 6) + "px";
+            menu.style.top = "auto";
+            menu.dataset.openFor = dir;
+            menu.classList.remove("hidden");
+            trigger.setAttribute("aria-expanded", "true");
         }
 
-        document.addEventListener("click", function () {
-            document.querySelectorAll(".row-menu.visible").forEach(function (d) {
-                d.classList.remove("visible"); d.classList.add("hidden");
-            });
-            document.querySelectorAll('[aria-haspopup="true"]').forEach(function (t) {
-                t.setAttribute("aria-expanded", "false");
-            });
-        });
+        function closeRowMenu() {
+            const menu = document.getElementById("globalRowMenu");
+            menu.classList.add("hidden");
+            menu.dataset.openFor = "";
+            document.querySelectorAll('[aria-haspopup="true"]').forEach(t => t.setAttribute("aria-expanded", "false"));
+        }
+
+        document.addEventListener("click", closeRowMenu);
+        window.addEventListener("resize", closeRowMenu);
 
         // Focus trap helper
         function trapFocus(modalId) {
@@ -973,7 +1001,7 @@
                     item.className = "flex items-center justify-between p-2 rounded-lg bg-slate-900/50 border border-slate-800 hover:border-slate-700 transition group";
                     item.innerHTML = `
                         <span class="text-xs font-mono truncate text-slate-300 select-all" title="${p}">${p}</span>
-                        <button onclick="removePath('${p.replace(/\\/g, '\\\\')}')" class="text-slate-500 hover:text-red-400 text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition">✕</button>
+                        <button onclick="removePath('${p.replace(/\\/g, '\\\\')}')" class="text-slate-500 hover:text-red-400 text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition" title="Stop monitoring this folder">✕</button>
                     `;
                     container.appendChild(item);
                 });
@@ -1220,6 +1248,25 @@
             return [...apps].sort((a, b) => urgencyRank(a) - urgencyRank(b) || a.name.localeCompare(b.name));
         }
 
+        const ICON_PROJECT = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+        const ICON_ANDROID = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><line x1="10" y1="18" x2="14" y2="18"/></svg>`;
+        const ICON_IOS = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3.5"/><line x1="10" y1="18" x2="14" y2="18"/></svg>`;
+
+        // Labeled icon + value block, used by versionPanelHtml. Replaces bare
+        // single-letter "P/A/i" monograms — those read as cryptic per user
+        // feedback; an icon plus an explicit text label plus the version reads
+        // as three redundant confirmations of the same fact instead of one.
+        function versionField(icon, label, value, title) {
+            return `
+                <div class="flex items-start gap-2 min-w-0" title="${title}">
+                    <span class="flex-shrink-0 text-[var(--ink-muted)] mt-0.5">${icon}</span>
+                    <div class="min-w-0">
+                        <div class="text-[9px] uppercase tracking-wider text-[var(--ink-muted)] font-semibold leading-tight">${label}</div>
+                        <div class="text-xs font-mono font-medium text-[var(--ink-dim)] truncate leading-tight">${value}</div>
+                    </div>
+                </div>`;
+        }
+
         // Version panel adapts to what the project actually has instead of a fixed
         // 3-column P/A/i grid that shows "N/A" twice for non-MAUI projects.
         function versionPanelHtml(app) {
@@ -1230,16 +1277,16 @@
                 const androidVer = app.versions.android ? `${app.versions.android.version} (${app.versions.android.build})` : "N/A";
                 return `
                     <div class="grid grid-cols-3 gap-3 bg-[var(--bg)] p-3 rounded-lg border border-slate-800/40">
-                        <div class="flex items-center gap-1.5 min-w-0">${platformChip("P")}<span class="text-xs font-mono font-medium text-slate-300 truncate">${csprojVer}</span></div>
-                        <div class="flex items-center gap-1.5 min-w-0">${platformChip("A")}<span class="text-xs font-mono font-medium text-slate-300 truncate">${androidVer}</span></div>
-                        <div class="flex items-center gap-1.5 min-w-0">${platformChip("i")}<span class="text-xs font-mono font-medium text-slate-300 truncate">${iosVer}</span></div>
+                        ${versionField(ICON_PROJECT, "Project", csprojVer, "Project file (.csproj) version — used as the source of truth for Bump +1")}
+                        ${versionField(ICON_ANDROID, "Android", androidVer, "Android version, read from AndroidManifest.xml")}
+                        ${versionField(ICON_IOS, "iOS", iosVer, "iOS version, read from Info.plist")}
                     </div>`;
             }
 
             return `
                 <div class="flex items-center justify-between gap-3 bg-[var(--bg)] p-3 rounded-lg border border-slate-800/40">
-                    <div class="flex items-center gap-1.5 min-w-0">${platformChip("P")}<span class="text-xs font-mono font-medium text-slate-300 truncate">${csprojVer}</span></div>
-                    <span class="text-[10px] uppercase tracking-wider text-slate-600 font-semibold flex-shrink-0">${typeMeta(app.projectType).targetLabel}</span>
+                    ${versionField(ICON_PROJECT, "Project", csprojVer, "Project file (.csproj) version — used as the source of truth for Bump +1")}
+                    <span class="text-[10px] uppercase tracking-wider text-slate-600 font-semibold flex-shrink-0" title="This project type builds for this target only">${typeMeta(app.projectType).targetLabel}</span>
                 </div>`;
         }
 
@@ -1261,15 +1308,15 @@
             let buildButtons = '';
             if (app.projectType === 'MAUI') {
                 buildButtons = `
-                    <button onclick="buildApp('${dir}', 'Android')" class="btn-ghost ${sizeClass} gap-1.5">${ICON_BUILD}Android</button>
-                    <button onclick="buildApp('${dir}', 'iOS')" class="btn-ghost ${sizeClass} gap-1.5">${ICON_BUILD}iOS</button>
+                    <button onclick="buildApp('${dir}', 'Android')" class="btn-ghost ${sizeClass} gap-1.5" title="Build Android (Debug)">${ICON_BUILD}Android</button>
+                    <button onclick="buildApp('${dir}', 'iOS')" class="btn-ghost ${sizeClass} gap-1.5" title="Build iOS (Debug)">${ICON_BUILD}iOS</button>
                 `;
             } else if (app.projectType === 'WPF') {
-                buildButtons = `<button onclick="buildApp('${dir}', 'Windows')" class="btn-ghost ${sizeClass} gap-1.5">${ICON_BUILD}Windows</button>`;
+                buildButtons = `<button onclick="buildApp('${dir}', 'Windows')" class="btn-ghost ${sizeClass} gap-1.5" title="Build Windows (Debug)">${ICON_BUILD}Windows</button>`;
             } else if (app.projectType === 'Blazor') {
-                buildButtons = `<button onclick="buildApp('${dir}', 'Web')" class="btn-ghost ${sizeClass} gap-1.5">${ICON_BUILD}Web</button>`;
+                buildButtons = `<button onclick="buildApp('${dir}', 'Web')" class="btn-ghost ${sizeClass} gap-1.5" title="Build Web (Debug)">${ICON_BUILD}Web</button>`;
             } else {
-                buildButtons = `<button onclick="openFolder('${dir}')" class="btn-ghost ${sizeClass} gap-1.5">${ICON_FOLDER}Open Folder</button>`;
+                buildButtons = `<button onclick="openFolder('${dir}')" class="btn-ghost ${sizeClass} gap-1.5" title="Open project folder in File Explorer">${ICON_FOLDER}Open Folder</button>`;
             }
 
             return `
@@ -1280,18 +1327,7 @@
                     ${ICON_HASH}Build +1
                 </button>
                 ${buildButtons}
-                <div class="relative inline-block text-left">
-                    <button onclick="toggleRowMenu(event)" class="btn-ghost ${sizeClass}" aria-haspopup="true" aria-expanded="false" aria-label="More actions for ${app.name}" title="More actions">&#x22EF;</button>
-                    <div class="row-menu absolute bottom-full mb-1 right-0 w-48 bg-slate-900 border border-slate-800 rounded-lg shadow-xl hidden z-20">
-                        <button onclick="openVersionUpdate('${dir}', '${ver}', '${build}')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition flex items-center gap-2" title="Manually set version and build number">${ICON_HASH}Update Version</button>
-                        <button onclick="pullGit('${dir}')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="git pull from remote">${ICON_PULL}Pull</button>
-                        <button onclick="openFolder('${dir}')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project folder in File Explorer">${ICON_FOLDER}Open Folder</button>
-                        <div class="border-t border-slate-800 my-1"></div>
-                        <button onclick="openIDE('${dir}', 'vs')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project in Visual Studio">${ICON_IDE}Visual Studio</button>
-                        <button onclick="openIDE('${dir}', 'vscode')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project in VS Code">${ICON_IDE}VS Code</button>
-                        <button onclick="openIDE('${dir}', 'rider')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition flex items-center gap-2" title="Open project in Rider">${ICON_IDE}Rider</button>
-                    </div>
-                </div>
+                <button onclick="openRowMenu(event, '${dir}', '${ver}', '${build}')" class="btn-ghost ${sizeClass}" aria-haspopup="true" aria-expanded="false" aria-label="More actions for ${app.name}" title="More actions (version, pull, folder, IDEs)">&#x22EF;</button>
             `;
         }
 
@@ -1381,7 +1417,7 @@
                         const pullWarningHtml = isBehind
                             ? `<div class="bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg p-2.5 text-xs flex items-center justify-between gap-2">
                                  <span><b>Pull pending:</b> ${app.git.behind} commit(s) behind remote.</span>
-                                 <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" class="bg-amber-500 hover:bg-amber-600 text-[var(--ink-inverse)] font-bold px-2 py-1 rounded transition text-[10px]">PULL</button>
+                                 <button onclick="pullGit('${app.dir.replace(/\\/g, '\\\\')}')" class="bg-amber-500 hover:bg-amber-600 text-[var(--ink-inverse)] font-bold px-2 py-1 rounded transition text-[10px]" title="git pull from remote now">PULL</button>
                                </div>`
                             : "";
 
@@ -1484,7 +1520,7 @@
                                         <div class="flex items-center gap-2 flex-wrap">
                                             <span class="font-bold text-white">${app.name}</span>
                                             ${getTechBadge(app.projectType)}
-                                            <button onclick="refreshSingleApp('${app.dir.replace(/\\/g, '\\\\')}', 'il-${idx}')" class="text-slate-600 hover:text-slate-300 transition" aria-label="Refresh ${app.name}">
+                                            <button onclick="refreshSingleApp('${app.dir.replace(/\\/g, '\\\\')}', 'il-${idx}')" class="text-slate-600 hover:text-slate-300 transition" aria-label="Refresh ${app.name}" title="Rescan this app's versions and git status">
                                                 <span id="il-${idx}" class="inline-block">&#x21bb;</span>
                                             </button>
                                         </div>
@@ -1662,7 +1698,7 @@
                                 Latest: <span class="font-mono text-slate-300">v${data.latestVersion}</span>
                             </span>
                             ${!isUpToDate ? `
-                                <button onclick="installUpdate('${data.latestVersion}')" class="btn-primary w-full py-2.5 text-sm font-semibold mb-3">
+                                <button onclick="installUpdate('${data.latestVersion}')" class="btn-primary w-full py-2.5 text-sm font-semibold mb-3" title="Download and install v${data.latestVersion}, then restart">
                                     Update Now
                                 </button>
                                 <div class="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-left">
