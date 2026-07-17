@@ -4,7 +4,7 @@
 
 # ⚡ MAUI Forge
 
-**The missing CLI for .NET MAUI developers.**
+**Your MAUI release copilot.**
 
 *One terminal. Every app. Every device. Every release.*
 
@@ -30,7 +30,7 @@ You have multiple .NET MAUI apps. To release even one of them, you have to:
 - Remember the right `dotnet publish` flags for archive, codesign, and framework
 - Repeat for every app, every time
 
-**MAUI Forge replaces all of that with an interactive terminal UI** — pick an app, pick an action, done.
+**MAUI Forge replaces all of that** — TUI or web dashboard, pick an app, pick an action, done.
 
 ---
 
@@ -76,16 +76,18 @@ MAUI Forge reads the full `xcrun xctrace list devices` output, which includes **
 <td width="50%">
 
 ### 📋 App discovery
-- Scans a folder for all your `.csproj` MAUI apps
+- Scans folders for all your MAUI, WPF, Blazor, Unity, and ClassLibrary projects
 - Shows iOS version, Android version, git branch, and git status in one table
 - Sorted by most recently used — active projects always at top
 - Filter by platform (iOS / Android / All) or search by name
+- **Full project type detection** — MAUI, WPF, Blazor, Unity, ClassLibrary
 
 </td>
 <td width="50%">
 
 ### 🔢 Version management
 - Reads and writes all three files atomically (`Info.plist`, `AndroidManifest.xml`, `.csproj`)
+- Also supports Unity (`ProjectSettings.asset`) and legacy WPF (`AssemblyInfo.cs`)
 - Increment version + build, build only, or set manually
 - Sync iOS ↔ Android when they drift apart
 - Snapshot + undo before every change — instant rollback
@@ -97,17 +99,22 @@ MAUI Forge reads the full `xcrun xctrace list devices` output, which includes **
 
 ### 🍎 iOS
 - List all physical devices and simulators (SSH to remote Mac or local `xcrun`)
+- **Three parsers**: `xctrace`, `xcdevice`, `instruments` — maximum device coverage
 - Pick a device from a menu — no UDID hunting
 - Run on device or simulator with one keypress
 - Archive for App Store with codesign key selection
+- **Upload to App Store Connect** + **Open archive in Xcode**
 - Remembered per project: device, framework, codesign key
 
 </td>
 <td>
 
 ### 🤖 Android
-- List all connected devices and emulators via `adb`
+- List all connected devices, emulators, and AVDs via `adb`
+- **Auto-start emulators** with boot-progress wait (no more waiting blindly)
 - Pick from a menu and run — no serial number copy-paste
+- **Quick Launch** via `adb shell monkey` for fast re-deploys
+- **Build & Run** — combined build + deploy pipeline
 - Publish Release `.apk` / `.aab` with one action
 - Works from Windows, macOS, or Linux
 
@@ -117,10 +124,37 @@ MAUI Forge reads the full `xcrun xctrace list devices` output, which includes **
 <td>
 
 ### 🌿 Git
-- Live git status (ahead / behind / dirty) per app
+- Live git status (ahead / behind / dirty / last commit time) per app
 - Auto-fetch when you open an app
 - Warning + pull prompt if you're behind the remote
-- Push with a formatted commit message after version bumps
+- **Create commits** with AI-generated messages (Claude, Gemini, or local Ollama)
+- **Push with formatted commit message** after version bumps
+- **Push only** — commit separately, push when ready
+- View unpushed commits before pushing
+
+</td>
+<td>
+
+### 🤖 AI commit messages
+MAUI Forge can **write your commit messages** using:
+- **Claude CLI** (`claude` in PATH)
+- **Gemini CLI** (`gemini` in PATH)
+- **Ollama** (local — serves `llama3.2` via HTTP)
+- **Smart suggestion** — heuristic fallback (detects version bumps, C# changes, XAML edits)
+
+No API keys, no cloud service. Just diff → message.
+
+</td>
+</tr>
+<tr>
+<td>
+
+### 🧹 Clean modes
+Four levels of clean:
+- **Quick** — `dotnet clean`
+- **Android / iOS** — clean + delete platform bin/obj
+- **Deep** — delete `bin/`, `obj/`, `.vs/`, `artifacts/`, `TestResults/`
+- **Nuclear** — deep + `dotnet clean --verbosity diag`
 
 </td>
 <td>
@@ -128,12 +162,62 @@ MAUI Forge reads the full `xcrun xctrace list devices` output, which includes **
 ### 🔁 Productivity
 - **Repeat last action** — re-runs the last build/deploy without navigating
 - **Build verbosity** — quiet / minimal / normal / detailed / diagnostic
+- **Build & Run** — single action to build and deploy on device
+- **Open in IDE** — opens project in VS Code, Visual Studio, or Rider (auto-detected)
 - **Diagnostics screen** — checks every dependency before a build fails
 - **Auto-update check** — notifies when a newer NuGet version is available
 
 </td>
 </tr>
 </table>
+
+---
+
+## 🌐 Web Dashboard
+
+MAUI Forge includes a **full web dashboard** — an SPA built with Tailwind CSS + SignalR that runs on `http://localhost:5123`. It's the default mode (just run `maui-forge`).
+
+### Card view
+
+```
+┌───────────────────────────────────────────────────────────────┐
+│  ⚡ MAUI Forge                                   v1.5.49      │
+│  ───────────────────────────────────────────────────────────── │
+│  📁 ~/projects                    [ 12 apps ]                 │
+│  ───────────────────────────────────────────────────────────── │
+│  ┌────────────────────┐  ┌────────────────────┐               │
+│  │ MyApp        MAUI   │  │ ShippingApp  MAUI  │               │
+│  │ 📱 1.4.2 #18  🤖 1.4.2 #18    │  │ 📱 2.0.0 #103 🤖 2.0.0 #103  │               │
+│  │ main  ✅ clean      │  │ release/2.0  ⚠️ +2 │               │
+│  │                     │  │                     │               │
+│  │ [+1] [🚀] [⋮]      │  │ [+1] [🚀] [⋮]      │               │
+│  └────────────────────┘  └────────────────────┘               │
+│  ┌────────────────────┐                                       │
+│  │ OtherApp     MAUI  │                                       │
+│  │ 📱 1.0.0 #5  🤖 1.0.1 #6    │                                       │
+│  │ feature/x  ⚠️ ~    │                                       │
+│  │                     │                                       │
+│  │ [+1] [🚀] [⋮]      │                                       │
+│  └────────────────────┘                                       │
+└───────────────────────────────────────────────────────────────┘
+```
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| Card / List layout | Toggle between visual cards and compact table |
+| Search + tech filter | Filter by app name or platform (MAUI / iOS / Android / All) |
+| Quick bump | `+1` bumps version and build, shows before/after confirmation |
+| Build menu | Build iOS, Build Android, Build & Run iOS, Build & Run Android |
+| Row overflow menu | Update version, pull git, open folder, open in IDE |
+| Build & Run modal | Device picker (grouped: Physical / Emulator / Simulator), config selector, framework picker — all with last-used defaults |
+| Progress modal | Animated progress bar (Build → Deploy → Launch) with live logs and timer |
+| Real-time logs | SignalR streaming build output to terminal panel |
+| Sidebar | Monitored paths, theme toggle, diagnostics, update checker |
+| Mobile responsive | Sidebar collapses to drawer on small screens |
+
+Start it: `maui-forge` (default) or `maui-forge --web`
 
 ---
 
@@ -155,20 +239,23 @@ dotnet tool uninstall -g CwSoftware.MauiForge # remove
 ## Quick start
 
 ```bash
-maui-forge                              # current directory
+maui-forge                              # starts web dashboard on localhost:5123
+maui-forge --cli                        # starts terminal TUI (traditional)
 maui-forge --path ~/projects            # point to your projects folder
 maui-forge --path ~/projects --depth 3  # deeper scan (default depth: 2)
+maui-forge --update                     # force update check + install
+maui-forge --help                       # show help
 ```
 
 The path and all settings are remembered in `~/.maui-forge.state.json` — after the first run, just type `maui-forge`.
 
 ---
 
-## The app list
+## The app list (TUI)
 
 ```
   MAUIForge
-  >>> by CW Software  |  .NET MAUI Version & Build Manager  v1.4.3
+  >>> by CW Software  |  .NET MAUI Version & Build Manager  v1.5.49
 
   scan: /Users/me/projects  |  mac: 192.168.1.50 (local)
 
@@ -186,6 +273,8 @@ The path and all settings are remembered in `~/.maui-forge.state.json` — after
   >  Search: all
   >  Mac / SSH config
   >  Diagnostics
+  >  Check for Updates
+  >  Launch Web Interface
   >  Quit
 ```
 
@@ -199,7 +288,7 @@ The path and all settings are remembered in `~/.maui-forge.state.json` — after
 
 ---
 
-## App detail
+## App detail (TUI)
 
 ```
 ╭─ >>> ShippingApp ─────────────────────────────────────────────────╮
@@ -209,30 +298,34 @@ The path and all settings are remembered in `~/.maui-forge.state.json` — after
 │                                                                   │
 │   branch    release/2.0   ✓  ^2 to push                          │
 │                                                                   │
-│   config    Release   ios fw  net9.0-ios   droid fw  net9.0-and.. │
+│   config    Release   ios fw  net10.0-ios   droid fw  net10.0-and │
 │   ios dev   Cezar's iPhone ✓   android dev  R5CX208XXXX           │
 │   mac       192.168.1.50 (local)                                  │
 ╰───────────────────────────────────────────────────────────────────╯
 
 What would you like to do?
--- Version ──────────────────────────────────────────────────────────
+── Run ─────────────────────────────────────────────────────────────
+  [>]  Run on iOS                  Cezar's iPhone
+  [>]  Run on Android              R5CX208XXXX
+── Release ─────────────────────────────────────────────────────────
+  [#]  Create iOS Archive          net10.0-ios  Apple Distribution
+  [#]  Create Android Release      net10.0-android
+── Version ─────────────────────────────────────────────────────────
   v+   Increment Version + Build    2.0.0 -> 2.0.1  #103 -> #104
   b+   Increment Build only         #103 -> #104
   ~~   Set version manually
-  <>   Sync iOS -- Android          (ok) in sync
--- iOS ──────────────────────────────────────────────────────────────
-  [#]  Archive iOS (Release)        net9.0-ios  Apple Distribution
-  [>]  Run iOS Device               Cezar's iPhone
--- Android ──────────────────────────────────────────────────────────
-  [>]  Run Android Device           R5CX208XXXX
-  [#]  Publish Android (Release)    net9.0-android
--- Git & Build ──────────────────────────────────────────────────────
-  git  Git Pull                     pending
-  clr  Clean Project
-────────────────────────────────────────────────────────────────────
+  <>   Sync iOS ↔ Android          (ok) in sync
+── Source Control ───────────────────────────────────────────────────
+  git  Pull Latest Changes
+  msg  Create Commit
+  ^    Push Commits
+── Project Tools ───────────────────────────────────────────────────
+  clr  Clean Build Artifacts
+  ~~~  Build Output Level           quiet
+  >>|  Resume Last Task             Run iOS Device
+  ide  Open in IDE
+── Back ────────────────────────────────────────────────────────────
   <<   Undo last version change     → 1.9.9 #102
-  >>|  Repeat last action           Run iOS Device
-  ~~~  Build verbosity:             quiet
    x   Back
 ```
 
@@ -254,14 +347,16 @@ What would you like to do?
 
 Works with a **remote Mac via SSH** or a **local Mac** running maui-forge directly.
 
-**`[#]` Archive iOS (Release)** — Prompts for codesign key, then runs:
+**`[#]` Create iOS Archive** — Prompts for codesign key, then runs:
 ```
-dotnet publish -c Release -f net9.0-ios -p:ArchiveOnBuild=true -p:CodesignKey="Apple Distribution: ..."
+dotnet publish -c Release -f net10.0-ios -p:ArchiveOnBuild=true -p:CodesignKey="Apple Distribution: ..."
 ```
 
-**`[>]` Run iOS Device** — Lists connected devices and simulators, lets you pick, and runs:
+After archiving: shows `.xcarchive` / `.ipa` path, **offers to upload to App Store Connect** and **open the archive in Xcode**.
+
+**`[>]` Run on iOS** — Lists connected devices and simulators (using all three parsers: `xctrace`, `xcdevice`, `instruments`), lets you pick, and runs:
 ```
-dotnet build -t:Run -f net9.0-ios -p:_DeviceId=<udid>
+dotnet build -t:Run -f net10.0-ios -p:_DeviceId=<udid>
 ```
 
 The selected device, framework, and codesign key are saved per project.
@@ -272,12 +367,58 @@ The selected device, framework, and codesign key are saved per project.
 
 Requires `adb` in PATH (comes with Android SDK / Android Studio).
 
-**`[>]` Run Android Device** — Lists devices and emulators via `adb devices -l`:
+**`[>]` Run on Android** — Lists devices, emulators, and AVDs via `adb devices -l` + `emulator -list-avds`:
+
+**Build & Run** (full pipeline):
 ```
-dotnet build -t:Run -f net9.0-android -p:AdbArguments="-s <serial>"
+dotnet build -t:Run -f net10.0-android -p:AdbArguments="-s <serial>"
 ```
 
-**`[#]` Publish Android (Release)** — Runs `dotnet publish -c Release` and prints `.apk` / `.aab` paths.
+**Quick Launch** (skips build, uses `adb shell monkey` for fast re-deploy):
+```
+adb -s <serial> shell monkey -p <package> 1
+```
+
+If the selected device is an AVD that isn't running, MAUI Forge **auto-starts the emulator** and waits for it to boot before deploying.
+
+**`[#]` Create Android Release** — Runs `dotnet publish -c Release` and prints `.apk` / `.aab` paths.
+
+---
+
+## AI commit messages
+
+From the app detail screen, select **Create Commit**. You'll see a diff summary and can generate a message from:
+
+```
+─ Commit Message Source ────────────────────────────────────────────
+  [x] Smart Suggestion (heuristic)
+  [ ] Claude CLI (claude)
+  [ ] Gemini CLI (gemini)
+  [ ] Ollama (local — llama3.2)
+──
+  [ ] Write manually
+──
+
+Generated message:
+  feat: add user profile screen
+  - added ProfilePage.xaml + ProfilePage.xaml.cs
+  - updated navigation service registration
+  - added profile data models
+```
+
+The providers auto-detect — only show up if the CLI tool is in PATH or Ollama is running.
+
+---
+
+## Clean modes
+
+| Mode | What it deletes |
+|------|----------------|
+| **Quick** | `dotnet clean` |
+| **Android** | Quick + `bin/` + `obj/` under Android-specific folders |
+| **iOS** | Quick + `bin/` + `obj/` under iOS-specific folders |
+| **Deep** | `bin/`, `obj/`, `.vs/`, `artifacts/`, `TestResults/` — full project reset |
+| **Nuclear** | Deep + `dotnet clean --verbosity diag` — maximum verbosity for debugging |
 
 ---
 
@@ -312,12 +453,27 @@ Main menu → **Diagnostics** checks every tool MAUI Forge depends on:
 |-----------|-----------------|
 | `dotnet` | `dotnet --version` |
 | Workloads | `dotnet workload list` |
-| `adb` | `adb version` |
+| `adb` | `adb version` (auto-discovers PATH, ANDROID_HOME, VS, Android Studio) |
+| `emulator` | `emulator -version` (auto-discovers same paths) |
 | `ssh` | `ssh -V` |
 | `xcrun` | `xcrun --version` |
 | `git` | `git --version` |
 
 Run this first when something isn't working — it immediately shows if `adb` is missing or `maui-ios` workload isn't installed.
+
+---
+
+## CLI arguments
+
+| Argument | Effect |
+|----------|--------|
+| *(none)* | Starts web dashboard on `http://localhost:5123` |
+| `--cli` or `--terminal` | Starts traditional terminal TUI |
+| `--web` | (explicit) Starts web dashboard |
+| `--update` | Forces NuGet update check; installs if newer available |
+| `--path <dir>` | Sets scan root directory |
+| `--depth <n>` | Sets scan depth (default: 2) |
+| `--help` / `-h` / `/?` | Show help |
 
 ---
 
@@ -328,13 +484,15 @@ All settings live in `~/.maui-forge.state.json` — nothing inside your project 
 | Field | Description |
 |-------|-------------|
 | `ScanRootPath` | Last root folder scanned |
+| `MonitoredPaths` | Multiple monitored directories (web dashboard) |
 | `MacHost` / `MacUser` | Remote Mac SSH credentials |
 | `UseLocalMac` | Skip SSH and use local `xcrun` |
 | `Verbosity` | Build log level for all `dotnet` commands |
 | `LastAction` | Last action per app (used by Repeat) |
 | `LastVersion` | Version snapshot per app (used by Undo) |
 | `AppUsage` | Last-used timestamp per app — drives sort order |
-| `AppBuildConfigs` | Per-app: framework, device ID, codesign key |
+| `AppBuildConfigs` | Per-app: framework, device IDs, codesign key, build config |
+| `CachedApps` | Cached app list for instant web dashboard load |
 
 ---
 
@@ -349,7 +507,7 @@ cd maui-forge
 .\install.ps1
 ```
 
-Publishes `dist\maui-forge.exe` as a self-contained `win-x64` binary and adds `dist\` to the user PATH.
+Publishes `dist\maui-forge.exe` as a self-contained `win-x64` single-file binary and adds `dist\` to the user PATH. Also creates a desktop shortcut that opens the web dashboard.
 
 ```powershell
 git pull && .\install.ps1   # update
@@ -358,7 +516,7 @@ git pull && .\install.ps1   # update
 </details>
 
 <details>
-<summary><strong>macOS — self-contained binary (no .NET runtime required)</strong></summary>
+<summary><strong>macOS/Linux — dotnet tool (requires .NET SDK)</strong></summary>
 
 ```bash
 git clone https://github.com/CW-Software-Apps/maui-forge.git
@@ -366,7 +524,7 @@ cd maui-forge
 ./install.sh
 ```
 
-Publishes as `osx-arm64` (Apple Silicon) or `osx-x64` (Intel) and symlinks to `~/.local/bin/maui-forge`.
+Installs the NuGet tool globally and adds `~/.dotnet/tools` to your shell profile if needed.
 
 ```bash
 git pull && ./install.sh   # update
@@ -381,8 +539,8 @@ git pull && ./install.sh   # update
 Tags trigger automatic publishing to NuGet.org via GitHub Actions:
 
 ```bash
-git tag v1.4.3
-git push origin v1.4.3
+git tag v1.5.49
+git push origin v1.5.49
 ```
 
 The workflow runs `dotnet pack` and pushes to NuGet. Requires a `NUGET_API_KEY` secret in repo settings.
@@ -391,8 +549,11 @@ The workflow runs `dotnet pack` and pushes to NuGet. Requires a `NUGET_API_KEY` 
 
 ## Stack
 
-- **C# .NET 10**, console app
-- **[Spectre.Console](https://spectreconsole.net/)** — all UI (tables, prompts, panels, progress bars, colors)
+- **C# .NET 10**, console app + ASP.NET Core Minimal API
+- **[Spectre.Console](https://spectreconsole.net/)** — TUI (tables, prompts, panels, progress bars, colors)
+- **Spectre.Console.Cli** — CLI arg parsing
+- **ASP.NET Core + SignalR** — web dashboard with real-time logs
+- **Tailwind CSS** — web dashboard styling
 - **Microsoft.Extensions.DependencyInjection** — service composition
 - Distributed as a `dotnet tool` — single command install, works on Windows, macOS, and Linux
 
