@@ -29,9 +29,12 @@
                             400: 'var(--blue)', 500: 'var(--blue)', 600: 'var(--blue-hover)',
                             800: 'var(--blue-subtle)', 950: 'var(--blue-subtle)'
                         },
-                        amber: { 400: 'var(--amber)', 500: 'var(--amber)', 600: 'var(--amber-hover)' },
-                        green: { 400: 'var(--green)', 500: 'var(--green)' },
-                        emerald: { 400: 'var(--green)', 500: 'var(--green)' },
+                        amber: {
+                            400: 'var(--amber)', 500: 'var(--amber)', 600: 'var(--amber-hover)',
+                            800: 'var(--amber-subtle)', 950: 'var(--amber-subtle)'
+                        },
+                        green: { 400: 'var(--green)', 500: 'var(--green)', 800: 'var(--green-subtle)', 950: 'var(--green-subtle)' },
+                        emerald: { 400: 'var(--green)', 500: 'var(--green)', 800: 'var(--green-subtle)', 950: 'var(--green-subtle)' },
                         red: { 400: 'var(--red)', 500: 'var(--red)' }
                     }
                 }
@@ -449,13 +452,20 @@
                 </div>
 
                 <!-- This machine's own instance is running as a server (accepting remote connections) -->
-                <div id="serverModeActive" class="hidden space-y-2">
-                    <div class="flex items-center gap-2 text-xs bg-amber-950/30 border border-amber-800/30 rounded-lg px-3 py-2">
-                        <span class="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0 animate-pulse"></span>
-                        <span class="text-amber-400 truncate">Server Mode Active</span>
+                <div id="serverModeActive" class="hidden space-y-2.5">
+                    <div class="flex items-center gap-2 px-3 py-2 rounded-lg" style="background: var(--amber-subtle); border: 1px solid color-mix(in oklch, var(--amber) 35%, transparent);">
+                        <span class="w-2 h-2 rounded-full flex-shrink-0 animate-pulse" style="background: var(--amber);"></span>
+                        <span class="text-xs font-semibold truncate" style="color: var(--amber);">Server Mode Active</span>
                     </div>
-                    <div class="text-[10px] text-slate-500 px-1">Other devices can connect to this instance using this machine's LAN IP, port <span id="serverModeActivePort"></span>, and this token:</div>
-                    <div id="serverModeActiveToken" class="text-[10px] font-mono text-slate-300 bg-slate-900/50 border border-slate-800 rounded-lg px-2 py-1.5 break-all select-all"></div>
+                    <p class="text-[10px] leading-relaxed px-0.5" style="color: var(--ink-muted);">
+                        Other devices can connect using this machine's LAN IP, port
+                        <span id="serverModeActivePort" class="font-semibold" style="color: var(--ink-dim);"></span>,
+                        and this token:
+                    </p>
+                    <div class="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg" style="background: var(--surface-hover); border: 1px solid var(--border);">
+                        <span id="serverModeActiveToken" class="text-[11px] font-mono truncate select-all" style="color: var(--ink);"></span>
+                        <button onclick="copyServeToken()" class="text-[10px] font-semibold flex-shrink-0 transition" style="color: var(--accent);" title="Copy token to clipboard">Copy</button>
+                    </div>
                 </div>
 
                 <!-- Server mode info (after enabling) -->
@@ -897,7 +907,7 @@
                     notConnected.classList.add("hidden");
                     var port = localApiBase ? (new URL(localApiBase)).port : window.location.port || "5123";
                     document.getElementById("serverModeActivePort").textContent = port;
-                    document.getElementById("serverModeActiveToken").textContent = "Token: " + (localServeToken || "(saved on the machine that enabled it)");
+                    document.getElementById("serverModeActiveToken").textContent = localServeToken || "(saved on the machine that enabled it)";
                 } else {
                     dot.className = "w-2 h-2 rounded-full bg-emerald-500";
                     text.textContent = "Local Host Connected";
@@ -1379,6 +1389,13 @@
         function saveLocalServeToken(token) {
             localServeToken = token;
             localStorage.setItem("mauiForgeLocalToken", token);
+        }
+
+        function copyServeToken() {
+            if (!localServeToken) return;
+            navigator.clipboard.writeText(localServeToken)
+                .then(function () { showToast("Token copied to clipboard", "success"); })
+                .catch(function () { showToast("Could not copy token", "error"); });
         }
 
         async function enableServerMode() {
