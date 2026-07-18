@@ -373,9 +373,9 @@
                 <span class="w-1.5 h-1.5 rounded-full"></span>
                 Check Updates
             </button>
-            <button onclick="loadDiagnostics()" class="btn-ghost text-xs flex items-center gap-2 py-1.5" title="Show OS and .NET diagnostics">
-                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                Local Host Connected
+            <button onclick="loadDiagnostics()" class="btn-ghost text-xs flex items-center gap-2 py-1.5" id="hostStatusBtn" title="Show OS and .NET diagnostics">
+                <span id="hostStatusDot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span id="hostStatusText">Local Host Connected</span>
             </button>
         </div>
     </header>
@@ -446,6 +446,16 @@
                     <button onclick="disconnectRemote()" class="btn-danger-outline text-xs w-full py-2">
                         Disconnect
                     </button>
+                </div>
+
+                <!-- This machine's own instance is running as a server (accepting remote connections) -->
+                <div id="serverModeActive" class="hidden space-y-2">
+                    <div class="flex items-center gap-2 text-xs bg-amber-950/30 border border-amber-800/30 rounded-lg px-3 py-2">
+                        <span class="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0 animate-pulse"></span>
+                        <span class="text-amber-400 truncate">Server Mode Active</span>
+                    </div>
+                    <div class="text-[10px] text-slate-500 px-1">Other devices can connect to this instance using this machine's LAN IP, port <span id="serverModeActivePort"></span>, and this token:</div>
+                    <div id="serverModeActiveToken" class="text-[10px] font-mono text-slate-300 bg-slate-900/50 border border-slate-800 rounded-lg px-2 py-1.5 break-all select-all"></div>
                 </div>
 
                 <!-- Server mode info (after enabling) -->
@@ -868,6 +878,38 @@
 
         localApiBase = API_BASE;
         initSignalR();
+        refreshHostStatus();
+
+        // Reflects whether THIS instance (the one hosting this page) is itself running
+        // with --serve, regardless of whether the sidebar is also connected elsewhere.
+        async function refreshHostStatus() {
+            var dot = document.getElementById("hostStatusDot");
+            var text = document.getElementById("hostStatusText");
+            var activePanel = document.getElementById("serverModeActive");
+            var notConnected = document.getElementById("remoteNotConnected");
+            try {
+                var res = await origFetch(localApiBase + "/api/remote/info");
+                var data = await res.json();
+                if (data.requiresToken) {
+                    dot.className = "w-2 h-2 rounded-full bg-amber-500 animate-pulse";
+                    text.textContent = "Server Mode Active";
+                    activePanel.classList.remove("hidden");
+                    notConnected.classList.add("hidden");
+                    var port = localApiBase ? (new URL(localApiBase)).port : window.location.port || "5123";
+                    document.getElementById("serverModeActivePort").textContent = port;
+                    document.getElementById("serverModeActiveToken").textContent = "Token: " + (localServeToken || "(saved on the machine that enabled it)");
+                } else {
+                    dot.className = "w-2 h-2 rounded-full bg-emerald-500";
+                    text.textContent = "Local Host Connected";
+                    activePanel.classList.add("hidden");
+                    notConnected.classList.remove("hidden");
+                }
+            } catch (err) {
+                dot.className = "w-2 h-2 rounded-full bg-red-500";
+                text.textContent = "Local Host Disconnected";
+            }
+        }
+
         (function autoConnectRemote() {
             var saved = localStorage.getItem("mauiForgeRemote");
             if (!saved) return;
