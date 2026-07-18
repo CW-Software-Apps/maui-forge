@@ -1607,17 +1607,29 @@
         // self-restart, then reload so the page picks up the new serve-mode session cleanly.
         function waitForServerAndReload(maxAttempts) {
             var attempts = 0;
+            // /api/remote/info never requires auth, so the OLD process answers it too, right up
+            // until it actually exits — a bare "did it respond" check can reload the page while
+            // the old process is still up (before the swap) or in the dead gap between the two,
+            // landing on a blank/failed page. Wait for a confirmed disconnect first, then a
+            // reconnect, so we know we're really talking to the new process.
+            var sawDisconnect = false;
             var poll = setInterval(function () {
                 attempts++;
                 origFetch(API_BASE + "/api/remote/info").then(function (res) {
-                    if (res.ok) {
+                    if (res.ok && sawDisconnect) {
                         clearInterval(poll);
                         location.reload();
+                    } else if (!res.ok) {
+                        sawDisconnect = true;
                     }
-                }).catch(function () {});
+                }).catch(function () { sawDisconnect = true; });
                 if (attempts >= maxAttempts) {
                     clearInterval(poll);
-                    showToast("Server did not come back automatically. Please reopen MAUI Forge manually.", "error");
+                    if (sawDisconnect) {
+                        location.reload();
+                    } else {
+                        showToast("Server did not come back automatically. Please reopen MAUI Forge manually.", "error");
+                    }
                 }
             }, 1000);
         }
