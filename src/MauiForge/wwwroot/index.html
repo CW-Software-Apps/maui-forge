@@ -756,13 +756,15 @@
     <script>
         var API_BASE = "";
         var remoteInfo = null;
+        var localServeToken = localStorage.getItem("mauiForgeLocalToken") || null;
         var origFetch = window.fetch;
         window.fetch = function(url, opts) {
             opts = opts || {};
-            if (remoteInfo && remoteInfo.token && typeof url === 'string' && url.includes('/api/')) {
+            var token = (remoteInfo && remoteInfo.token) || localServeToken;
+            if (token && typeof url === 'string' && url.includes('/api/')) {
                 opts = Object.assign({}, opts);
                 opts.headers = Object.assign({}, opts.headers || {});
-                opts.headers['X-MauiForge-Token'] = remoteInfo.token;
+                opts.headers['X-MauiForge-Token'] = token;
             }
             return origFetch.call(window, url, opts);
         };
@@ -1332,10 +1334,16 @@
             }
         }
 
+        function saveLocalServeToken(token) {
+            localServeToken = token;
+            localStorage.setItem("mauiForgeLocalToken", token);
+        }
+
         async function enableServerMode() {
             try {
                 const res = await fetch(`${API_BASE}/api/remote/enable-server`, { method: "POST" });
                 const data = await res.json();
+                saveLocalServeToken(data.token);
                 document.getElementById("serverModeToken").textContent = "Token: " + data.token;
                 document.getElementById("serverModeCommand").textContent = "Restart: maui-forge --serve --token " + data.token;
                 document.getElementById("serverModeInfo").classList.remove("hidden");
@@ -1349,6 +1357,25 @@
             document.getElementById("serverModeInfo").classList.add("hidden");
         }
 
+        // Poll the (unauthenticated) info endpoint until the server comes back up after a
+        // self-restart, then reload so the page picks up the new serve-mode session cleanly.
+        function waitForServerAndReload(maxAttempts) {
+            var attempts = 0;
+            var poll = setInterval(function () {
+                attempts++;
+                origFetch(API_BASE + "/api/remote/info").then(function (res) {
+                    if (res.ok) {
+                        clearInterval(poll);
+                        location.reload();
+                    }
+                }).catch(function () {});
+                if (attempts >= maxAttempts) {
+                    clearInterval(poll);
+                    showToast("Server did not come back automatically. Please reopen MAUI Forge manually.", "error");
+                }
+            }, 1000);
+        }
+
         async function restartInServerMode() {
             if (!confirm("Restart MAUI Forge in server mode?\n\nThe dashboard will close and reopen on port 5123 accessible from other machines.")) return;
             var btn = document.getElementById("restartServerBtn");
@@ -1358,9 +1385,11 @@
                 var res = await fetch(API_BASE + "/api/remote/start-server", { method: "POST" });
                 var data = await res.json();
                 if (data.willRestart) {
+                    saveLocalServeToken(data.token);
                     showToast("Server restarting... Batch script created. Closing now.", "success");
                     setTimeout(function () {
                         fetch(API_BASE + "/api/shutdown", { method: "POST" }).catch(function(){});
+                        waitForServerAndReload(30);
                     }, 300);
                 }
             } catch (err) {
