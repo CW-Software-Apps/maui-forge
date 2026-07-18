@@ -844,7 +844,12 @@
             }
             var url = (remoteInfo ? "http://" + remoteInfo.host + ":" + remoteInfo.port : API_BASE || "") + "/hubs/logs";
             connection = new signalR.HubConnectionBuilder()
-                .withUrl(url)
+                // The backend's CORS policy allows any origin but doesn't set
+                // Access-Control-Allow-Credentials, so a credentialed cross-origin
+                // negotiate request (SignalR's default) gets silently blocked by the
+                // browser when connected to a remote host. Auth here is our own
+                // X-MauiForge-Token header, not cookies, so credentials aren't needed.
+                .withUrl(url, { withCredentials: false })
                 .configureLogging(signalR.LogLevel.Information)
                 .build();
 
@@ -919,7 +924,10 @@
             renderApps();
         });
 
-        connection.start().catch(err => console.error("SignalR Connection Error: ", err));
+        connection.start().catch(err => {
+            console.error("SignalR Connection Error: ", err);
+            showToast("Live log streaming isn't connected — build progress may not update in real time.", "error");
+        });
         }
 
         localApiBase = API_BASE;
