@@ -54,7 +54,21 @@ public class RemoteDiscoveryService
         udp.Client.ReceiveTimeout = timeoutMs;
 
         var ping = Encoding.UTF8.GetBytes("MAUI_FORGE_PING");
-        udp.Send(ping, ping.Length, new IPEndPoint(IPAddress.Broadcast, discoveryPort));
+
+        // The global broadcast address (255.255.255.255) can get routed out the wrong
+        // network adapter when the machine has more than one (VPN, virtual switches,
+        // multiple physical NICs), so it silently never reaches the actual LAN. Sending
+        // directly to each active subnet's own directed broadcast address (e.g.
+        // 192.168.1.255) is what actually gets it there reliably.
+        var targets = new List<IPEndPoint> { new(IPAddress.Broadcast, discoveryPort) };
+        foreach (var addr in GetSubnetBroadcastAddresses())
+            targets.Add(new IPEndPoint(addr, discoveryPort));
+
+        foreach (var target in targets)
+        {
+            try { udp.Send(ping, ping.Length, target); }
+            catch (SocketException) { /* that subnet isn't reachable from here — skip it */ }
+        }
 
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
 
@@ -91,6 +105,32 @@ public class RemoteDiscoveryService
         }
 
         return servers;
+    }
+
+    private static List<IPAddress> GetSubnetBroadcastAddresses()
+    {
+        var result = new List<IPAddress>();
+        try
+        {
+            foreach (var nic in NetworkUtils.GetActiveLanInterfaces())
+            {
+                foreach (var ua in nic.GetIPProperties().UnicastAddresses)
+                {
+                    if (ua.Address.AddressFamily != AddressFamily.InterNetwork) continue;
+                    if (IPAddress.IsLoopback(ua.Address)) continue;
+                    if (ua.IPv4Mask == null) continue;
+
+                    var ipBytes = ua.Address.GetAddressBytes();
+                    var maskBytes = ua.IPv4Mask.GetAddressBytes();
+                    var broadcastBytes = new byte[4];
+                    for (var i = 0; i < 4; i++)
+                        broadcastBytes[i] = (byte)(ipBytes[i] | ~maskBytes[i]);
+                    result.Add(new IPAddress(broadcastBytes));
+                }
+            }
+        }
+        catch { /* best effort — falls back to the global broadcast address only */ }
+        return result;
     }
 }
 

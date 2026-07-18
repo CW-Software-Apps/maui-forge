@@ -122,6 +122,7 @@ public static class WebStartup
             var st = state.Load();
             var token = string.IsNullOrEmpty(customToken) ? Guid.NewGuid().ToString("N")[..12] : customToken;
             st.ServeToken = token;
+            st.ServerModeEnabled = true;
             state.Save(st);
 
             var appliedLive = _serveToken != null;
@@ -137,52 +138,32 @@ public static class WebStartup
             });
         });
 
-        // Start server mode (auto-restart)
+        // Start server mode (auto-restart). Also flips ServerModeEnabled so a later plain
+        // relaunch (desktop shortcut, "maui-forge" with no args) comes back up serving too.
         app.MapPost("/api/remote/start-server", (StateService state) =>
         {
             var st = state.Load();
             var token = st.ServeToken ?? Guid.NewGuid().ToString("N")[..12];
             st.ServeToken = token;
+            st.ServerModeEnabled = true;
             state.Save(st);
 
-            var pid = Environment.ProcessId;
-            var selfExe = Environment.ProcessPath ?? "maui-forge";
-            var origArgs = OriginalArgs ?? [];
-            var argStr = string.Join(" ", origArgs.Where(a => a != "--serve" && !a.StartsWith("--token")));
-            var serveArgs = $"--serve --token {token} {argStr}".TrimEnd();
-
-            if (OperatingSystem.IsWindows())
-            {
-                var script = Path.Combine(Path.GetTempPath(), "maui-forge-serve.bat");
-                var batch = "@echo off\r\n" +
-                    "chcp 65001 > nul\r\n" +
-                    "title MAUI Forge Server\r\n" +
-                    $"set \"PID={pid}\"\r\n" +
-                    ":wait\r\n" +
-                    "tasklist /FI \"PID eq %PID%\" 2>NUL | find \"%PID%\" >NUL\r\n" +
-                    "if %ERRORLEVEL% == 0 (timeout /t 1 /nobreak >nul & goto wait)\r\n" +
-                    $"\"{selfExe}\" {serveArgs}\r\n";
-                File.WriteAllText(script, batch);
-                var psi = new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c start \"\" \"{script}\"")
-                {
-                    UseShellExecute = true,
-                    CreateNoWindow = true
-                };
-                System.Diagnostics.Process.Start(psi);
-            }
-            else
-            {
-                var script = Path.Combine(Path.GetTempPath(), "maui-forge-serve.sh");
-                var sh = "#!/bin/bash\n" +
-                    $"PID={pid}\n" +
-                    "while kill -0 $PID 2>/dev/null; do sleep 1; done\n" +
-                    $"exec {selfExe} {serveArgs}\n";
-                File.WriteAllText(script, sh);
-                System.Diagnostics.Process.Start("chmod", $"+x {script}");
-                System.Diagnostics.Process.Start("nohup", $"{script} &");
-            }
+            RelaunchSelf($"--serve --token {token} {string.Join(" ", StripServeArgs(OriginalArgs ?? []))}".TrimEnd());
 
             return Results.Ok(new { token, message = "Server restarting...", willRestart = true });
+        });
+
+        // Disable server mode (auto-restart back to localhost-only). Clears
+        // ServerModeEnabled so future plain launches no longer come back up serving.
+        app.MapPost("/api/remote/disable-server", (StateService state) =>
+        {
+            var st = state.Load();
+            st.ServerModeEnabled = false;
+            state.Save(st);
+
+            RelaunchSelf(string.Join(" ", StripServeArgs(OriginalArgs ?? [])));
+
+            return Results.Ok(new { message = "Server restarting in local-only mode...", willRestart = true });
         });
 
         // Shutdown server (for restart or quit)
@@ -954,30 +935,68 @@ public static class WebStartup
         }
     }
 
+    // Drops --serve and --token <value> from a previous launch's args so a relaunch
+    // (either into or out of serve mode) doesn't inherit a stale flag or leave the
+    // token's value behind as a stray positional argument.
+    private static List<string> StripServeArgs(string[] args)
+    {
+        var result = new List<string>();
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (args[i] == "--serve") continue;
+            if (args[i] == "--token") { i++; continue; }
+            result.Add(args[i]);
+        }
+        return result;
+    }
+
+    // Writes a small wait-then-relaunch script (batch on Windows, shell elsewhere) that
+    // waits for this process to exit, then starts a new one with the given arguments —
+    // used to hop in and out of server mode from the UI without a manual restart.
+    private static void RelaunchSelf(string args)
+    {
+        var pid = Environment.ProcessId;
+        var selfExe = Environment.ProcessPath ?? "maui-forge";
+
+        if (OperatingSystem.IsWindows())
+        {
+            var script = Path.Combine(Path.GetTempPath(), "maui-forge-relaunch.bat");
+            var batch = "@echo off\r\n" +
+                "chcp 65001 > nul\r\n" +
+                "title MAUI Forge\r\n" +
+                $"set \"PID={pid}\"\r\n" +
+                ":wait\r\n" +
+                "tasklist /FI \"PID eq %PID%\" 2>NUL | find \"%PID%\" >NUL\r\n" +
+                "if %ERRORLEVEL% == 0 (timeout /t 1 /nobreak >nul & goto wait)\r\n" +
+                $"\"{selfExe}\" {args}\r\n";
+            File.WriteAllText(script, batch);
+            var psi = new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c start \"\" \"{script}\"")
+            {
+                UseShellExecute = true,
+                CreateNoWindow = true
+            };
+            System.Diagnostics.Process.Start(psi);
+        }
+        else
+        {
+            var script = Path.Combine(Path.GetTempPath(), "maui-forge-relaunch.sh");
+            var sh = "#!/bin/bash\n" +
+                $"PID={pid}\n" +
+                "while kill -0 $PID 2>/dev/null; do sleep 1; done\n" +
+                $"exec {selfExe} {args}\n";
+            File.WriteAllText(script, sh);
+            System.Diagnostics.Process.Start("chmod", $"+x {script}");
+            System.Diagnostics.Process.Start("nohup", $"{script} &");
+        }
+    }
+
     private static List<string> GetLanAddresses()
     {
         var addresses = new List<string>();
         try
         {
-            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+            foreach (var nic in NetworkUtils.GetActiveLanInterfaces())
             {
-                if (nic.OperationalStatus != OperationalStatus.Up) continue;
-                if (nic.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel) continue;
-
-                // Skip virtual switches (WSL, Hyper-V, Docker, VPN) — they're not reachable
-                // from other physical machines on the LAN and just add noise here.
-                var label = $"{nic.Name} {nic.Description}";
-                if (label.Contains("Virtual", StringComparison.OrdinalIgnoreCase) ||
-                    label.Contains("vEthernet", StringComparison.OrdinalIgnoreCase) ||
-                    label.Contains("WSL", StringComparison.OrdinalIgnoreCase) ||
-                    label.Contains("Hyper-V", StringComparison.OrdinalIgnoreCase) ||
-                    label.Contains("Docker", StringComparison.OrdinalIgnoreCase) ||
-                    label.Contains("VPN", StringComparison.OrdinalIgnoreCase) ||
-                    label.Contains("TAP", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
                 foreach (var addr in nic.GetIPProperties().UnicastAddresses)
                 {
                     if (addr.Address.AddressFamily != AddressFamily.InterNetwork) continue;

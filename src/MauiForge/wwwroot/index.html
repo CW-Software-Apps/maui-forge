@@ -481,6 +481,9 @@
                         <input id="changeTokenInput" type="text" placeholder="New token" class="input w-full text-xs">
                         <button type="submit" class="btn-primary text-[10px] w-full py-1.5">Apply — takes effect immediately</button>
                     </form>
+                    <button id="disableServerBtn" onclick="disableServerMode()" class="btn-danger-outline text-[10px] w-full py-1.5" title="Restart back to localhost-only — this device won't auto-start in Server Mode anymore">
+                        Disable Server Mode
+                    </button>
                 </div>
 
                 <!-- Server mode info (after enabling) -->
@@ -1586,6 +1589,30 @@
                 showToast("Failed to restart: " + err.message, "error");
                 btn.disabled = false;
                 btn.textContent = "Restart in Server Mode";
+            }
+        }
+
+        async function disableServerMode() {
+            if (!confirm("Disable Server Mode?\n\nThe dashboard will restart as localhost-only. Other devices will lose access, and it won't come back up in Server Mode automatically next time.")) return;
+            var btn = document.getElementById("disableServerBtn");
+            btn.disabled = true;
+            btn.textContent = "Restarting...";
+            try {
+                var res = await fetch(API_BASE + "/api/remote/disable-server", { method: "POST" });
+                var data = await res.json();
+                if (data.willRestart) {
+                    localServeToken = null;
+                    localStorage.removeItem("mauiForgeLocalToken");
+                    showToast("Restarting in local-only mode...", "success");
+                    setTimeout(function () {
+                        fetch(API_BASE + "/api/shutdown", { method: "POST" }).catch(function(){});
+                        waitForServerAndReload(30);
+                    }, 300);
+                }
+            } catch (err) {
+                showToast("Failed to disable: " + err.message, "error");
+                btn.disabled = false;
+                btn.textContent = "Disable Server Mode";
             }
         }
 

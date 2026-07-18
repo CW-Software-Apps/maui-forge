@@ -60,6 +60,20 @@ for (int i = 0; i < args.Length; i++)
     if (args[i] == "--port"  && i + 1 < args.Length && int.TryParse(args[i + 1], out var p)) servePort = p;
 }
 
+// Server Mode persists across restarts once enabled from the UI — a plain launch
+// (double-click, desktop shortcut, "maui-forge" with no args) picks it back up
+// automatically until explicitly disabled, instead of silently reverting to
+// localhost-only and requiring the --serve flag to be retyped every time.
+if (!serveMode)
+{
+    var persisted = services.GetRequiredService<StateService>().Load();
+    if (persisted.ServerModeEnabled && !string.IsNullOrEmpty(persisted.ServeToken))
+    {
+        serveMode = true;
+        serveToken = persisted.ServeToken;
+    }
+}
+
 if (runHelp)
 {
     AnsiConsole.MarkupLine("[bold cyan1]MAUI Forge Command Line Help[/]");

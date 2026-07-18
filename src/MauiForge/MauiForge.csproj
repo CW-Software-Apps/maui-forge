@@ -15,7 +15,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>maui-forge</ToolCommandName>
     <PackageId>CwSoftware.MauiForge</PackageId>
-    <Version>1.6.8</Version>
+    <Version>1.6.9</Version>
     <Description>MAUI Forge — Version and build manager for .NET MAUI apps</Description>
     <Authors>CWSoftware</Authors>
     <PackageTags>maui;dotnet;cli;build;version</PackageTags>
