@@ -451,13 +451,16 @@
                     </details>
                 </div>
 
-                <!-- Connected: show status -->
+                <!-- Connected: quick Local/Remote switch, no need to disconnect to go back -->
                 <div id="remoteConnected" class="hidden space-y-2">
-                    <div class="flex items-center gap-2 text-xs bg-green-950/30 border border-green-800/30 rounded-lg px-3 py-2">
-                        <span class="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>
-                        <span id="remoteStatusText" class="text-green-400 truncate">Connected</span>
+                    <div class="grid grid-cols-2 gap-1 p-1 rounded-lg" style="background: var(--surface-hover); border: 1px solid var(--border);">
+                        <button id="viewLocalBtn" onclick="switchToLocal()" class="text-xs py-1.5 rounded-md font-semibold transition" title="Switch to this machine's own apps">
+                            Local
+                        </button>
+                        <button id="viewRemoteBtn" onclick="switchToRemote()" class="text-xs py-1.5 rounded-md font-semibold transition truncate" title="Switch back to the remote instance — stays connected in the background">
+                        </button>
                     </div>
-                    <button onclick="disconnectRemote()" class="btn-danger-outline text-xs w-full py-2">
+                    <button onclick="disconnectRemote()" class="btn-danger-outline text-xs w-full py-2" title="Forget this remote — you'll need to reconnect to view it again">
                         Disconnect
                     </button>
                 </div>
@@ -815,6 +818,7 @@
     <script>
         var API_BASE = "";
         var remoteInfo = null;
+        var viewingRemote = false; // whether the dashboard is currently showing the remote's apps or this machine's own
         var localServeToken = localStorage.getItem("mauiForgeLocalToken") || null;
         var origFetch = window.fetch;
         window.fetch = function(url, opts) {
@@ -1686,21 +1690,54 @@
                 return;
             }
             remoteInfo = { host: host, port: port, token: token };
-            API_BASE = "http://" + host + ":" + port;
             localStorage.setItem("mauiForgeRemote", JSON.stringify(remoteInfo));
-            document.getElementById("remoteStatusText").textContent = host + ":" + port;
             document.getElementById("remoteNotConnected").classList.add("hidden");
             document.getElementById("remoteConnected").classList.remove("hidden");
             document.getElementById("serverScanResult").classList.add("hidden");
-            document.getElementById("sidebar").classList.add("remote-mode");
-            setRemoteBadge(true, host);
+            switchToRemote();
+            showToast("Connected to " + host + ":" + port, "success");
+        }
+
+        // Switching view does NOT touch remoteInfo/localStorage — the remote connection
+        // stays live in the background so flipping back is instant, no reconnect needed.
+        function updateViewToggle() {
+            var localBtn = document.getElementById("viewLocalBtn");
+            var remoteBtn = document.getElementById("viewRemoteBtn");
+            if (!remoteInfo) return;
+            remoteBtn.textContent = remoteInfo.host + ":" + remoteInfo.port;
+            var activeStyle = "background: var(--accent); color: var(--ink-inverse);";
+            var inactiveStyle = "background: transparent; color: var(--ink-muted);";
+            localBtn.style.cssText = viewingRemote ? inactiveStyle : activeStyle;
+            remoteBtn.style.cssText = viewingRemote ? activeStyle : inactiveStyle;
+        }
+
+        function switchToLocal() {
+            if (!viewingRemote) return;
+            API_BASE = localApiBase;
+            viewingRemote = false;
+            document.getElementById("sidebar").classList.remove("remote-mode");
+            setRemoteBadge(false);
+            updateViewToggle();
             initSignalR();
             loadApps();
-            showToast("Connected to " + host + ":" + port, "success");
+            loadPaths();
+        }
+
+        function switchToRemote() {
+            if (!remoteInfo) return;
+            API_BASE = "http://" + remoteInfo.host + ":" + remoteInfo.port;
+            viewingRemote = true;
+            document.getElementById("sidebar").classList.add("remote-mode");
+            setRemoteBadge(true, remoteInfo.host);
+            updateViewToggle();
+            initSignalR();
+            loadApps();
+            loadPaths();
         }
 
         function disconnectRemote() {
             remoteInfo = null;
+            viewingRemote = false;
             API_BASE = localApiBase;
             localStorage.removeItem("mauiForgeRemote");
             document.getElementById("remoteNotConnected").classList.remove("hidden");
@@ -1709,6 +1746,7 @@
             setRemoteBadge(false);
             initSignalR();
             loadApps();
+            loadPaths();
             showToast("Disconnected", "info");
         }
 
