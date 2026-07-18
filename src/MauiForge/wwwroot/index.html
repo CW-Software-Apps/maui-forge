@@ -438,6 +438,17 @@
                         Connect to Remote...
                     </button>
                     <div id="serverScanResult" class="hidden space-y-1"></div>
+
+                    <!-- Manual fallback: UDP discovery can fail across firewalls, VLANs, or
+                         Wi-Fi client isolation, so let people type an address directly. -->
+                    <details class="text-xs">
+                        <summary class="cursor-pointer select-none py-1" style="color: var(--ink-muted);">Or connect via IP directly</summary>
+                        <form onsubmit="submitManualConnect(event)" class="space-y-1.5 mt-1.5">
+                            <input id="manualHostInput" type="text" placeholder="192.168.1.23:5123" class="input w-full text-xs" required>
+                            <input id="manualTokenInput" type="text" placeholder="Token (if required)" class="input w-full text-xs">
+                            <button type="submit" class="btn-ghost text-xs w-full py-1.5">Connect</button>
+                        </form>
+                    </details>
                 </div>
 
                 <!-- Connected: show status -->
@@ -458,10 +469,9 @@
                         <span class="text-xs font-semibold truncate" style="color: var(--amber);">Server Mode Active</span>
                     </div>
                     <p class="text-[10px] leading-relaxed px-0.5" style="color: var(--ink-muted);">
-                        Other devices can connect using this machine's LAN IP, port
-                        <span id="serverModeActivePort" class="font-semibold" style="color: var(--ink-dim);"></span>,
-                        and this token:
+                        Other devices connect using an address below and this token:
                     </p>
+                    <div id="serverModeActiveAddresses" class="space-y-1.5"></div>
                     <div class="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg" style="background: var(--surface-hover); border: 1px solid var(--border);">
                         <span id="serverModeActiveToken" class="text-[11px] font-mono truncate select-all" style="color: var(--ink);"></span>
                         <button onclick="copyServeToken()" class="text-[10px] font-semibold flex-shrink-0 transition" style="color: var(--accent);" title="Copy token to clipboard">Copy</button>
@@ -905,8 +915,8 @@
                     text.textContent = "Server Mode Active";
                     activePanel.classList.remove("hidden");
                     notConnected.classList.add("hidden");
-                    var port = localApiBase ? (new URL(localApiBase)).port : window.location.port || "5123";
-                    document.getElementById("serverModeActivePort").textContent = port;
+                    var port = data.port || (localApiBase ? (new URL(localApiBase)).port : window.location.port) || "5123";
+                    renderServeAddresses(data.addresses || [], port);
                     document.getElementById("serverModeActiveToken").textContent = localServeToken || "(saved on the machine that enabled it)";
                 } else {
                     dot.className = "w-2 h-2 rounded-full bg-emerald-500";
@@ -918,6 +928,44 @@
                 dot.className = "w-2 h-2 rounded-full bg-red-500";
                 text.textContent = "Local Host Disconnected";
             }
+        }
+
+        function renderServeAddresses(addresses, port) {
+            var container = document.getElementById("serverModeActiveAddresses");
+            if (!addresses.length) {
+                container.innerHTML = '<div class="text-[10px] px-0.5" style="color: var(--ink-muted);">Could not detect this machine\'s LAN IP — use your OS network settings and connect on port ' + port + '.</div>';
+                return;
+            }
+            container.innerHTML = "";
+            addresses.forEach(function (ip) {
+                var url = "http://" + ip + ":" + port;
+                var row = document.createElement("div");
+                row.className = "flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg";
+                row.style.background = "var(--surface-hover)";
+                row.style.border = "1px solid var(--border)";
+                row.innerHTML = '<span class="text-[11px] font-mono truncate select-all" style="color: var(--ink);">' + url + '</span>' +
+                    '<button class="text-[10px] font-semibold flex-shrink-0 transition" style="color: var(--accent);" title="Copy address to clipboard">Copy</button>';
+                row.querySelector("button").onclick = function () {
+                    navigator.clipboard.writeText(url)
+                        .then(function () { showToast("Address copied to clipboard", "success"); })
+                        .catch(function () { showToast("Could not copy address", "error"); });
+                };
+                container.appendChild(row);
+            });
+        }
+
+        function submitManualConnect(event) {
+            event.preventDefault();
+            var raw = document.getElementById("manualHostInput").value.trim();
+            var token = document.getElementById("manualTokenInput").value.trim();
+            if (!raw) return;
+            var host = raw, port = 5123;
+            var colonIdx = raw.lastIndexOf(":");
+            if (colonIdx !== -1) {
+                host = raw.slice(0, colonIdx);
+                port = parseInt(raw.slice(colonIdx + 1), 10) || 5123;
+            }
+            connectToRemote(host, port, false, token || undefined);
         }
 
         (function autoConnectRemote() {

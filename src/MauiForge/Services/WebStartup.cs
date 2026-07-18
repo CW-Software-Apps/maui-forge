@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Text.Json;
 using MauiForge.Models;
 using MauiForge.Services;
@@ -93,7 +96,9 @@ public static class WebStartup
             {
                 version = typeof(WebStartup).Assembly.GetName().Version?.ToString() ?? "unknown",
                 hostname = Environment.MachineName,
-                requiresToken = _serveToken != null
+                requiresToken = _serveToken != null,
+                port,
+                addresses = GetLanAddresses()
             });
         });
 
@@ -922,6 +927,42 @@ public static class WebStartup
         {
             await _hubContext.Clients.All.SendAsync("LogReceived", message);
         }
+    }
+
+    private static List<string> GetLanAddresses()
+    {
+        var addresses = new List<string>();
+        try
+        {
+            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (nic.OperationalStatus != OperationalStatus.Up) continue;
+                if (nic.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel) continue;
+
+                // Skip virtual switches (WSL, Hyper-V, Docker, VPN) — they're not reachable
+                // from other physical machines on the LAN and just add noise here.
+                var label = $"{nic.Name} {nic.Description}";
+                if (label.Contains("Virtual", StringComparison.OrdinalIgnoreCase) ||
+                    label.Contains("vEthernet", StringComparison.OrdinalIgnoreCase) ||
+                    label.Contains("WSL", StringComparison.OrdinalIgnoreCase) ||
+                    label.Contains("Hyper-V", StringComparison.OrdinalIgnoreCase) ||
+                    label.Contains("Docker", StringComparison.OrdinalIgnoreCase) ||
+                    label.Contains("VPN", StringComparison.OrdinalIgnoreCase) ||
+                    label.Contains("TAP", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                foreach (var addr in nic.GetIPProperties().UnicastAddresses)
+                {
+                    if (addr.Address.AddressFamily != AddressFamily.InterNetwork) continue;
+                    if (IPAddress.IsLoopback(addr.Address)) continue;
+                    addresses.Add(addr.Address.ToString());
+                }
+            }
+        }
+        catch { /* best effort — an empty list just means the UI falls back to "your machine's LAN IP" */ }
+        return addresses;
     }
 }
 
