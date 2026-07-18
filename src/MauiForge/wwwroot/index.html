@@ -476,13 +476,21 @@
                         <span id="serverModeActiveToken" class="text-[11px] font-mono truncate select-all" style="color: var(--ink);"></span>
                         <button onclick="copyServeToken()" class="text-[10px] font-semibold flex-shrink-0 transition" style="color: var(--accent);" title="Copy token to clipboard">Copy</button>
                     </div>
+                    <button onclick="toggleChangeToken()" class="text-[10px] w-full text-center py-1 transition" style="color: var(--accent);">Change token</button>
+                    <form id="changeTokenForm" onsubmit="submitChangeToken(event)" class="hidden space-y-1.5">
+                        <input id="changeTokenInput" type="text" placeholder="New token" class="input w-full text-xs">
+                        <button type="submit" class="btn-primary text-[10px] w-full py-1.5">Apply — takes effect immediately</button>
+                    </form>
                 </div>
 
                 <!-- Server mode info (after enabling) -->
                 <div id="serverModeInfo" class="hidden space-y-2">
                     <div class="text-xs bg-blue-950/30 border border-blue-800/30 rounded-lg px-3 py-2 space-y-1.5">
                         <div class="text-blue-400 font-medium">Server token ready</div>
-                        <div id="serverModeToken" class="text-white font-mono text-[10px] break-all"></div>
+                        <div class="flex items-center gap-1.5">
+                            <input id="serverModeToken" type="text" class="input flex-1 font-mono text-[10px] py-1" title="Edit before restarting to use your own token">
+                            <button onclick="saveServerToken()" class="btn-ghost text-[10px] py-1 px-2 flex-shrink-0" title="Save this token">Save</button>
+                        </div>
                         <div id="serverModeCommand" class="text-slate-500 text-[10px]"></div>
                         <button id="restartServerBtn" onclick="restartInServerMode()" class="btn-primary text-[10px] w-full py-1.5">
                             Restart in Server Mode
@@ -689,6 +697,24 @@
                 <div class="flex gap-3 pt-2">
                     <button onclick="closeConfirmModal()" class="btn-ghost flex-1 py-2.5 text-sm font-semibold" title="Cancel, no changes made">Cancel</button>
                     <button id="confirmModalConfirmBtn" class="btn-primary flex-1 py-2.5 text-sm font-semibold" style="background:var(--red);" title="Confirm this action">Remove</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Token Error Modal: shown when a remote connection is rejected for auth reasons -->
+    <div id="tokenErrorModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tokenErrorModalTitle">
+        <div class="modal-panel" style="max-width:24rem;">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 id="tokenErrorModalTitle" class="font-bold" style="color: var(--red);">Connection Rejected</h3>
+                <button onclick="closeTokenErrorModal()" class="text-slate-500 hover:text-white transition text-sm" aria-label="Close" title="Close">✕</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p id="tokenErrorModalMessage" class="text-sm text-slate-300"></p>
+                <input id="tokenErrorModalInput" type="text" placeholder="Token" class="input w-full text-sm">
+                <div class="flex gap-3 pt-2">
+                    <button onclick="closeTokenErrorModal()" class="btn-ghost flex-1 py-2.5 text-sm font-semibold">Cancel</button>
+                    <button id="tokenErrorModalRetryBtn" class="btn-primary flex-1 py-2.5 text-sm font-semibold">Retry</button>
                 </div>
             </div>
         </div>
@@ -1451,17 +1477,66 @@
                 const res = await fetch(`${API_BASE}/api/remote/enable-server`, { method: "POST" });
                 const data = await res.json();
                 saveLocalServeToken(data.token);
-                document.getElementById("serverModeToken").textContent = "Token: " + data.token;
+                document.getElementById("serverModeToken").value = data.token;
                 document.getElementById("serverModeCommand").textContent = "Restart: maui-forge --serve --token " + data.token;
                 document.getElementById("serverModeInfo").classList.remove("hidden");
-                showToast("Server token generated. Restart with --serve to bind to 0.0.0.0.", "success");
+                showToast("Server token generated — edit it above if you want your own, then restart.", "success");
             } catch (err) {
                 showToast("Failed: " + err.message, "error");
             }
         }
 
+        async function saveServerToken() {
+            var input = document.getElementById("serverModeToken");
+            var value = input.value.trim();
+            if (!value) { showToast("Token can't be empty", "error"); return; }
+            try {
+                const res = await fetch(`${API_BASE}/api/remote/enable-server`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ token: value })
+                });
+                const data = await res.json();
+                saveLocalServeToken(data.token);
+                document.getElementById("serverModeCommand").textContent = "Restart: maui-forge --serve --token " + data.token;
+                showToast(data.message, "success");
+                if (data.appliedLive) refreshHostStatus();
+            } catch (err) {
+                showToast("Failed to save token: " + err.message, "error");
+            }
+        }
+
         function hideServerModeInfo() {
             document.getElementById("serverModeInfo").classList.add("hidden");
+        }
+
+        function toggleChangeToken() {
+            var form = document.getElementById("changeTokenForm");
+            form.classList.toggle("hidden");
+            if (!form.classList.contains("hidden")) {
+                document.getElementById("changeTokenInput").value = localServeToken || "";
+                document.getElementById("changeTokenInput").focus();
+            }
+        }
+
+        async function submitChangeToken(event) {
+            event.preventDefault();
+            var value = document.getElementById("changeTokenInput").value.trim();
+            if (!value) { showToast("Token can't be empty", "error"); return; }
+            try {
+                const res = await fetch(`${API_BASE}/api/remote/enable-server`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ token: value })
+                });
+                const data = await res.json();
+                saveLocalServeToken(data.token);
+                document.getElementById("changeTokenForm").classList.add("hidden");
+                showToast(data.message, "success");
+                refreshHostStatus();
+            } catch (err) {
+                showToast("Failed to change token: " + err.message, "error");
+            }
         }
 
         // Poll the (unauthenticated) info endpoint until the server comes back up after a
@@ -1530,15 +1605,47 @@
             }
         }
 
+        function closeTokenErrorModal() {
+            document.getElementById("tokenErrorModal").classList.add("hidden");
+        }
+
+        function showTokenErrorModal(host, port, message) {
+            document.getElementById("tokenErrorModalMessage").textContent = message;
+            document.getElementById("tokenErrorModalInput").value = "";
+            document.getElementById("tokenErrorModal").classList.remove("hidden");
+            document.getElementById("tokenErrorModalRetryBtn").onclick = function () {
+                var newToken = document.getElementById("tokenErrorModalInput").value.trim();
+                closeTokenErrorModal();
+                connectToRemote(host, port, false, newToken);
+            };
+            setTimeout(function () { document.getElementById("tokenErrorModalInput").focus(); }, 50);
+        }
+
         async function connectToRemote(host, port, tokenRequired, existingToken) {
             var token = existingToken || "";
             if (tokenRequired && !token) {
-                token = prompt("Token for " + host + ":" + port);
-                if (!token) return;
+                showTokenErrorModal(host, port, 'This server requires a token to connect. Check the "Server Mode Active" panel on that machine for its token.');
+                return;
             }
             try {
                 var test = await origFetch("http://" + host + ":" + port + "/api/remote/info");
                 if (!test.ok) { showToast("Server not reachable at " + host + ":" + port, "error"); return; }
+            } catch (e) {
+                showToast("Server not reachable at " + host + ":" + port, "error");
+                return;
+            }
+            // /api/remote/info never requires auth, so it can't tell us whether the token
+            // is actually correct — check an authenticated endpoint before committing.
+            try {
+                var authTest = await origFetch("http://" + host + ":" + port + "/api/paths", {
+                    headers: token ? { "X-MauiForge-Token": token } : {}
+                });
+                if (authTest.status === 401) {
+                    showTokenErrorModal(host, port, token
+                        ? 'The token was rejected by ' + host + ':' + port + '. Check the token on that machine\'s "Server Mode Active" panel and try again.'
+                        : 'This server requires a token to connect. Check the "Server Mode Active" panel on that machine for its token.');
+                    return;
+                }
             } catch (e) {
                 showToast("Server not reachable at " + host + ":" + port, "error");
                 return;

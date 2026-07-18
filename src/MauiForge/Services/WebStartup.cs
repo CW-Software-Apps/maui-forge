@@ -102,14 +102,39 @@ public static class WebStartup
             });
         });
 
-        // Enable server mode (generate/save token, show restart command)
-        app.MapPost("/api/remote/enable-server", (StateService state) =>
+        // Enable server mode (generate/save token, show restart command). Accepts an
+        // optional { "token": "..." } body so the user can pick their own instead of a
+        // random one. If this instance is already serving, the new token applies live —
+        // no restart needed to rotate it.
+        app.MapPost("/api/remote/enable-server", async (StateService state, HttpContext ctx) =>
         {
+            string? customToken = null;
+            if (ctx.Request.ContentLength is > 0)
+            {
+                try
+                {
+                    var body = await ctx.Request.ReadFromJsonAsync<SetTokenRequest>();
+                    customToken = body?.Token?.Trim();
+                }
+                catch (JsonException) { /* malformed/empty body — fall back to auto-generated */ }
+            }
+
             var st = state.Load();
-            var token = Guid.NewGuid().ToString("N")[..12];
+            var token = string.IsNullOrEmpty(customToken) ? Guid.NewGuid().ToString("N")[..12] : customToken;
             st.ServeToken = token;
             state.Save(st);
-            return Results.Ok(new { token, message = "Server mode configured. Restart with --serve to bind to 0.0.0.0." });
+
+            var appliedLive = _serveToken != null;
+            if (appliedLive) _serveToken = token;
+
+            return Results.Ok(new
+            {
+                token,
+                appliedLive,
+                message = appliedLive
+                    ? "Token updated — takes effect immediately, no restart needed."
+                    : "Server mode configured. Restart with --serve to bind to 0.0.0.0."
+            });
         });
 
         // Start server mode (auto-restart)
@@ -966,6 +991,7 @@ public static class WebStartup
     }
 }
 
+public record SetTokenRequest(string? Token);
 public record PathRequest(string Path);
 public record GitRequest(string Dir);
 public record GitPushRequest(string Dir, string Message);
