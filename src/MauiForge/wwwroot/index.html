@@ -858,6 +858,7 @@
         var remoteInfo = null;
         var viewingRemote = false; // whether the dashboard is currently showing the remote's apps or this machine's own
         var localServeToken = localStorage.getItem("mauiForgeLocalToken") || null;
+        var updateInProgress = false; // true while a self-update restart is expected, so the local health check doesn't flag it as a crash
         var origFetch = window.fetch;
         window.fetch = function(url, opts) {
             opts = opts || {};
@@ -1656,6 +1657,7 @@
                     if (sawDisconnect) {
                         location.reload();
                     } else {
+                        updateInProgress = false;
                         showToast("Server did not come back automatically. Please reopen MAUI Forge manually.", "error");
                     }
                 }
@@ -1868,7 +1870,7 @@
 
         function onLocalHealthFail() {
             localHealthFailCount++;
-            if (localHealthFailCount < 2) return;
+            if (localHealthFailCount < 2 || updateInProgress) return;
             document.getElementById("localHealthBanner").classList.remove("hidden");
         }
 
@@ -2647,22 +2649,26 @@
                     `;
                     return;
                 }
+                updateInProgress = true;
                 body.innerHTML = `
                     <div class="flex flex-col items-center py-6 text-center gap-2">
                         <span class="text-2xl">&#x1F527;</span>
                         <span class="text-sm text-white font-semibold">Update in progress</span>
-                        <span class="text-xs text-slate-500">This server will restart shortly on the new version. Refresh this page in a few seconds.</span>
+                        <span class="text-xs text-slate-500">This server will restart shortly on the new version. The page will reload automatically.</span>
                     </div>
                 `;
+                waitForServerAndReload(60);
             } catch (err) {
                 // A network error here is expected once the server process exits mid-update.
+                updateInProgress = true;
                 body.innerHTML = `
                     <div class="flex flex-col items-center py-6 text-center gap-2">
                         <span class="text-2xl">&#x1F527;</span>
                         <span class="text-sm text-white font-semibold">Update in progress</span>
-                        <span class="text-xs text-slate-500">Connection dropped — that's expected while it restarts. Refresh this page in a few seconds.</span>
+                        <span class="text-xs text-slate-500">Connection dropped — that's expected while it restarts. The page will reload automatically.</span>
                     </div>
                 `;
+                waitForServerAndReload(60);
             }
         }
 
