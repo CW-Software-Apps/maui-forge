@@ -353,6 +353,9 @@
         .modal-overlay:not(.hidden) {
             display: flex;
         }
+        #localHealthBanner.hidden, #remoteHealthBanner.hidden {
+            display: none !important;
+        }
     </style>
 </head>
 <body class="h-full flex flex-col overflow-hidden">
@@ -1813,6 +1816,7 @@
             initSignalR();
             loadApps();
             loadPaths();
+            stopRemoteHealthCheck();
         }
 
         function switchToRemote() {
@@ -1825,6 +1829,7 @@
             initSignalR();
             loadApps();
             loadPaths();
+            startRemoteHealthCheck();
         }
 
         function disconnectRemote() {
@@ -1903,7 +1908,7 @@
         }
 
         function checkRemoteHealth() {
-            if (!remoteInfo) return;
+            if (!remoteInfo || !viewingRemote) return;
             origFetch("http://" + remoteInfo.host + ":" + remoteInfo.port + "/api/remote/info")
                 .then(function (res) {
                     if (res.ok) {
