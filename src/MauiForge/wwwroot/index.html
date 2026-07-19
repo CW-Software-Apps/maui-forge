@@ -327,9 +327,18 @@
             border-radius: 16px;
             width: 100%;
             max-width: 24rem;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
             overflow: hidden;
             box-shadow: 0 25px 50px rgba(0,0,0,0.5);
         }
+
+        /* Long build/error output can exceed the viewport — the header stays put
+           (flex-shrink: 0 below) while this body scrolls, so the Close button at
+           the bottom is always reachable instead of being clipped off-screen. */
+        #buildProgressModal .modal-panel > div:first-child { flex-shrink: 0; }
+        #buildProgressBody { overflow-y: auto; }
 
         .modal-overlay {
             position: fixed;
@@ -622,6 +631,15 @@
 
     <!-- Toast notifications -->
     <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+    <!-- Persistent banner (not an auto-dismissing toast) for when the remote instance
+         stops responding — e.g. the Mac it's running on crashed or was closed. -->
+    <div id="remoteHealthBanner" class="hidden" style="position:fixed; top:64px; left:50%; transform:translateX(-50%); z-index:70; display:flex; align-items:center; gap:10px; padding:10px 16px; border-radius:10px; background:var(--red-subtle); border:1px solid color-mix(in oklch, var(--red) 40%, transparent); box-shadow:0 10px 25px rgba(0,0,0,0.35);">
+        <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:var(--red);"></span>
+        <span id="remoteHealthBannerText" class="text-xs font-medium" style="color:var(--red);"></span>
+        <button onclick="retryRemoteHealthCheck()" class="text-xs font-semibold" style="color:var(--accent);">Retry</button>
+        <button onclick="switchToLocal()" class="text-xs font-semibold" style="color:var(--ink-muted);" title="Switch to this machine's own apps while the remote is down">View Local</button>
+    </div>
 
     <!-- Single shared row-overflow menu, positioned via JS relative to whichever
          "..." trigger opened it. Fixed positioning keeps it above the sidebar and
@@ -1756,6 +1774,7 @@
             document.getElementById("remoteConnected").classList.remove("hidden");
             document.getElementById("serverScanResult").classList.add("hidden");
             switchToRemote();
+            startRemoteHealthCheck();
             showToast("Connected to " + host + ":" + port, "success");
         }
 
@@ -1805,10 +1824,64 @@
             document.getElementById("remoteConnected").classList.add("hidden");
             document.getElementById("sidebar").classList.remove("remote-mode");
             setRemoteBadge(false);
+            stopRemoteHealthCheck();
             initSignalR();
             loadApps();
             loadPaths();
             showToast("Disconnected", "info");
+        }
+
+        // Watches the remote instance in the background so a Mac that crashes or gets
+        // closed shows up as a clear, persistent banner instead of the dashboard just
+        // quietly going stale — the machine you're viewing has no way to "relaunch itself"
+        // once its process is gone, so this is detection + an easy switch to Local, not a
+        // remote restart (that needs an OS-level watchdog on the server machine, e.g.
+        // launchd on macOS, to actually bring the process back on its own).
+        var remoteHealthInterval = null;
+        var remoteHealthFailCount = 0;
+
+        function startRemoteHealthCheck() {
+            stopRemoteHealthCheck();
+            remoteHealthFailCount = 0;
+            remoteHealthInterval = setInterval(checkRemoteHealth, 15000);
+        }
+
+        function stopRemoteHealthCheck() {
+            if (remoteHealthInterval) { clearInterval(remoteHealthInterval); remoteHealthInterval = null; }
+            document.getElementById("remoteHealthBanner").classList.add("hidden");
+        }
+
+        function checkRemoteHealth() {
+            if (!remoteInfo) return;
+            origFetch("http://" + remoteInfo.host + ":" + remoteInfo.port + "/api/remote/info")
+                .then(function (res) {
+                    if (res.ok) {
+                        var banner = document.getElementById("remoteHealthBanner");
+                        var wasDown = !banner.classList.contains("hidden");
+                        remoteHealthFailCount = 0;
+                        banner.classList.add("hidden");
+                        if (wasDown && viewingRemote) { loadApps(); loadPaths(); }
+                    } else {
+                        onRemoteHealthFail();
+                    }
+                })
+                .catch(onRemoteHealthFail);
+        }
+
+        function onRemoteHealthFail() {
+            remoteHealthFailCount++;
+            // Two consecutive misses (~30s) before surfacing it — avoids flapping on a
+            // single dropped packet.
+            if (remoteHealthFailCount < 2 || !remoteInfo) return;
+            document.getElementById("remoteHealthBannerText").textContent =
+                remoteInfo.host + ":" + remoteInfo.port + " isn't responding — it may have crashed or been closed.";
+            document.getElementById("remoteHealthBanner").classList.remove("hidden");
+        }
+
+        function retryRemoteHealthCheck() {
+            document.getElementById("remoteHealthBannerText").textContent =
+                (remoteInfo ? remoteInfo.host + ":" + remoteInfo.port : "Remote") + " — checking...";
+            checkRemoteHealth();
         }
 
         async function loadApps() {
@@ -2797,6 +2870,12 @@
             currentBuildDir = null;
             if (bpTimerInterval) { clearInterval(bpTimerInterval); bpTimerInterval = null; }
 
+            // A previous run's error excerpt is injected as a DOM node, not just text —
+            // clear it unconditionally so a later successful run doesn't resurrect it
+            // (it used to only get removed on a repeat failure, never on success).
+            var staleExcerpt = document.getElementById("bpErrorExcerpt");
+            if (staleExcerpt) staleExcerpt.remove();
+
             var headerIcon = document.getElementById("bpHeaderIcon");
             var bar = document.getElementById("bpProgressFill");
             var elapsed = Math.floor((Date.now() - buildProgressStartTime) / 1000);
@@ -2838,10 +2917,8 @@
                 document.getElementById("bpResultText").textContent = "Launch failed";
                 document.getElementById("bpResultText").className = "text-base font-semibold text-red-400";
 
-                // Add error excerpt below result header
-                var existingExcerpt = document.getElementById("bpErrorExcerpt");
-                if (existingExcerpt) existingExcerpt.remove();
-
+                // Add error excerpt below result header (staleExcerpt above already
+                // cleared any leftover from a prior run)
                 if (lastErrors.length > 0) {
                     var excerpt = document.createElement("div");
                     excerpt.id = "bpErrorExcerpt";
