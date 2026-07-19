@@ -632,9 +632,19 @@
     <!-- Toast notifications -->
     <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
+    <!-- Persistent banner (not an auto-dismissing toast) for when THIS machine's own
+         backend stops responding — the browser tab stays open and rendered from memory
+         even after the process behind it dies, so without this the page would just look
+         subtly broken (buttons doing nothing) with no explanation. -->
+    <div id="localHealthBanner" class="hidden" style="position:fixed; top:64px; left:50%; transform:translateX(-50%); z-index:71; display:flex; align-items:center; gap:10px; padding:10px 16px; border-radius:10px; background:var(--red-subtle); border:1px solid color-mix(in oklch, var(--red) 40%, transparent); box-shadow:0 10px 25px rgba(0,0,0,0.35); max-width:90vw;">
+        <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:var(--red);"></span>
+        <span class="text-xs font-medium" style="color:var(--red);">This machine's MAUI Forge isn't responding — it may have crashed or been closed. Reopen it (desktop shortcut, or run <code class="font-mono">maui-forge</code> in a terminal) to restart, then retry.</span>
+        <button onclick="retryLocalHealthCheck()" class="text-xs font-semibold flex-shrink-0" style="color:var(--accent);">Retry</button>
+    </div>
+
     <!-- Persistent banner (not an auto-dismissing toast) for when the remote instance
          stops responding — e.g. the Mac it's running on crashed or was closed. -->
-    <div id="remoteHealthBanner" class="hidden" style="position:fixed; top:64px; left:50%; transform:translateX(-50%); z-index:70; display:flex; align-items:center; gap:10px; padding:10px 16px; border-radius:10px; background:var(--red-subtle); border:1px solid color-mix(in oklch, var(--red) 40%, transparent); box-shadow:0 10px 25px rgba(0,0,0,0.35);">
+    <div id="remoteHealthBanner" class="hidden" style="position:fixed; top:112px; left:50%; transform:translateX(-50%); z-index:70; display:flex; align-items:center; gap:10px; padding:10px 16px; border-radius:10px; background:var(--red-subtle); border:1px solid color-mix(in oklch, var(--red) 40%, transparent); box-shadow:0 10px 25px rgba(0,0,0,0.35);">
         <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:var(--red);"></span>
         <span id="remoteHealthBannerText" class="text-xs font-medium" style="color:var(--red);"></span>
         <button onclick="retryRemoteHealthCheck()" class="text-xs font-semibold" style="color:var(--accent);">Retry</button>
@@ -1837,6 +1847,45 @@
         // once its process is gone, so this is detection + an easy switch to Local, not a
         // remote restart (that needs an OS-level watchdog on the server machine, e.g.
         // launchd on macOS, to actually bring the process back on its own).
+        // Same idea, but for THIS machine's own backend — runs always, independent of any
+        // remote connection, since local staying reachable matters regardless.
+        var localHealthFailCount = 0;
+        setInterval(function () {
+            origFetch(localApiBase + "/api/remote/info")
+                .then(function (res) {
+                    var banner = document.getElementById("localHealthBanner");
+                    var wasDown = !banner.classList.contains("hidden");
+                    if (res.ok) {
+                        localHealthFailCount = 0;
+                        banner.classList.add("hidden");
+                        if (wasDown && !viewingRemote) { loadApps(); loadPaths(); refreshHostStatus(); }
+                    } else {
+                        onLocalHealthFail();
+                    }
+                })
+                .catch(onLocalHealthFail);
+        }, 15000);
+
+        function onLocalHealthFail() {
+            localHealthFailCount++;
+            if (localHealthFailCount < 2) return;
+            document.getElementById("localHealthBanner").classList.remove("hidden");
+        }
+
+        function retryLocalHealthCheck() {
+            origFetch(localApiBase + "/api/remote/info").then(function (res) {
+                if (res.ok) {
+                    localHealthFailCount = 0;
+                    document.getElementById("localHealthBanner").classList.add("hidden");
+                    if (!viewingRemote) { loadApps(); loadPaths(); }
+                    refreshHostStatus();
+                    showToast("Reconnected to local server", "success");
+                } else {
+                    showToast("Still not responding", "error");
+                }
+            }).catch(function () { showToast("Still not responding", "error"); });
+        }
+
         var remoteHealthInterval = null;
         var remoteHealthFailCount = 0;
 
