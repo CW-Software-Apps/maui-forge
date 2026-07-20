@@ -18,7 +18,7 @@ public class RemoteDiscoveryService
             try
             {
                 using var udp = new UdpClient();
-                udp.Client.ReuseAddress = true;
+                udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 udp.Client.Bind(new IPEndPoint(IPAddress.Any, discoveryPort));
                 udp.Client.ReceiveTimeout = 5000;
 
