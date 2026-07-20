@@ -15,83 +15,103 @@ public class AppDiscoveryService(VersionService versions, GitService git)
 
         foreach (var rootDir in rootDirs)
         {
-            if (!Directory.Exists(rootDir)) continue;
+            if (string.IsNullOrWhiteSpace(rootDir)) continue;
+            try
+            {
+                if (!Directory.Exists(rootDir)) continue;
+            }
+            catch
+            {
+                continue;
+            }
 
             foreach (var projectFile in FindCsprojs(rootDir, depth))
             {
-                var dir = Path.GetDirectoryName(projectFile)!;
-                
-                if (projectFile.EndsWith("ProjectSettings.asset", StringComparison.OrdinalIgnoreCase))
+                try
                 {
-                    // Unity Project
-                    dir = Path.GetDirectoryName(dir)!; // Parent of ProjectSettings is the root Unity folder
-                    if (entries.Any(e => e.Dir == dir)) continue;
-                    
-                    var name = Path.GetFileName(dir);
-                    var unityV = versions.ReadUnity(dir);
-                    if (unityV is null) continue;
-                    
-                    var branchU = git.GetBranch(dir);
-                    var statusU = git.FetchAndGetStatus(dir);
-                    var iconU   = GetAppIconBase64(dir);
-                    
+                    var dir = Path.GetDirectoryName(projectFile)!;
+
+                    if (projectFile.EndsWith("ProjectSettings.asset", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Unity Project
+                        dir = Path.GetDirectoryName(dir)!; // Parent of ProjectSettings is the root Unity folder
+                        if (entries.Any(e => string.Equals(e.Dir, dir, StringComparison.OrdinalIgnoreCase))) continue;
+
+                        var name = Path.GetFileName(dir);
+                        var unityV = versions.ReadUnity(dir);
+                        if (unityV is null) continue;
+
+                        var branchU = git.GetBranch(dir);
+                        var statusU = git.FetchAndGetStatus(dir);
+                        var iconU = GetAppIconBase64(dir);
+
+                        entries.Add(new AppEntry(
+                            Name: name,
+                            Dir: dir,
+                            Branch: branchU,
+                            Versions: new AppVersions(null, null, unityV),
+                            Git: statusU,
+                            ProjectType: "Unity",
+                            IconBase64: iconU
+                        ));
+                        continue;
+                    }
+
+                    // Csproj Project (MAUI, WPF, Blazor, standard .NET)
+                    if (entries.Any(e => string.Equals(e.Dir, dir, StringComparison.OrdinalIgnoreCase))) continue;
+
+                    var nameC = Path.GetFileNameWithoutExtension(projectFile);
+                    var csprojContent = "";
+                    try
+                    {
+                        if (File.Exists(projectFile)) csprojContent = File.ReadAllText(projectFile);
+                    }
+                    catch { }
+
+                    string projType = "ClassLibrary";
+                    if (csprojContent.Contains("<UseMaui>true</UseMaui>"))
+                    {
+                        projType = "MAUI";
+                    }
+                    else if (csprojContent.Contains("<UseWPF>true</UseWPF>") || csprojContent.Contains("Microsoft.NET.Sdk.WindowsDesktop") || csprojContent.Contains("wpf") || csprojContent.Contains("WPF"))
+                    {
+                        projType = "WPF";
+                    }
+                    else if (csprojContent.Contains("Microsoft.NET.Sdk.Razor") || csprojContent.Contains("Microsoft.AspNetCore.Components"))
+                    {
+                        projType = "Blazor";
+                    }
+
+                    var ios = versions.ReadiOS(dir);
+                    var android = versions.ReadAndroid(dir);
+                    var csprojV = versions.ReadCsproj(projectFile);
+
+                    // Fallback for WPF to check AssemblyInfo
+                    if (csprojV is null && projType == "WPF")
+                    {
+                        csprojV = versions.ReadAssemblyInfo(dir);
+                    }
+
+                    if (ios is null && android is null && csprojV is null) continue;
+
+                    var branch = git.GetBranch(dir);
+                    var status = git.FetchAndGetStatus(dir);
+                    var icon = GetAppIconBase64(dir);
+
                     entries.Add(new AppEntry(
-                        Name:        name,
-                        Dir:         dir,
-                        Branch:      branchU,
-                        Versions:    new AppVersions(null, null, unityV),
-                        Git:         statusU,
-                        ProjectType: "Unity",
-                        IconBase64:  iconU
+                        Name: nameC,
+                        Dir: dir,
+                        Branch: branch,
+                        Versions: new AppVersions(ios, android, csprojV),
+                        Git: status,
+                        ProjectType: projType,
+                        IconBase64: icon
                     ));
-                    continue;
                 }
-
-                // Csproj Project (MAUI, WPF, Blazor, standard .NET)
-                if (entries.Any(e => e.Dir == dir)) continue;
-
-                var nameC = Path.GetFileNameWithoutExtension(projectFile);
-                var csprojContent = File.Exists(projectFile) ? File.ReadAllText(projectFile) : "";
-                
-                string projType = "ClassLibrary";
-                if (csprojContent.Contains("<UseMaui>true</UseMaui>"))
+                catch (Exception ex)
                 {
-                    projType = "MAUI";
+                    System.Diagnostics.Debug.WriteLine($"Error scanning project file '{projectFile}': {ex.Message}");
                 }
-                else if (csprojContent.Contains("<UseWPF>true</UseWPF>") || csprojContent.Contains("Microsoft.NET.Sdk.WindowsDesktop") || csprojContent.Contains("wpf") || csprojContent.Contains("WPF"))
-                {
-                    projType = "WPF";
-                }
-                else if (csprojContent.Contains("Microsoft.NET.Sdk.Razor") || csprojContent.Contains("Microsoft.AspNetCore.Components"))
-                {
-                    projType = "Blazor";
-                }
-
-                var ios     = versions.ReadiOS(dir);
-                var android = versions.ReadAndroid(dir);
-                var csprojV = versions.ReadCsproj(projectFile);
-
-                // Fallback for WPF to check AssemblyInfo
-                if (csprojV is null && projType == "WPF")
-                {
-                    csprojV = versions.ReadAssemblyInfo(dir);
-                }
-
-                if (ios is null && android is null && csprojV is null) continue;
-
-                var branch = git.GetBranch(dir);
-                var status = git.FetchAndGetStatus(dir);
-                var icon   = GetAppIconBase64(dir);
-
-                entries.Add(new AppEntry(
-                    Name:        nameC,
-                    Dir:         dir,
-                    Branch:      branch,
-                    Versions:    new AppVersions(ios, android, csprojV),
-                    Git:         status,
-                    ProjectType: projType,
-                    IconBase64:  icon
-                ));
             }
         }
 
@@ -100,80 +120,89 @@ public class AppDiscoveryService(VersionService versions, GitService git)
 
     public AppEntry? RefreshApp(string dir)
     {
-        if (!Directory.Exists(dir)) return null;
-
-        var unitySettings = Path.Combine(dir, "ProjectSettings", "ProjectSettings.asset");
-        if (File.Exists(unitySettings))
+        try
         {
-            var name = Path.GetFileName(dir);
-            var unityV = versions.ReadUnity(dir);
-            if (unityV is null) return null;
+            if (!Directory.Exists(dir)) return null;
 
-            var branchU = git.GetBranch(dir);
-            var statusU = git.FetchAndGetStatus(dir);
-            var iconU   = GetAppIconBase64(dir);
+            var unitySettings = Path.Combine(dir, "ProjectSettings", "ProjectSettings.asset");
+            if (File.Exists(unitySettings))
+            {
+                var name = Path.GetFileName(dir);
+                var unityV = versions.ReadUnity(dir);
+                if (unityV is null) return null;
+
+                var branchU = git.GetBranch(dir);
+                var statusU = git.FetchAndGetStatus(dir);
+                var iconU = GetAppIconBase64(dir);
+
+                return new AppEntry(
+                    Name: name,
+                    Dir: dir,
+                    Branch: branchU,
+                    Versions: new AppVersions(null, null, unityV),
+                    Git: statusU,
+                    ProjectType: "Unity",
+                    IconBase64: iconU
+                );
+            }
+
+            var csproj = Directory.EnumerateFiles(dir, "*.csproj").FirstOrDefault();
+            if (csproj is null) return null;
+
+            var nameC = Path.GetFileNameWithoutExtension(csproj);
+            var csprojContent = File.Exists(csproj) ? File.ReadAllText(csproj) : "";
+
+            string projType = "ClassLibrary";
+            if (csprojContent.Contains("<UseMaui>true</UseMaui>"))
+            {
+                projType = "MAUI";
+            }
+            else if (csprojContent.Contains("<UseWPF>true</UseWPF>") || csprojContent.Contains("Microsoft.NET.Sdk.WindowsDesktop") || csprojContent.Contains("wpf") || csprojContent.Contains("WPF"))
+            {
+                projType = "WPF";
+            }
+            else if (csprojContent.Contains("Microsoft.NET.Sdk.Razor") || csprojContent.Contains("Microsoft.AspNetCore.Components"))
+            {
+                projType = "Blazor";
+            }
+
+            var ios = versions.ReadiOS(dir);
+            var android = versions.ReadAndroid(dir);
+            var csprojV = versions.ReadCsproj(csproj);
+
+            if (csprojV is null && projType == "WPF")
+            {
+                csprojV = versions.ReadAssemblyInfo(dir);
+            }
+
+            if (ios is null && android is null && csprojV is null) return null;
+
+            var branch = git.GetBranch(dir);
+            var status = git.FetchAndGetStatus(dir);
+            var icon = GetAppIconBase64(dir);
 
             return new AppEntry(
-                Name:        name,
-                Dir:         dir,
-                Branch:      branchU,
-                Versions:    new AppVersions(null, null, unityV),
-                Git:         statusU,
-                ProjectType: "Unity",
-                IconBase64:  iconU
+                Name: nameC,
+                Dir: dir,
+                Branch: branch,
+                Versions: new AppVersions(ios, android, csprojV),
+                Git: status,
+                ProjectType: projType,
+                IconBase64: icon
             );
         }
-
-        var csproj = Directory.EnumerateFiles(dir, "*.csproj").FirstOrDefault();
-        if (csproj is null) return null;
-
-        var nameC = Path.GetFileNameWithoutExtension(csproj);
-        var csprojContent = File.Exists(csproj) ? File.ReadAllText(csproj) : "";
-
-        string projType = "ClassLibrary";
-        if (csprojContent.Contains("<UseMaui>true</UseMaui>"))
+        catch (Exception ex)
         {
-            projType = "MAUI";
+            System.Diagnostics.Debug.WriteLine($"Error refreshing app in dir '{dir}': {ex.Message}");
+            return null;
         }
-        else if (csprojContent.Contains("<UseWPF>true</UseWPF>") || csprojContent.Contains("Microsoft.NET.Sdk.WindowsDesktop") || csprojContent.Contains("wpf") || csprojContent.Contains("WPF"))
-        {
-            projType = "WPF";
-        }
-        else if (csprojContent.Contains("Microsoft.NET.Sdk.Razor") || csprojContent.Contains("Microsoft.AspNetCore.Components"))
-        {
-            projType = "Blazor";
-        }
-
-        var ios     = versions.ReadiOS(dir);
-        var android = versions.ReadAndroid(dir);
-        var csprojV = versions.ReadCsproj(csproj);
-
-        if (csprojV is null && projType == "WPF")
-        {
-            csprojV = versions.ReadAssemblyInfo(dir);
-        }
-
-        if (ios is null && android is null && csprojV is null) return null;
-
-        var branch = git.GetBranch(dir);
-        var status = git.FetchAndGetStatus(dir);
-        var icon   = GetAppIconBase64(dir);
-
-        return new AppEntry(
-            Name:        nameC,
-            Dir:         dir,
-            Branch:      branch,
-            Versions:    new AppVersions(ios, android, csprojV),
-            Git:         status,
-            ProjectType: projType,
-            IconBase64:  icon
-        );
     }
+
     private string? GetAppIconBase64(string dir)
     {
         try
         {
-            var appIconDirs = new[] 
+            var appIconDirs = new[]
             {
                 Path.Combine(dir, "Resources", "AppIcon"),
                 Path.Combine(dir, "Resources", "Images"),
@@ -234,6 +263,7 @@ public class AppDiscoveryService(VersionService versions, GitService git)
         catch { }
         return null;
     }
+
     private static string ToBase64(string path, string mimeType)
     {
         try
@@ -249,22 +279,73 @@ public class AppDiscoveryService(VersionService versions, GitService git)
 
     private static IEnumerable<string> FindCsprojs(string root, int depth)
     {
-        if (depth < 0 || !Directory.Exists(root)) yield break;
-        foreach (var f in Directory.EnumerateFiles(root, "*.csproj"))
+        if (depth < 0) yield break;
+
+        try
+        {
+            if (!Directory.Exists(root)) yield break;
+        }
+        catch
+        {
+            yield break;
+        }
+
+        string[] files = Array.Empty<string>();
+        try
+        {
+            files = Directory.GetFiles(root, "*.csproj");
+        }
+        catch { }
+
+        foreach (var f in files)
             yield return f;
 
+        bool hasUnity = false;
         var unitySettings = Path.Combine(root, "ProjectSettings", "ProjectSettings.asset");
-        if (File.Exists(unitySettings))
+        try
+        {
+            hasUnity = File.Exists(unitySettings);
+        }
+        catch { }
+
+        if (hasUnity)
         {
             yield return unitySettings;
         }
 
         if (depth == 0) yield break;
-        foreach (var sub in Directory.EnumerateDirectories(root))
+
+        string[] subDirs = Array.Empty<string>();
+        try
         {
-            if (SkipDirs.Contains(Path.GetFileName(sub))) continue;
-            foreach (var f in FindCsprojs(sub, depth - 1))
+            subDirs = Directory.GetDirectories(root);
+        }
+        catch
+        {
+            yield break;
+        }
+
+        foreach (var sub in subDirs)
+        {
+            string folderName = "";
+            try
+            {
+                folderName = Path.GetFileName(sub);
+            }
+            catch { continue; }
+
+            if (SkipDirs.Contains(folderName)) continue;
+
+            IEnumerable<string> childCsprojs = Enumerable.Empty<string>();
+            try
+            {
+                childCsprojs = FindCsprojs(sub, depth - 1);
+            }
+            catch { continue; }
+
+            foreach (var f in childCsprojs)
                 yield return f;
         }
     }
 }
+

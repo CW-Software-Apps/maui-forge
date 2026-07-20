@@ -394,6 +394,10 @@
                 <span class="w-1.5 h-1.5 rounded-full"></span>
                 Check Updates
             </button>
+            <button onclick="openBuildHistory()" class="btn-ghost text-xs flex items-center gap-1.5 py-1.5" title="View past build logs and execution history">
+                <span id="buildHistoryDot" class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                Build History
+            </button>
             <button onclick="loadDiagnostics()" class="btn-ghost text-xs flex items-center gap-1.5 py-1.5" title="Show OS and .NET diagnostics">
                 <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
                 Diagnostics
@@ -403,6 +407,7 @@
                 <span id="hostStatusText">Local Host Connected</span>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="opacity-60"><path d="M6 9l6 6 6-6"/></svg>
             </button>
+
         </div>
     </header>
 
@@ -773,8 +778,25 @@
         </div>
     </div>
 
+    <!-- Build History Modal -->
+    <div id="buildHistoryModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="buildHistoryModalTitle">
+        <div class="modal-panel" style="max-width:42rem; max-height:85vh;">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
+                <div class="flex items-center gap-2">
+                    <h3 id="buildHistoryModalTitle" class="font-bold text-white">Build History & Logs</h3>
+                    <span id="signalrStatusDot" class="w-2 h-2 rounded-full bg-emerald-500" title="SignalR Connected"></span>
+                </div>
+                <button onclick="closeBuildHistory()" class="text-slate-500 hover:text-white transition text-sm" aria-label="Close" title="Close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3" id="buildHistoryList">
+                <div class="text-xs text-slate-500 text-center py-6 animate-pulse">Loading build history...</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Build & Run Modal -->
     <div id="buildRunModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="buildRunModalTitle">
+
         <div class="modal-panel" style="max-width:36rem;">
             <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
                 <h3 id="buildRunModalTitle" class="font-bold text-white">Build & Run</h3>
@@ -908,53 +930,115 @@
         // Establish SignalR connection for build logs
         var connection = null;
         var buildLogHandler = null;
+        var signalRReconnectTimer = null;
+
+        function updateSignalRStatus(status) {
+            var dot = document.getElementById("signalrStatusDot");
+            var mainDot = document.getElementById("buildHistoryDot");
+            if (status === "connected") {
+                if (dot) { dot.className = "w-2 h-2 rounded-full bg-emerald-500"; dot.title = "SignalR Connected"; }
+                if (mainDot) { mainDot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500"; }
+            } else if (status === "reconnecting") {
+                if (dot) { dot.className = "w-2 h-2 rounded-full bg-amber-500 animate-pulse"; dot.title = "SignalR Reconnecting..."; }
+                if (mainDot) { mainDot.className = "w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"; }
+            } else {
+                if (dot) { dot.className = "w-2 h-2 rounded-full bg-red-500"; dot.title = "SignalR Disconnected"; }
+                if (mainDot) { mainDot.className = "w-1.5 h-1.5 rounded-full bg-red-500"; }
+            }
+        }
+
+        function scheduleSignalRReconnect() {
+            if (signalRReconnectTimer) return;
+            signalRReconnectTimer = setInterval(function () {
+                if (connection && connection.state === signalR.HubConnectionState.Disconnected) {
+                    connection.start().then(function () {
+                        console.log("SignalR manually reconnected!");
+                        updateSignalRStatus("connected");
+                        clearInterval(signalRReconnectTimer);
+                        signalRReconnectTimer = null;
+                    }).catch(function (err) {
+                        console.warn("SignalR reconnect retry failed:", err);
+                        updateSignalRStatus("disconnected");
+                    });
+                } else if (connection && connection.state === signalR.HubConnectionState.Connected) {
+                    clearInterval(signalRReconnectTimer);
+                    signalRReconnectTimer = null;
+                }
+            }, 3000);
+        }
 
         function initSignalR() {
             if (connection) {
-                connection.stop();
+                try { connection.stop(); } catch(e) {}
                 connection = null;
             }
             var url = (remoteInfo ? "http://" + remoteInfo.host + ":" + remoteInfo.port : API_BASE || "") + "/hubs/logs";
             connection = new signalR.HubConnectionBuilder()
                 .withUrl(url, { withCredentials: false })
-                .withAutomaticReconnect([0, 2000, 5000, 10000])
+                .withAutomaticReconnect({
+                    nextRetryDelayInMilliseconds: function(retryContext) {
+                        return Math.min(10000, Math.pow(1.5, retryContext.previousRetryCount) * 1000);
+                    }
+                })
                 .configureLogging(signalR.LogLevel.Information)
                 .build();
 
+            connection.onreconnecting(function (err) {
+                console.warn("SignalR Reconnecting...", err);
+                updateSignalRStatus("reconnecting");
+            });
+
+            connection.onreconnected(function (id) {
+                console.log("SignalR Reconnected:", id);
+                updateSignalRStatus("connected");
+            });
+
+            connection.onclose(function (err) {
+                console.warn("SignalR Closed:", err);
+                updateSignalRStatus("disconnected");
+                scheduleSignalRReconnect();
+            });
+
+            connection.on("BuildStatusUpdated", function (record) {
+                if (!document.getElementById("buildHistoryModal").classList.contains("hidden")) {
+                    loadBuildHistoryData();
+                }
+            });
+
             connection.on("LogReceived", function (message) {
-            // ---- Step markers for progress modal ----
-            if (buildProgressActive) {
-                if (message === "===STEP:BUILD===") { updateBuildStep("build"); return; }
-                if (message === "===STEP:DEPLOY===") { updateBuildStep("deploy"); return; }
-                if (message === "===STEP:DONE===") { finalizeBuildProgress(true); return; }
-                if (message === "===STEP:FAILED===") { finalizeBuildProgress(false); return; }
-                if (message.indexOf("launched successfully") >= 0) {
-                    appendBuildLog(message, "bp-log-ok");
-                    finalizeBuildProgress(true);
+                // ---- Step markers for progress modal ----
+                if (buildProgressActive) {
+                    if (message === "===STEP:BUILD===") { updateBuildStep("build"); return; }
+                    if (message === "===STEP:DEPLOY===") { updateBuildStep("deploy"); return; }
+                    if (message === "===STEP:DONE===") { finalizeBuildProgress(true); return; }
+                    if (message === "===STEP:FAILED===") { finalizeBuildProgress(false); return; }
+                    if (message.indexOf("launched successfully") >= 0) {
+                        appendBuildLog(message, "bp-log-ok");
+                        finalizeBuildProgress(true);
+                        return;
+                    }
+                    if (message.indexOf("launch failed") >= 0 || message.indexOf("Build cancelled") >= 0) {
+                        appendBuildLog(message, "bp-log-error");
+                        finalizeBuildProgress(false);
+                        return;
+                    }
+                    appendBuildLog(message);
                     return;
                 }
-                if (message.indexOf("launch failed") >= 0 || message.indexOf("Build cancelled") >= 0) {
-                    appendBuildLog(message, "bp-log-error");
-                    finalizeBuildProgress(false);
-                    return;
+
+                // ---- Terminal routing (Build Only) ----
+                if (message.startsWith("Build process completed") || message.startsWith("Build cancelled by user") || message.indexOf("launched successfully") >= 0 || message.indexOf("launch failed") >= 0) {
+                    currentBuildDir = null;
+                    document.getElementById("cancelBuildBtn").classList.add("hidden");
                 }
-                appendBuildLog(message);
-                return;
-            }
 
-            // ---- Terminal routing (Build Only) ----
-            if (message.startsWith("Build process completed") || message.startsWith("Build cancelled by user") || message.indexOf("launched successfully") >= 0 || message.indexOf("launch failed") >= 0) {
-                currentBuildDir = null;
-                document.getElementById("cancelBuildBtn").classList.add("hidden");
-            }
+                openTerminal();
+                const consoleEl = document.getElementById("terminalConsole");
+                const wasAtBottom = consoleEl.scrollHeight - consoleEl.clientHeight <= consoleEl.scrollTop + 10;
 
-            openTerminal();
-            const consoleEl = document.getElementById("terminalConsole");
-            const wasAtBottom = consoleEl.scrollHeight - consoleEl.clientHeight <= consoleEl.scrollTop + 10;
-
-            const line = document.createElement("div");
-            line.textContent = message;
-            
+                const line = document.createElement("div");
+                line.textContent = message;
+                
                 if (message.includes("error") || message.includes("Failed")) {
                     line.className = "text-red-400";
                 } else if (message.includes("warning") || message.includes("Warning")) {
@@ -962,41 +1046,136 @@
                 } else if (message.startsWith("===") || message.includes("completed")) {
                     line.className = "text-blue-400 font-bold";
                 }
-            
-            consoleEl.appendChild(line);
+                
+                consoleEl.appendChild(line);
 
-            if (wasAtBottom) {
-                consoleEl.scrollTop = consoleEl.scrollHeight;
-            }
-        });
+                if (wasAtBottom) {
+                    consoleEl.scrollTop = consoleEl.scrollHeight;
+                }
+            });
 
-        // Background scan finished notification handler
-        connection.on("ScanCompleted", function (freshApps) {
-            appsList = freshApps;
-            renderApps();
-            showScanIndicator(false);
-            
-            // Remove full loading spinner if present
-            const spinner = document.getElementById("fullLoadingSpinner");
-            if (spinner) spinner.remove();
-        });
+            // Background scan finished notification handler
+            connection.on("ScanCompleted", function (freshApps) {
+                appsList = freshApps;
+                renderApps();
+                showScanIndicator(false);
+                
+                const spinner = document.getElementById("fullLoadingSpinner");
+                if (spinner) spinner.remove();
+            });
 
-        // Individual app update handler (e.g. from version bump or git pull)
-        connection.on("AppUpdated", function (updatedApp) {
-            const index = appsList.findIndex(a => a.dir === updatedApp.dir);
-            if (index !== -1) {
-                appsList[index] = updatedApp;
-            } else {
-                appsList.push(updatedApp);
-            }
-            renderApps();
-        });
+            // Individual app update handler
+            connection.on("AppUpdated", function (updatedApp) {
+                const index = appsList.findIndex(a => a.dir === updatedApp.dir);
+                if (index !== -1) {
+                    appsList[index] = updatedApp;
+                } else {
+                    appsList.push(updatedApp);
+                }
+                renderApps();
+            });
 
-        connection.start().catch(err => {
-            console.error("SignalR Connection Error: ", err);
-            showToast("Live log streaming isn't connected — build progress may not update in real time.", "error");
-        });
+            connection.start().then(function() {
+                updateSignalRStatus("connected");
+            }).catch(function(err) {
+                console.error("SignalR initial start error:", err);
+                updateSignalRStatus("disconnected");
+                scheduleSignalRReconnect();
+            });
         }
+
+        function openBuildHistory() {
+            document.getElementById("buildHistoryModal").classList.remove("hidden");
+            loadBuildHistoryData();
+        }
+
+        function closeBuildHistory() {
+            document.getElementById("buildHistoryModal").classList.add("hidden");
+        }
+
+        async function loadBuildHistoryData() {
+            var body = document.getElementById("buildHistoryList");
+            if (!body) return;
+            try {
+                var res = await fetch(API_BASE + "/api/builds");
+                if (!res.ok) {
+                    body.innerHTML = '<div class="text-xs text-red-400 p-4 text-center">Could not load builds: ' + res.statusText + '</div>';
+                    return;
+                }
+                var builds = await res.json();
+                if (!builds || builds.length === 0) {
+                    body.innerHTML = '<div class="text-xs text-slate-500 p-6 text-center italic">No build records found yet. Run a build to see history here.</div>';
+                    return;
+                }
+                renderBuildHistoryItems(builds);
+            } catch(err) {
+                body.innerHTML = '<div class="text-xs text-red-400 p-4 text-center">Error: ' + err.message + '</div>';
+            }
+        }
+
+        function renderBuildHistoryItems(builds) {
+            var body = document.getElementById("buildHistoryList");
+            body.innerHTML = "";
+            builds.forEach(function(b) {
+                var el = document.createElement("div");
+                el.className = "p-3 bg-slate-900/60 border border-slate-800 rounded-lg flex items-center justify-between gap-3 hover:border-slate-700 transition";
+                
+                var statusBadge = b.status === "Success" 
+                    ? '<span class="badge badge-green">Success</span>' 
+                    : b.status === "Failed" 
+                    ? '<span class="badge badge-red">Failed</span>'
+                    : b.status === "Running"
+                    ? '<span class="badge badge-blue spinning">Running</span>'
+                    : '<span class="badge badge-amber">' + b.status + '</span>';
+                
+                var dateStr = new Date(b.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                var platformBadge = '<span class="badge badge-slate">' + (b.platform || 'Build') + '</span>';
+                var deviceStr = b.deviceName ? ' &bull; ' + b.deviceName : '';
+
+                el.innerHTML = 
+                    '<div class="min-w-0 flex-1">' +
+                        '<div class="flex items-center gap-2 flex-wrap">' +
+                            '<span class="font-bold text-xs text-white">' + (b.appName || 'App') + '</span>' +
+                            platformBadge +
+                            statusBadge +
+                        '</div>' +
+                        '<div class="text-[11px] text-slate-400 mt-1 truncate font-mono">' +
+                            b.configuration + deviceStr + ' &bull; ' + dateStr +
+                        '</div>' +
+                    '</div>' +
+                    '<button onclick="viewBuildLog(\'' + b.id + '\')" class="btn-ghost text-xs px-2.5 py-1.5 flex-shrink-0" title="View log file">📋 View Log</button>';
+                body.appendChild(el);
+            });
+        }
+
+        async function viewBuildLog(id) {
+            try {
+                closeBuildHistory();
+                var res = await fetch(API_BASE + "/api/builds/log?id=" + encodeURIComponent(id));
+                if (!res.ok) {
+                    showToast("Log file not available.", "error");
+                    return;
+                }
+                var data = await res.json();
+                openTerminal();
+                var consoleEl = document.getElementById("terminalConsole");
+                consoleEl.innerHTML = '<div class="text-blue-400 font-bold mb-2">[Build Log Viewer - ID: ' + id + ']</div>';
+                var lines = (data.content || "").split('\n');
+                lines.forEach(function(l) {
+                    var line = document.createElement("div");
+                    line.textContent = l;
+                    if (l.includes("error") || l.includes("Failed")) line.className = "text-red-400";
+                    else if (l.includes("warning") || l.includes("Warning")) line.className = "text-amber-400";
+                    else if (l.startsWith("===")) line.className = "text-blue-400 font-bold";
+                    consoleEl.appendChild(line);
+                });
+                consoleEl.scrollTop = consoleEl.scrollHeight;
+                showToast("Build log loaded into Terminal", "info");
+            } catch(e) {
+                showToast("Failed to fetch build log: " + e.message, "error");
+            }
+        }
+
 
         localApiBase = API_BASE;
         initSignalR();
@@ -1133,12 +1312,15 @@
                 var bm = document.getElementById("bumpConfirmModal");
                 var cm = document.getElementById("confirmModal");
                 var brm = document.getElementById("buildRunModal");
-                if (!vm.classList.contains("hidden")) closeVersionModal();
-                if (!um.classList.contains("hidden")) closeUpdateModal();
-                if (!bm.classList.contains("hidden")) closeBumpConfirm();
-                if (!cm.classList.contains("hidden")) closeConfirmModal();
-                if (!brm.classList.contains("hidden")) closeBuildRunModal();
+                var bhm = document.getElementById("buildHistoryModal");
+                if (vm && !vm.classList.contains("hidden")) closeVersionModal();
+                if (um && !um.classList.contains("hidden")) closeUpdateModal();
+                if (bm && !bm.classList.contains("hidden")) closeBumpConfirm();
+                if (cm && !cm.classList.contains("hidden")) closeConfirmModal();
+                if (brm && !brm.classList.contains("hidden")) closeBuildRunModal();
+                if (bhm && !bhm.classList.contains("hidden")) closeBuildHistory();
                 closeRowMenu();
+
             }
             if (e.key === "Tab") {
                 // Real focus cycling: previously only the first field got initial

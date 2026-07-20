@@ -43,8 +43,17 @@ public class BuildService
                 }
             });
 
-            Task.WaitAll(readOut, readErr, proc.WaitForExitAsync());
-            return proc.ExitCode;
+            try
+            {
+                Task.WaitAll([readOut, readErr, proc.WaitForExitAsync()]);
+            }
+            catch { }
+            return proc.HasExited ? proc.ExitCode : -1;
+        }
+        catch (Exception ex)
+        {
+            onLine?.Invoke($"[Build Error] {ex.Message}");
+            return -1;
         }
         finally
         {
@@ -56,7 +65,12 @@ public class BuildService
     private static void HandleLine(string? line, Action<string> onLine, StreamWriter? log)
     {
         if (line is null) return;
-        onLine(line);
-        log?.WriteLine(line);
+        try
+        {
+            onLine(line);
+            log?.WriteLine(line);
+        }
+        catch { }
     }
 }
+

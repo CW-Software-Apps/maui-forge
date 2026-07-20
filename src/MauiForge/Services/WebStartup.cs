@@ -22,8 +22,66 @@ public static class WebStartup
 {
     private static IHubContext<LogHub>? _hubContext;
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Diagnostics.Process> _runningBuilds = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, BuildRecord> _buildRecords = new();
+    private static readonly List<BuildRecord> _recentBuilds = new();
+    private static readonly object _buildsLock = new();
     public static string[]? OriginalArgs { get; set; }
     private static string? _serveToken;
+
+    private static string GetBuildLogPath(string appName, string buildId)
+    {
+        var logsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".maui-forge", "build_logs");
+        if (!Directory.Exists(logsDir)) Directory.CreateDirectory(logsDir);
+        var safeName = string.Concat(appName.Split(Path.GetInvalidFileNameChars()));
+        return Path.Combine(logsDir, $"{safeName}_{buildId}.log");
+    }
+
+    private static BuildRecord RecordBuildStart(string dir, string platform, string configuration = "Debug", string? deviceId = null, string? deviceName = null)
+    {
+        var appName = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (string.IsNullOrWhiteSpace(appName)) appName = "App";
+
+        var buildId = Guid.NewGuid().ToString("N")[..10];
+        var record = new BuildRecord
+        {
+            Id = buildId,
+            AppDir = dir,
+            AppName = appName,
+            Platform = platform,
+            Configuration = configuration,
+            DeviceId = deviceId,
+            DeviceName = deviceName,
+            StartTime = DateTime.UtcNow,
+            Status = "Running",
+            LogFilePath = GetBuildLogPath(appName, buildId)
+        };
+
+        lock (_buildsLock)
+        {
+            _recentBuilds.Insert(0, record);
+            if (_recentBuilds.Count > 100) _recentBuilds.RemoveAt(_recentBuilds.Count - 1);
+        }
+        _buildRecords[record.Id] = record;
+        if (_hubContext != null)
+        {
+            _ = _hubContext.Clients.All.SendAsync("BuildStatusUpdated", record);
+        }
+        return record;
+    }
+
+    private static void RecordBuildEnd(BuildRecord record, string status, int? exitCode = null, string? errorSummary = null)
+    {
+        record.EndTime = DateTime.UtcNow;
+        record.Status = status;
+        record.ExitCode = exitCode;
+        record.ErrorSummary = errorSummary;
+
+        if (_hubContext != null)
+        {
+            _ = _hubContext.Clients.All.SendAsync("BuildStatusUpdated", record);
+        }
+    }
+
 
     public static void Start(string[] args, StateService stateService, AppDiscoveryService discoveryService, VersionService versionService, GitService gitService, BuildService buildService, DeviceService deviceService,
         bool serveMode = false, string? token = null, int port = 5123)
@@ -389,11 +447,49 @@ public static class WebStartup
             return Results.Ok(new { Success = gitSuccess, Output = gitOutput, Version = newVersion, Build = newBuild });
         });
 
+        // Build History Endpoints
+        app.MapGet("/api/builds", () =>
+        {
+            lock (_buildsLock)
+            {
+                return Results.Ok(_recentBuilds);
+            }
+        });
+
+        app.MapGet("/api/builds/log", (string? id, string? file) =>
+        {
+            string? path = null;
+            if (!string.IsNullOrEmpty(id) && _buildRecords.TryGetValue(id, out var rec))
+            {
+                path = rec.LogFilePath;
+            }
+            else if (!string.IsNullOrEmpty(file))
+            {
+                path = file;
+            }
+
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            {
+                return Results.NotFound(new { error = "Log file not found." });
+            }
+
+            try
+            {
+                var content = File.ReadAllText(path);
+                return Results.Ok(new { content });
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem("Error reading log file: " + ex.Message);
+            }
+        });
+
         // Build Endpoint
         app.MapPost("/api/apps/build", (BuildService builder, DeviceService devices, StateService state, BuildRequest req) =>
         {
             var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
-            // Run build asynchronously in a task to not block API response, but notify client via SignalR
+            var record = RecordBuildStart(dir, req.Platform, req.Configuration);
+
             _ = Task.Run(async () =>
             {
                 try
@@ -407,7 +503,7 @@ public static class WebStartup
                     {
                         buildArgs.AddRange(new[] { "-f", "net10.0-android" });
                     }
-                    else
+                    else if (req.Platform.Equals("iOS", StringComparison.OrdinalIgnoreCase))
                     {
                         buildArgs.AddRange(new[] { "-f", "net10.0-ios" });
                     }
@@ -421,25 +517,30 @@ public static class WebStartup
                     int exitCode = builder.Run(dir, buildArgs.ToArray(), line =>
                     {
                         _ = SendLog(line);
-                    }, onStart: proc => _runningBuilds[dir] = proc);
+                    }, logFile: record.LogFilePath, onStart: proc => _runningBuilds[dir] = proc);
 
-                    // If the entry is already gone, /api/apps/build/cancel removed it and logged the cancellation.
                     bool completedNaturally = _runningBuilds.TryRemove(dir, out _);
                     if (completedNaturally)
                     {
                         await SendLog("=========================================");
                         await SendLog($"Build process completed with exit code: {exitCode}");
                         await SendLog("=========================================");
+                        RecordBuildEnd(record, exitCode == 0 ? "Success" : "Failed", exitCode);
+                    }
+                    else
+                    {
+                        RecordBuildEnd(record, "Cancelled", -1, "Cancelled by user");
                     }
                 }
                 catch (Exception ex)
                 {
                     _runningBuilds.TryRemove(req.Dir, out _);
                     await SendLog($"[Error] Build failed to start: {ex.Message}");
+                    RecordBuildEnd(record, "Failed", -1, ex.Message);
                 }
             });
 
-            return Results.Accepted();
+            return Results.Accepted(null, new { buildId = record.Id });
         });
 
         // Devices Endpoint — lista devices iOS ou Android (compatível com os 3 parsers do CLI)
@@ -525,13 +626,21 @@ public static class WebStartup
         app.MapPost("/api/apps/run", (BuildService builder, StateService state, RunRequest req) =>
         {
             var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
+            var record = RecordBuildStart(dir, req.Platform, req.Configuration, req.DeviceId, req.DeviceName);
+
             _ = Task.Run(async () =>
             {
                 try
                 {
                     var st = state.Load();
                     var csproj = Directory.EnumerateFiles(dir, "*.csproj").FirstOrDefault();
-                    if (csproj is null) { await SendLog("[Error] No .csproj found in directory: " + dir); await SendLog("===STEP:FAILED==="); return; }
+                    if (csproj is null)
+                    {
+                        await SendLog("[Error] No .csproj found in directory: " + dir);
+                        await SendLog("===STEP:FAILED===");
+                        RecordBuildEnd(record, "Failed", -1, "No .csproj found");
+                        return;
+                    }
 
                     await SendLog("=========================================");
                     await SendLog($"Starting {req.Platform} build & run...");
@@ -542,6 +651,7 @@ public static class WebStartup
                     var outputLines = new List<string>();
                     void OnLine(string line) { _ = SendLog(line); lock (outputLines) { outputLines.Add(line); } }
 
+                    int exit = 0;
                     if (req.Platform.Equals("ios", StringComparison.OrdinalIgnoreCase))
                     {
                         // Step 1: build
@@ -565,11 +675,17 @@ public static class WebStartup
                         }
 
                         await SendLog("===STEP:BUILD===");
-                        int exit = builder.Run(dir, buildArgs.ToArray(), OnLine,
+                        exit = builder.Run(dir, buildArgs.ToArray(), OnLine,
+                            logFile: record.LogFilePath,
                             onStart: proc => _runningBuilds[dir] = proc);
                         _runningBuilds.TryRemove(dir, out _);
 
-                        if (exit != 0) { await SendLog("===STEP:FAILED==="); return; }
+                        if (exit != 0)
+                        {
+                            await SendLog("===STEP:FAILED===");
+                            RecordBuildEnd(record, "Failed", exit, "iOS build step failed");
+                            return;
+                        }
 
                         // Step 2: run
                         var runArgs = new List<string>
@@ -593,6 +709,7 @@ public static class WebStartup
 
                         await SendLog("===STEP:DEPLOY===");
                         exit = builder.Run(dir, runArgs.ToArray(), OnLine,
+                            logFile: record.LogFilePath,
                             onStart: proc => _runningBuilds[dir] = proc);
                         _runningBuilds.TryRemove(dir, out _);
 
@@ -615,6 +732,7 @@ public static class WebStartup
                         if (exit == 0) await SendLog("===STEP:DONE===");
                         else await SendLog("===STEP:FAILED===");
                         await SendLog(exit == 0 ? "iOS app launched successfully." : $"iOS launch failed (exit {exit}).");
+                        RecordBuildEnd(record, exit == 0 ? "Success" : "Failed", exit);
                     }
                     else if (req.Platform.Equals("android", StringComparison.OrdinalIgnoreCase))
                     {
@@ -624,11 +742,24 @@ public static class WebStartup
                         {
                             var avdName = serial[4..];
                             var adbPath = DeviceService.FindAdb();
-                            if (adbPath is null) { await SendLog("[Error] adb not found."); await SendLog("[Hint] Set ANDROID_HOME or install Android SDK platform-tools."); await SendLog("===STEP:FAILED==="); return; }
+                            if (adbPath is null)
+                            {
+                                await SendLog("[Error] adb not found.");
+                                await SendLog("[Hint] Set ANDROID_HOME or install Android SDK platform-tools.");
+                                await SendLog("===STEP:FAILED===");
+                                RecordBuildEnd(record, "Failed", -1, "adb not found");
+                                return;
+                            }
 
                             await SendLog($"Starting emulator: {avdName}...");
                             serial = await StartAvdAndWaitForWeb(avdName, adbPath);
-                            if (serial is null) { await SendLog("[Error] Emulator did not start in time."); await SendLog("===STEP:FAILED==="); return; }
+                            if (serial is null)
+                            {
+                                await SendLog("[Error] Emulator did not start in time.");
+                                await SendLog("===STEP:FAILED===");
+                                RecordBuildEnd(record, "Failed", -1, "Emulator start timeout");
+                                return;
+                            }
                         }
 
                         await SendLog("===STEP:BUILD===");
@@ -638,7 +769,8 @@ public static class WebStartup
                             $"-p:AdbTarget=-s {serial}"
                         };
 
-                        int exit = builder.Run(dir, runArgs.ToArray(), OnLine,
+                        exit = builder.Run(dir, runArgs.ToArray(), OnLine,
+                            logFile: record.LogFilePath,
                             onStart: proc => _runningBuilds[dir] = proc);
                         _runningBuilds.TryRemove(dir, out _);
 
@@ -648,6 +780,7 @@ public static class WebStartup
                         if (exit == 0) await SendLog("===STEP:DONE===");
                         else await SendLog("===STEP:FAILED===");
                         await SendLog(exit == 0 ? "Android app launched successfully." : $"Android launch failed (exit {exit}).");
+                        RecordBuildEnd(record, exit == 0 ? "Success" : "Failed", exit);
                     }
                 }
                 catch (Exception ex)
@@ -655,10 +788,11 @@ public static class WebStartup
                     _runningBuilds.TryRemove(dir, out _);
                     await SendLog($"[Error] Build & Run failed: {ex.Message}");
                     await SendLog("===STEP:FAILED===");
+                    RecordBuildEnd(record, "Failed", -1, ex.Message);
                 }
             });
 
-            return Results.Accepted();
+            return Results.Accepted(null, new { buildId = record.Id });
         });
 
         // Cancel a running build
