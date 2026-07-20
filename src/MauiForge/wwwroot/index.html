@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<html lang="en" class="h-full overflow-hidden bg-slate-950 text-slate-100">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -190,10 +190,15 @@
         #terminalPanel { transition: height 200ms ease-out; }
         #terminalToggleIcon { transition: transform 200ms ease-out; }
 
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: var(--bg); }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--ink-muted); }
+        /* Transparent track: the scrollbar blends into whatever surface sits behind
+           it (rounded table, card, pane) instead of painting a hard near-black bar
+           in dark mode that clashes with rounded corners. Thumb-only, overlay-style. */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; border: 2px solid transparent; background-clip: content-box; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); background-clip: content-box; }
+        ::-webkit-scrollbar-corner { background: transparent; }
+        * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .spinning { animation: spin 1s linear infinite; }
@@ -362,7 +367,7 @@
 <body class="h-full flex flex-col overflow-hidden">
 
     <!-- Header -->
-    <header class="border-b border-slate-800 bg-[var(--chrome)] backdrop-blur-md px-6 py-4 flex items-center justify-between flex-shrink-0">
+    <header class="border-b border-slate-800 bg-[var(--chrome)] backdrop-blur-md px-6 py-2.5 flex items-center justify-between flex-shrink-0">
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl bg-[var(--accent)] flex items-center justify-center font-bold text-lg text-[var(--ink-inverse)] shadow-lg flex-shrink-0" style="box-shadow: 0 10px 15px -3px color-mix(in oklch, var(--accent) 35%, transparent);">
                 MF
@@ -533,8 +538,8 @@
         <!-- Main Dashboard View -->
         <main class="flex-1 flex flex-col overflow-hidden bg-slate-950">
             <!-- App list / dashboard -->
-            <div class="flex-1 p-6 overflow-y-auto">
-                <div class="flex items-center justify-between mb-6">
+            <div class="flex-1 px-6 py-4 overflow-y-auto overflow-x-hidden">
+                <div class="flex items-center justify-between mb-4">
                     <h2 class="text-lg font-semibold text-white flex items-center gap-2">
                         Applications
                         <span id="appCount" class="text-xs font-normal text-slate-400 bg-slate-900 px-2 py-0.5 rounded-full">0</span>
@@ -561,7 +566,7 @@
                 </div>
 
                 <!-- Search and Filters bar -->
-                <div class="flex flex-col md:flex-row gap-4 mb-6 bg-slate-900/30 p-4 rounded-xl border border-slate-900">
+                <div class="flex flex-col md:flex-row gap-4 mb-4 bg-slate-900/30 p-3 rounded-xl border border-slate-900">
                     <div class="flex-1">
                         <input type="text" id="searchInput" oninput="filterApps()" placeholder="Search applications by name or path..."
                                class="input w-full text-xs">
