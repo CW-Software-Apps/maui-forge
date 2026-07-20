@@ -538,6 +538,11 @@
                     </button>
                 </form>
             </div>
+
+            <div class="mt-auto pt-4 border-t border-[var(--border)] text-[11px] text-[var(--ink-muted)] text-center leading-relaxed">
+                <div>Developed by <span class="font-bold text-[var(--ink)]">CW SOFTWARE</span> &bull; <span class="text-[10px]">SOLUÇÕES DIGITAIS</span></div>
+                <div><a href="https://cwsoftware.com.br" target="_blank" rel="noopener" class="hover:underline font-mono" style="color: var(--accent);">cwsoftware.com.br</a></div>
+            </div>
         </aside>
 
         <!-- Main Dashboard View -->
@@ -603,62 +608,62 @@
                 <!-- Apps render target -->
                 <div id="appsContainer">
                     <div id="initialAppLoading" class="flex flex-col items-center justify-center py-16 px-4">
-                        <div class="relative flex items-center justify-center mb-6">
-                            <div class="absolute -inset-4 rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-500 to-emerald-500 animate-pulse-glow"></div>
-                            <div class="relative w-20 h-20 rounded-2xl bg-slate-900 border border-slate-700/60 shadow-2xl flex items-center justify-center text-3xl font-black text-white tracking-widest overflow-hidden">
-                                <span class="z-10 bg-gradient-to-br from-white via-blue-200 to-indigo-400 bg-clip-text text-transparent">MF</span>
-                                <div class="absolute inset-0 bg-[conic-gradient(from_0deg,transparent_0_300deg,rgba(59,130,246,0.35)_360deg)] animate-[spin_3s_linear_infinite]"></div>
+                        <div class="relative flex items-center justify-center mb-5">
+                            <div class="absolute -inset-4 rounded-3xl opacity-20 blur-xl animate-pulse-glow" style="background: var(--accent);"></div>
+                            <div class="relative w-16 h-16 rounded-2xl border flex items-center justify-center font-black text-2xl tracking-widest overflow-hidden shadow-xl" style="background: var(--surface-raised); border-color: var(--border); color: var(--accent);">
+                                <span class="z-10">MF</span>
+                                <div class="absolute inset-0 opacity-25 animate-[spin_3s_linear_infinite]" style="background: conic-gradient(from 0deg, transparent 0 300deg, var(--accent) 360deg);"></div>
                             </div>
                         </div>
                         
-                        <h3 class="text-base font-bold text-white mb-1 tracking-tight">Discovering Applications</h3>
-                        <p class="text-xs text-slate-400 mb-6 text-center max-w-sm">Scanning your monitored folders for .NET MAUI, Blazor, WPF & Unity projects...</p>
+                        <h3 class="text-base font-bold mb-1 tracking-tight" style="color: var(--ink);">Discovering Applications</h3>
+                        <p class="text-xs mb-5 text-center max-w-sm" style="color: var(--ink-muted);">Scanning your monitored folders for .NET MAUI, Blazor, WPF & Unity projects...</p>
                         
-                        <div class="w-64 h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800 relative mb-8">
-                            <div class="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-400 rounded-full animate-loading-bar"></div>
+                        <div class="w-60 h-1.5 rounded-full overflow-hidden border relative mb-8" style="background: var(--surface-hover); border-color: var(--border);">
+                            <div class="h-full rounded-full animate-loading-bar" style="background: var(--accent);"></div>
                         </div>
                         
                         <div class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 opacity-50">
-                            <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-3 animate-pulse">
+                            <div class="p-5 rounded-xl border space-y-3 animate-pulse" style="background: var(--surface); border-color: var(--border);">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-lg bg-slate-800"></div>
+                                    <div class="w-8 h-8 rounded-lg" style="background: var(--surface-hover);"></div>
                                     <div class="space-y-1.5 flex-1">
-                                        <div class="h-3.5 bg-slate-800 rounded w-2/3"></div>
-                                        <div class="h-2.5 bg-slate-800/60 rounded w-1/2"></div>
+                                        <div class="h-3.5 rounded w-2/3" style="background: var(--surface-hover);"></div>
+                                        <div class="h-2.5 rounded w-1/2" style="background: var(--surface-hover);"></div>
                                     </div>
                                 </div>
-                                <div class="h-12 bg-slate-800/40 rounded-lg"></div>
+                                <div class="h-10 rounded-lg" style="background: var(--surface-hover);"></div>
                                 <div class="flex gap-2 pt-1">
-                                    <div class="h-7 bg-slate-800 rounded flex-1"></div>
-                                    <div class="h-7 bg-slate-800 rounded w-16"></div>
+                                    <div class="h-7 rounded flex-1" style="background: var(--surface-hover);"></div>
+                                    <div class="h-7 rounded w-16" style="background: var(--surface-hover);"></div>
                                 </div>
                             </div>
-                            <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-3 animate-pulse hidden md:block">
+                            <div class="p-5 rounded-xl border space-y-3 animate-pulse hidden md:block" style="background: var(--surface); border-color: var(--border);">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-lg bg-slate-800"></div>
+                                    <div class="w-8 h-8 rounded-lg" style="background: var(--surface-hover);"></div>
                                     <div class="space-y-1.5 flex-1">
-                                        <div class="h-3.5 bg-slate-800 rounded w-3/4"></div>
-                                        <div class="h-2.5 bg-slate-800/60 rounded w-2/5"></div>
+                                        <div class="h-3.5 rounded w-3/4" style="background: var(--surface-hover);"></div>
+                                        <div class="h-2.5 rounded w-2/5" style="background: var(--surface-hover);"></div>
                                     </div>
                                 </div>
-                                <div class="h-12 bg-slate-800/40 rounded-lg"></div>
+                                <div class="h-10 rounded-lg" style="background: var(--surface-hover);"></div>
                                 <div class="flex gap-2 pt-1">
-                                    <div class="h-7 bg-slate-800 rounded flex-1"></div>
-                                    <div class="h-7 bg-slate-800 rounded w-16"></div>
+                                    <div class="h-7 rounded flex-1" style="background: var(--surface-hover);"></div>
+                                    <div class="h-7 rounded w-16" style="background: var(--surface-hover);"></div>
                                 </div>
                             </div>
-                            <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-3 animate-pulse hidden lg:block">
+                            <div class="p-5 rounded-xl border space-y-3 animate-pulse hidden lg:block" style="background: var(--surface); border-color: var(--border);">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-lg bg-slate-800"></div>
+                                    <div class="w-8 h-8 rounded-lg" style="background: var(--surface-hover);"></div>
                                     <div class="space-y-1.5 flex-1">
-                                        <div class="h-3.5 bg-slate-800 rounded w-1/2"></div>
-                                        <div class="h-2.5 bg-slate-800/60 rounded w-2/3"></div>
+                                        <div class="h-3.5 rounded w-1/2" style="background: var(--surface-hover);"></div>
+                                        <div class="h-2.5 rounded w-2/3" style="background: var(--surface-hover);"></div>
                                     </div>
                                 </div>
-                                <div class="h-12 bg-slate-800/40 rounded-lg"></div>
+                                <div class="h-10 rounded-lg" style="background: var(--surface-hover);"></div>
                                 <div class="flex gap-2 pt-1">
-                                    <div class="h-7 bg-slate-800 rounded flex-1"></div>
-                                    <div class="h-7 bg-slate-800 rounded w-16"></div>
+                                    <div class="h-7 rounded flex-1" style="background: var(--surface-hover);"></div>
+                                    <div class="h-7 rounded w-16" style="background: var(--surface-hover);"></div>
                                 </div>
                             </div>
                         </div>
@@ -945,6 +950,7 @@
         </div>
     </div>
 
+    <style>
         @keyframes loadingBarSlide {
             0% { transform: translateX(-100%); }
             50% { transform: translateX(30%); }
