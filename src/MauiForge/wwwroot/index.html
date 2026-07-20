@@ -2227,7 +2227,7 @@
         // Single primary action (Bump & Push) + platform build button(s) + one overflow
         // menu for everything else, instead of 7 same-weight buttons per row.
         function buildRowActions(app, sizeClass) {
-            const dir = app.dir.replace(/\\/g, '\\\\');
+            const dir = (app.dir || '').replace(/\\/g, '/');
             const ver = app.versions.csproj?.version || '';
             const build = app.versions.csproj?.build || '';
 
@@ -2703,6 +2703,7 @@
         // ── Build & Run ────────────────────────────────────────────────────────────
 
         function openBuildRun(dir, platform) {
+            dir = (dir || '').replace(/\\/g, '/');
             buildRunDir = dir;
             buildRunPlatform = platform;
 
@@ -2767,8 +2768,8 @@
         function renderBuildRunForm(devices, config, platform) {
             const body = document.getElementById("buildRunModalBody");
 
-            const configs = config.configurations || ["Debug", "Release"];
-            const frameworks = config.frameworks || (platform === "ios" ? ["net10.0-ios"] : ["net10.0-android"]);
+            const configs = (config && config.configurations && config.configurations.length > 0) ? config.configurations : ["Debug", "Release"];
+            let frameworks = (config && config.frameworks && config.frameworks.length > 0) ? config.frameworks : (platform.toLowerCase() === "ios" ? ["net10.0-ios"] : ["net10.0-android"]);
 
             let devicesHtml = "";
             let prevType = "";
