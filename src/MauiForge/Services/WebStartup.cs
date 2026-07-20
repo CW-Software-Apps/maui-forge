@@ -392,6 +392,7 @@ public static class WebStartup
         // Build Endpoint
         app.MapPost("/api/apps/build", (BuildService builder, DeviceService devices, StateService state, BuildRequest req) =>
         {
+            var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
             // Run build asynchronously in a task to not block API response, but notify client via SignalR
             _ = Task.Run(async () =>
             {
@@ -417,13 +418,13 @@ public static class WebStartup
                         buildArgs.Add("Release");
                     }
 
-                    int exitCode = builder.Run(req.Dir, buildArgs.ToArray(), line =>
+                    int exitCode = builder.Run(dir, buildArgs.ToArray(), line =>
                     {
                         _ = SendLog(line);
-                    }, onStart: proc => _runningBuilds[req.Dir] = proc);
+                    }, onStart: proc => _runningBuilds[dir] = proc);
 
                     // If the entry is already gone, /api/apps/build/cancel removed it and logged the cancellation.
-                    bool completedNaturally = _runningBuilds.TryRemove(req.Dir, out _);
+                    bool completedNaturally = _runningBuilds.TryRemove(dir, out _);
                     if (completedNaturally)
                     {
                         await SendLog("=========================================");
@@ -523,13 +524,14 @@ public static class WebStartup
         // Run Endpoint — build + deploy num device específico
         app.MapPost("/api/apps/run", (BuildService builder, StateService state, RunRequest req) =>
         {
+            var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
             _ = Task.Run(async () =>
             {
                 try
                 {
                     var st = state.Load();
-                    var csproj = Directory.EnumerateFiles(req.Dir, "*.csproj").FirstOrDefault();
-                    if (csproj is null) { await SendLog("[Error] No .csproj found."); await SendLog("===STEP:FAILED==="); return; }
+                    var csproj = Directory.EnumerateFiles(dir, "*.csproj").FirstOrDefault();
+                    if (csproj is null) { await SendLog("[Error] No .csproj found in directory: " + dir); await SendLog("===STEP:FAILED==="); return; }
 
                     await SendLog("=========================================");
                     await SendLog($"Starting {req.Platform} build & run...");
@@ -563,9 +565,9 @@ public static class WebStartup
                         }
 
                         await SendLog("===STEP:BUILD===");
-                        int exit = builder.Run(req.Dir, buildArgs.ToArray(), OnLine,
-                            onStart: proc => _runningBuilds[req.Dir] = proc);
-                        _runningBuilds.TryRemove(req.Dir, out _);
+                        int exit = builder.Run(dir, buildArgs.ToArray(), OnLine,
+                            onStart: proc => _runningBuilds[dir] = proc);
+                        _runningBuilds.TryRemove(dir, out _);
 
                         if (exit != 0) { await SendLog("===STEP:FAILED==="); return; }
 
@@ -590,9 +592,9 @@ public static class WebStartup
                         }
 
                         await SendLog("===STEP:DEPLOY===");
-                        exit = builder.Run(req.Dir, runArgs.ToArray(), OnLine,
-                            onStart: proc => _runningBuilds[req.Dir] = proc);
-                        _runningBuilds.TryRemove(req.Dir, out _);
+                        exit = builder.Run(dir, runArgs.ToArray(), OnLine,
+                            onStart: proc => _runningBuilds[dir] = proc);
+                        _runningBuilds.TryRemove(dir, out _);
 
                         // mlaunch often exits 134 after successfully launching the app
                         // (it tries to read stdin for --wait-for-exit in non-interactive context)
@@ -636,9 +638,9 @@ public static class WebStartup
                             $"-p:AdbTarget=-s {serial}"
                         };
 
-                        int exit = builder.Run(req.Dir, runArgs.ToArray(), OnLine,
-                            onStart: proc => _runningBuilds[req.Dir] = proc);
-                        _runningBuilds.TryRemove(req.Dir, out _);
+                        int exit = builder.Run(dir, runArgs.ToArray(), OnLine,
+                            onStart: proc => _runningBuilds[dir] = proc);
+                        _runningBuilds.TryRemove(dir, out _);
 
                         SaveRunConfig(st, req, csproj);
                         state.Save(st);
@@ -650,7 +652,7 @@ public static class WebStartup
                 }
                 catch (Exception ex)
                 {
-                    _runningBuilds.TryRemove(req.Dir, out _);
+                    _runningBuilds.TryRemove(dir, out _);
                     await SendLog($"[Error] Build & Run failed: {ex.Message}");
                     await SendLog("===STEP:FAILED===");
                 }
