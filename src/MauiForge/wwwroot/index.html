@@ -972,7 +972,8 @@
                 try { connection.stop(); } catch(e) {}
                 connection = null;
             }
-            var url = (remoteInfo ? "http://" + remoteInfo.host + ":" + remoteInfo.port : API_BASE || "") + "/hubs/logs";
+            var baseUrl = (viewingRemote && remoteInfo) ? ("http://" + remoteInfo.host + ":" + remoteInfo.port) : (API_BASE || "");
+            var url = baseUrl + "/hubs/logs";
             connection = new signalR.HubConnectionBuilder()
                 .withUrl(url, { withCredentials: false })
                 .withAutomaticReconnect({
@@ -982,6 +983,7 @@
                 })
                 .configureLogging(signalR.LogLevel.Information)
                 .build();
+
 
             connection.onreconnecting(function (err) {
                 console.warn("SignalR Reconnecting...", err);
@@ -2751,16 +2753,21 @@
             currentBuildDir = dir;
             document.getElementById("cancelBuildBtn").classList.remove("hidden");
             try {
-                await fetch(`${API_BASE}/api/apps/build`, {
+                const res = await fetch(`${API_BASE}/api/apps/build`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ dir, platform, configuration: "Debug" })
                 });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.buildId) activeBuildId = data.buildId;
+                }
             } catch (err) {
                 console.error(err);
                 showToast("Failed to start build: " + err.message, "error");
             }
         }
+
 
         async function cancelBuild() {
             if (!currentBuildDir) return;
@@ -3053,6 +3060,11 @@
                 "</div>";
         }
 
+        var activeBuildId = null;
+        var bpLogPollInterval = null;
+        var lastPolledLogLength = 0;
+        var seenLogLines = new Set();
+
         async function executeBuildRun() {
             var selectedDevice = document.querySelector('input[name="brDevice"]:checked');
             if (!selectedDevice) { showToast("Please select a device", "error"); return; }
@@ -3064,7 +3076,7 @@
             var deviceType = selectedDevice.getAttribute("data-type");
 
             closeBuildRunModal();
-            showBuildProgress(deviceName, buildRunPlatform, config);
+            showBuildProgress(deviceName, buildRunPlatform, config, null);
             currentBuildDir = buildRunDir;
 
             if (!connection || connection.state !== "Connected") {
@@ -3072,7 +3084,7 @@
             }
 
             try {
-                await fetch(API_BASE + "/api/apps/run", {
+                var res = await fetch(API_BASE + "/api/apps/run", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -3085,6 +3097,10 @@
                         framework: framework
                     })
                 });
+                if (res.ok) {
+                    var data = await res.json();
+                    if (data && data.buildId) activeBuildId = data.buildId;
+                }
             } catch (err) {
                 finalizeBuildProgress(false);
                 showToast("Failed to start build & run: " + err.message, "error");
@@ -3093,9 +3109,12 @@
 
         /* ── Build & Run Progress Modal ─────────────────────────── */
 
-        function showBuildProgress(deviceName, platform, config) {
+        function showBuildProgress(deviceName, platform, config, buildId) {
             buildProgressActive = true;
             buildProgressStartTime = Date.now();
+            activeBuildId = buildId || null;
+            lastPolledLogLength = 0;
+            seenLogLines.clear();
 
             document.getElementById("bpDeviceName").textContent = deviceName;
             document.getElementById("bpPlatform").textContent = platform;
@@ -3134,7 +3153,46 @@
                 document.getElementById("bpTimer").textContent = m + ":" + (s < 10 ? "0" : "") + s;
             }, 500);
 
+            if (bpLogPollInterval) clearInterval(bpLogPollInterval);
+            bpLogPollInterval = setInterval(pollActiveBuildLogs, 1200);
+
             document.getElementById("buildProgressModal").classList.remove("hidden");
+        }
+
+        async function pollActiveBuildLogs() {
+            if (!buildProgressActive) return;
+            try {
+                var url = activeBuildId ? (API_BASE + "/api/builds/log?id=" + encodeURIComponent(activeBuildId)) : null;
+                if (!url) return;
+                var res = await fetch(url);
+                if (!res.ok) return;
+                var data = await res.json();
+                var content = data.content || "";
+                if (content.length <= lastPolledLogLength) return;
+                var chunk = content.substring(lastPolledLogLength);
+                lastPolledLogLength = content.length;
+
+                var lines = chunk.split("\n");
+                lines.forEach(function(msg) {
+                    msg = msg.trim();
+                    if (!msg) return;
+                    if (msg === "===STEP:BUILD===") { updateBuildStep("build"); return; }
+                    if (msg === "===STEP:DEPLOY===") { updateBuildStep("deploy"); return; }
+                    if (msg === "===STEP:DONE===") { finalizeBuildProgress(true); return; }
+                    if (msg === "===STEP:FAILED===") { finalizeBuildProgress(false); return; }
+                    if (msg.indexOf("launched successfully") >= 0) {
+                        appendBuildLog(msg, "bp-log-ok");
+                        finalizeBuildProgress(true);
+                        return;
+                    }
+                    if (msg.indexOf("launch failed") >= 0 || msg.indexOf("Build cancelled") >= 0) {
+                        appendBuildLog(msg, "bp-log-error");
+                        finalizeBuildProgress(false);
+                        return;
+                    }
+                    appendBuildLog(msg);
+                });
+            } catch(e) {}
         }
 
         function updateBuildStep(step) {
@@ -3159,6 +3217,11 @@
 
         function appendBuildLog(message, className) {
             var container = document.getElementById("bpLogContainer");
+            if (!container) return;
+            var trimmed = (message || "").trim();
+            if (trimmed && seenLogLines.has(trimmed) && !trimmed.startsWith("===")) return;
+            if (trimmed) seenLogLines.add(trimmed);
+
             var line = document.createElement("div");
             line.textContent = message;
 
@@ -3180,7 +3243,8 @@
             }
 
             if (container.querySelector(".italic")) {
-                container.innerHTML = "";
+                var italic = container.querySelector(".italic");
+                if (italic) italic.remove();
             }
         }
 
@@ -3188,6 +3252,9 @@
             buildProgressActive = false;
             currentBuildDir = null;
             if (bpTimerInterval) { clearInterval(bpTimerInterval); bpTimerInterval = null; }
+            if (bpLogPollInterval) { clearInterval(bpLogPollInterval); bpLogPollInterval = null; }
+            seenLogLines.clear();
+
 
             // A previous run's error excerpt is injected as a DOM node, not just text —
             // clear it unconditionally so a later successful run doesn't resurrect it
@@ -3317,6 +3384,8 @@
 
         function closeBuildProgress() {
             if (bpTimerInterval) { clearInterval(bpTimerInterval); bpTimerInterval = null; }
+            if (bpLogPollInterval) { clearInterval(bpLogPollInterval); bpLogPollInterval = null; }
+            seenLogLines.clear();
             buildProgressActive = false;
             currentBuildDir = null;
             document.getElementById("buildProgressModal").classList.add("hidden");
