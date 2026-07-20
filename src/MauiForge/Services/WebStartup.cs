@@ -441,66 +441,80 @@ public static class WebStartup
         // Devices Endpoint — lista devices iOS ou Android (compatível com os 3 parsers do CLI)
         app.MapPost("/api/apps/devices", (DeviceService devices, StateService state, DevicesRequest req) =>
         {
-            var st = state.Load();
-
-            if (req.Platform.Equals("ios", StringComparison.OrdinalIgnoreCase))
+            try
             {
-                if (!st.UseLocalMac && (string.IsNullOrEmpty(st.MacHost) || string.IsNullOrEmpty(st.MacUser)))
-                    return Results.Ok(new DevicesResponse([]));
+                var st = state.Load();
 
-                var deviceList = st.UseLocalMac
-                    ? devices.GetiOSDevicesLocal()
-                    : devices.GetiOSDevices(st.MacHost!, st.MacUser!);
+                if (req.Platform.Equals("ios", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!st.UseLocalMac && (string.IsNullOrEmpty(st.MacHost) || string.IsNullOrEmpty(st.MacUser)))
+                        return Results.Ok(new DevicesResponse([]));
 
-                return Results.Ok(new DevicesResponse(
-                    deviceList.Select(d => new DeviceItem(d.Udid, d.Name, d.Type)).ToList()));
+                    var deviceList = st.UseLocalMac
+                        ? devices.GetiOSDevicesLocal()
+                        : devices.GetiOSDevices(st.MacHost!, st.MacUser!);
+
+                    return Results.Ok(new DevicesResponse(
+                        deviceList.Select(d => new DeviceItem(d.Udid, d.Name, d.Type)).ToList()));
+                }
+
+                if (req.Platform.Equals("android", StringComparison.OrdinalIgnoreCase))
+                {
+                    var (running, avds, _) = devices.GetAndroidDevicesAndAvds();
+                    var items = new List<DeviceItem>();
+
+                    foreach (var d in running.Where(x => !x.Serial.StartsWith("emulator-", StringComparison.OrdinalIgnoreCase)))
+                        items.Add(new DeviceItem(d.Serial, d.Model, "Device"));
+
+                    var runningEmuSerials = running
+                        .Where(x => x.Serial.StartsWith("emulator-", StringComparison.OrdinalIgnoreCase))
+                        .Select(d => d.Serial)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var d in running.Where(x => runningEmuSerials.Contains(x.Serial)))
+                        items.Add(new DeviceItem(d.Serial, d.Model, "Emulator"));
+
+                    var runningAvdNames = running
+                        .Where(x => x.Serial.StartsWith("emulator-", StringComparison.OrdinalIgnoreCase))
+                        .Select(d => d.Model.Replace(' ', '_'))
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var a in avds.Where(a => !runningAvdNames.Contains(a.Replace(' ', '_'))))
+                        items.Add(new DeviceItem("avd:" + a, a, "AVD"));
+
+                    return Results.Ok(new DevicesResponse(items));
+                }
+
+                return Results.Ok(new DevicesResponse([]));
             }
-
-            if (req.Platform.Equals("android", StringComparison.OrdinalIgnoreCase))
+            catch
             {
-                var (running, avds, _) = devices.GetAndroidDevicesAndAvds();
-                var items = new List<DeviceItem>();
-
-                foreach (var d in running.Where(x => !x.Serial.StartsWith("emulator-", StringComparison.OrdinalIgnoreCase)))
-                    items.Add(new DeviceItem(d.Serial, d.Model, "Device"));
-
-                var runningEmuSerials = running
-                    .Where(x => x.Serial.StartsWith("emulator-", StringComparison.OrdinalIgnoreCase))
-                    .Select(d => d.Serial)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var d in running.Where(x => runningEmuSerials.Contains(x.Serial)))
-                    items.Add(new DeviceItem(d.Serial, d.Model, "Emulator"));
-
-                var runningAvdNames = running
-                    .Where(x => x.Serial.StartsWith("emulator-", StringComparison.OrdinalIgnoreCase))
-                    .Select(d => d.Model.Replace(' ', '_'))
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var a in avds.Where(a => !runningAvdNames.Contains(a.Replace(' ', '_'))))
-                    items.Add(new DeviceItem("avd:" + a, a, "AVD"));
-
-                return Results.Ok(new DevicesResponse(items));
+                return Results.Ok(new DevicesResponse([]));
             }
-
-            return Results.BadRequest(new { error = "Unsupported platform" });
         });
 
         // Config Endpoint — frameworks e build configurations disponíveis
         app.MapPost("/api/apps/config", (VersionService versions, ConfigRequest req) =>
         {
-            var csproj = Directory.EnumerateFiles(req.Dir, "*.csproj").FirstOrDefault();
-            List<string> configs = ["Debug", "Release"];
-            List<string> frameworks = [];
-
-            if (csproj is not null)
+            try
             {
-                var fromProject = versions.GetBuildConfigurations(csproj);
-                if (fromProject.Count > 0) configs = fromProject;
-                frameworks = versions.GetTargetFrameworks(csproj, req.Platform);
-            }
+                var csproj = Directory.EnumerateFiles(req.Dir, "*.csproj").FirstOrDefault();
+                List<string> configs = ["Debug", "Release"];
+                List<string> frameworks = [];
 
-            return Results.Ok(new ConfigResponse(configs, frameworks));
+                if (csproj is not null)
+                {
+                    var fromProject = versions.GetBuildConfigurations(csproj);
+                    if (fromProject.Count > 0) configs = fromProject;
+                    frameworks = versions.GetTargetFrameworks(csproj, req.Platform);
+                }
+
+                return Results.Ok(new ConfigResponse(configs, frameworks));
+            }
+            catch
+            {
+                return Results.Ok(new ConfigResponse(["Debug", "Release"], []));
+            }
         });
 
         // Run Endpoint — build + deploy num device específico

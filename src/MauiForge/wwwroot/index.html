@@ -2741,10 +2741,23 @@
                     })
                 ]);
 
-                const devicesData = await devicesRes.json();
-                const configData = await configRes.json();
+                let devicesData = { devices: [] };
+                let configData = { configurations: ["Debug", "Release"], frameworks: [] };
 
-                renderBuildRunForm(devicesData.devices || devicesData, configData, platform);
+                if (devicesRes.ok) {
+                    try {
+                        const parsed = await devicesRes.json();
+                        if (parsed) devicesData = parsed;
+                    } catch (e) {}
+                }
+                if (configRes.ok) {
+                    try {
+                        const parsed = await configRes.json();
+                        if (parsed) configData = parsed;
+                    } catch (e) {}
+                }
+
+                renderBuildRunForm(devicesData.devices || devicesData || [], configData, platform);
             } catch (err) {
                 const body = document.getElementById("buildRunModalBody");
                 body.innerHTML = '<div class="text-red-400 text-sm text-center py-6">Failed to load: ' + err.message + '</div>';

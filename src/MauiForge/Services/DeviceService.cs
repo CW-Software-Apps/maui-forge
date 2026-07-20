@@ -236,10 +236,21 @@ public class DeviceService
         psi.ArgumentList.Add($"{user}@{host}");
         psi.ArgumentList.Add(command);
 
-        using var proc = System.Diagnostics.Process.Start(psi)!;
-        var output = proc.StandardOutput.ReadToEnd();
-        proc.WaitForExit(15_000);
-        return output;
+        try
+        {
+            using var proc = System.Diagnostics.Process.Start(psi);
+            if (proc is null) return "";
+            var stdoutTask = proc.StandardOutput.ReadToEndAsync();
+            var stderrTask = proc.StandardError.ReadToEndAsync();
+            if (proc.WaitForExit(15_000))
+            {
+                Task.WaitAll(stdoutTask, stderrTask);
+                return stdoutTask.Result;
+            }
+            try { proc.Kill(entireProcessTree: true); } catch { }
+            return "";
+        }
+        catch { return ""; }
     }
 
     private static string RunProcess(string exe, string args)
@@ -251,10 +262,21 @@ public class DeviceService
             UseShellExecute        = false,
         };
         ProcessEnvironment.UseEnglishCliOutput(psi);
-        using var proc = System.Diagnostics.Process.Start(psi)!;
-        var output = proc.StandardOutput.ReadToEnd();
-        proc.WaitForExit(10_000);
-        return output;
+        try
+        {
+            using var proc = System.Diagnostics.Process.Start(psi);
+            if (proc is null) return "";
+            var stdoutTask = proc.StandardOutput.ReadToEndAsync();
+            var stderrTask = proc.StandardError.ReadToEndAsync();
+            if (proc.WaitForExit(10_000))
+            {
+                Task.WaitAll(stdoutTask, stderrTask);
+                return stdoutTask.Result;
+            }
+            try { proc.Kill(entireProcessTree: true); } catch { }
+            return "";
+        }
+        catch { return ""; }
     }
 
     private static string RunProcessFull(string exe, string[] args)
@@ -267,10 +289,21 @@ public class DeviceService
         };
         ProcessEnvironment.UseEnglishCliOutput(psi);
         foreach (var a in args) psi.ArgumentList.Add(a);
-        using var proc = System.Diagnostics.Process.Start(psi)!;
-        var output = proc.StandardOutput.ReadToEnd();
-        proc.WaitForExit(10_000);
-        return output;
+        try
+        {
+            using var proc = System.Diagnostics.Process.Start(psi);
+            if (proc is null) return "";
+            var stdoutTask = proc.StandardOutput.ReadToEndAsync();
+            var stderrTask = proc.StandardError.ReadToEndAsync();
+            if (proc.WaitForExit(10_000))
+            {
+                Task.WaitAll(stdoutTask, stderrTask);
+                return stdoutTask.Result;
+            }
+            try { proc.Kill(entireProcessTree: true); } catch { }
+            return "";
+        }
+        catch { return ""; }
     }
 
     private static void TryAdd(List<iOSDevice> devices, Func<List<iOSDevice>> readDevices)
@@ -386,13 +419,13 @@ public class DeviceService
     private static List<AndroidDevice> ParseAdbDevices(string output)
     {
         var devices = new List<AndroidDevice>();
+        if (string.IsNullOrWhiteSpace(output)) return devices;
 
-        foreach (var line in output.Split('\n').Skip(1))
+        foreach (var line in output.Split('\n'))
         {
             var trimmed = line.Trim();
-            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("* ") || trimmed.StartsWith("List of devices")) continue;
 
-            // Split on first whitespace to get serial and rest
             var tabIdx = trimmed.IndexOfAny([' ', '\t']);
             if (tabIdx < 0) continue;
 
@@ -402,6 +435,8 @@ public class DeviceService
             if (parts.Length == 0) continue;
 
             var state = parts[0];
+            if (!string.Equals(state, "device", StringComparison.OrdinalIgnoreCase)) continue;
+
             var model = parts.FirstOrDefault(p => p.StartsWith("model:"))?.Substring(6)
                      ?? parts.FirstOrDefault(p => p.StartsWith("product:"))?.Substring(8)
                      ?? serial;
