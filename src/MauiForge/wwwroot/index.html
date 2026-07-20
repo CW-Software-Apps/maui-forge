@@ -1241,14 +1241,15 @@
 
         function openRowMenu(e, dir, ver, build) {
             e.stopPropagation();
+            const encDir = encodeURIComponent(dir);
             showGlobalMenu(e.currentTarget, "row:" + dir, `
-                <button onclick="openVersionUpdate('${dir}', '${ver}', '${build}'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition flex items-center gap-2" title="Manually set version and build number">${ICON_HASH}Update Version</button>
-                <button onclick="pullGit('${dir}'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="git pull from remote">${ICON_PULL}Pull</button>
-                <button onclick="openFolder('${dir}'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project folder in File Explorer">${ICON_FOLDER}Open Folder</button>
+                <button onclick="openVersionUpdate(decodeURIComponent('${encDir}'), '${ver}', '${build}'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition flex items-center gap-2" title="Manually set version and build number">${ICON_HASH}Update Version</button>
+                <button onclick="pullGit(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="git pull from remote">${ICON_PULL}Pull</button>
+                <button onclick="openFolder(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project folder in File Explorer">${ICON_FOLDER}Open Folder</button>
                 <div class="border-t border-slate-800 my-1"></div>
-                <button onclick="openIDE('${dir}', 'vs'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project in Visual Studio">${ICON_IDE}Visual Studio</button>
-                <button onclick="openIDE('${dir}', 'vscode'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project in VS Code">${ICON_IDE}VS Code</button>
-                <button onclick="openIDE('${dir}', 'rider'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition flex items-center gap-2" title="Open project in Rider">${ICON_IDE}Rider</button>
+                <button onclick="openIDE(decodeURIComponent('${encDir}'), 'vs'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project in Visual Studio">${ICON_IDE}Visual Studio</button>
+                <button onclick="openIDE(decodeURIComponent('${encDir}'), 'vscode'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project in VS Code">${ICON_IDE}VS Code</button>
+                <button onclick="openIDE(decodeURIComponent('${encDir}'), 'rider'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition flex items-center gap-2" title="Open project in Rider">${ICON_IDE}Rider</button>
             `);
         }
 
@@ -1257,14 +1258,15 @@
         // iOS, overflow), past the ~4-choice cognitive load guideline.
         function openBuildMenu(e, dir) {
             e.stopPropagation();
+            const encDir = encodeURIComponent(dir);
             showGlobalMenu(e.currentTarget, "build:" + dir, `
                 <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-2 pb-1">Build Only</div>
-                <button onclick="buildApp('${dir}', 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build Android (Debug)">${ICON_BUILD}Android</button>
-                <button onclick="buildApp('${dir}', 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build iOS (Debug)">${ICON_BUILD}iOS</button>
+                <button onclick="buildApp(decodeURIComponent('${encDir}'), 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build Android (Debug)">${ICON_BUILD}Android</button>
+                <button onclick="buildApp(decodeURIComponent('${encDir}'), 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build iOS (Debug)">${ICON_BUILD}iOS</button>
                 <div class="border-t border-slate-800 my-1"></div>
                 <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Build & Run</div>
-                <button onclick="openBuildRun('${dir}', 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build & run on Android device/emulator">▶ Android</button>
-                <button onclick="openBuildRun('${dir}', 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition flex items-center gap-2" title="Build & run on iOS device/simulator">▶ iOS</button>
+                <button onclick="openBuildRun(decodeURIComponent('${encDir}'), 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build & run on Android device/emulator">▶ Android</button>
+                <button onclick="openBuildRun(decodeURIComponent('${encDir}'), 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition flex items-center gap-2" title="Build & run on iOS device/simulator">▶ iOS</button>
             `, 200);
         }
 

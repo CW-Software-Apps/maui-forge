@@ -313,15 +313,17 @@ public static class WebStartup
         // Git Endpoints
         app.MapPost("/api/apps/git/pull", (GitService git, AppDiscoveryService discovery, StateService state, GitRequest req) =>
         {
-            var res = git.Pull(req.Dir);
-            RefreshCacheAndNotify(discovery, state, req.Dir);
+            var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
+            var res = git.Pull(dir);
+            RefreshCacheAndNotify(discovery, state, dir);
             return Results.Ok(new { Success = res.Success, Output = res.Output });
         });
 
         app.MapPost("/api/apps/git/push", (GitService git, AppDiscoveryService discovery, StateService state, GitPushRequest req) =>
         {
-            var res = git.Push(req.Dir, req.Message);
-            RefreshCacheAndNotify(discovery, state, req.Dir);
+            var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
+            var res = git.Push(dir, req.Message);
+            RefreshCacheAndNotify(discovery, state, dir);
             return Results.Ok(new { Success = res.Success, Output = res.Output });
         });
 
@@ -335,11 +337,12 @@ public static class WebStartup
         app.MapPost("/api/apps/bump-push", (VersionService versions, GitService git, AppDiscoveryService discovery, StateService state, BumpPushRequest req) =>
         {
             var st = state.Load();
+            var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
             string newVersion = req.Version;
             string newBuild = req.Build;
 
             // 1. Unity
-            var unitySettings = Path.Combine(req.Dir, "ProjectSettings", "ProjectSettings.asset");
+            var unitySettings = Path.Combine(dir, "ProjectSettings", "ProjectSettings.asset");
             if (File.Exists(unitySettings))
             {
                 var currentUnity = versions.ReadUnity(req.Dir);
@@ -677,13 +680,14 @@ public static class WebStartup
             return Results.Ok(new { Success = false, Error = "No running build found for this app." });
         });
 
-        app.MapPost("/api/apps/open-folder", (OpenFolderRequest req) =>
+        app.MapPost("/api/apps/open-folder", (StateService state, OpenFolderRequest req) =>
         {
-            if (Directory.Exists(req.Dir))
+            var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
+            if (Directory.Exists(dir))
             {
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe")
                 {
-                    Arguments = $"\"{req.Dir}\"",
+                    Arguments = $"\"{dir}\"",
                     UseShellExecute = true
                 });
                 return Results.Ok();
@@ -691,13 +695,14 @@ public static class WebStartup
             return Results.BadRequest("Directory does not exist.");
         });
 
-        app.MapPost("/api/apps/open-ide", (OpenIdeRequest req) =>
+        app.MapPost("/api/apps/open-ide", (StateService state, OpenIdeRequest req) =>
         {
-            if (Directory.Exists(req.Dir))
+            var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
+            if (Directory.Exists(dir))
             {
-                var sln = Directory.EnumerateFiles(req.Dir, "*.sln").FirstOrDefault();
-                var csproj = Directory.EnumerateFiles(req.Dir, "*.csproj").FirstOrDefault();
-                var target = sln ?? csproj ?? req.Dir;
+                var sln = Directory.EnumerateFiles(dir, "*.sln").FirstOrDefault();
+                var csproj = Directory.EnumerateFiles(dir, "*.csproj").FirstOrDefault();
+                var target = sln ?? csproj ?? dir;
 
                 if (req.Ide.Equals("vscode", StringComparison.OrdinalIgnoreCase))
                 {
