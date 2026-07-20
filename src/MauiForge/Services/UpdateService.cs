@@ -128,8 +128,8 @@ public class UpdateService
                 "echo  [3/3] Update completed successfully!\r\n" +
                 "echo  ---------------------------------------------------------\r\n" +
                 "echo.\r\n" +
-                "echo  Press any key to relaunch MAUI Forge...\r\n" +
-                "pause > nul\r\n" +
+                "echo  Relaunching MAUI Forge automatically...\r\n" +
+                "timeout /t 1 /nobreak >nul\r\n" +
                 "start maui-forge\r\n" +
                 "del \"%~f0\"\r\n" +
                 "exit /b 0\r\n";
