@@ -1109,16 +1109,7 @@
             connectToRemote(host, port, false, token || undefined);
         }
 
-        (function autoConnectRemote() {
-            var saved = localStorage.getItem("mauiForgeRemote");
-            if (!saved) return;
-            try {
-                var r = JSON.parse(saved);
-                if (r && r.host && r.port) {
-                    connectToRemote(r.host, r.port, false, r.token);
-                }
-            } catch (e) {}
-        })();
+        // (autoConnectRemote now handled safely in DOMContentLoaded listener below)
 
         // Toast notification system
         function showToast(message, type) {
@@ -1408,13 +1399,48 @@
         }
 
         // Load paths, apps, and version info on load
-        window.addEventListener("DOMContentLoaded", function () {
-            loadPaths();
-            loadApps();
-            updateLayoutButtons();
-            loadVersionInfo();
-            updateThemeToggle();
+        window.addEventListener("DOMContentLoaded", async function () {
             applySidebarCollapsed(localStorage.getItem("sidebarCollapsed") === "1");
+            updateThemeToggle();
+            updateLayoutButtons();
+
+            var savedRemote = localStorage.getItem("mauiForgeRemote");
+            var preferredMode = localStorage.getItem("mauiForgeViewMode") || "remote";
+
+            if (savedRemote) {
+                try {
+                    var r = JSON.parse(savedRemote);
+                    if (r && r.host && r.port) {
+                        remoteInfo = r;
+                        var notConn = document.getElementById("remoteNotConnected");
+                        var conn = document.getElementById("remoteConnected");
+                        if (notConn) notConn.classList.add("hidden");
+                        if (conn) conn.classList.remove("hidden");
+
+                        var reachable = false;
+                        try {
+                            var test = await origFetch("http://" + r.host + ":" + r.port + "/api/paths", {
+                                headers: r.token ? { "X-MauiForge-Token": r.token } : {}
+                            });
+                            reachable = test.ok || test.status === 401;
+                        } catch(e) {}
+
+                        if (reachable && preferredMode === "remote") {
+                            switchToRemote();
+                        } else {
+                            switchToLocal(true);
+                        }
+                    } else {
+                        switchToLocal(true);
+                    }
+                } catch(e) {
+                    switchToLocal(true);
+                }
+            } else {
+                switchToLocal(true);
+            }
+
+            loadVersionInfo();
         });
 
         // Theme (data-theme is already set pre-paint by the inline script in <head>)
@@ -1827,11 +1853,13 @@
             remoteBtn.style.cssText = viewingRemote ? activeStyle : inactiveStyle;
         }
 
-        function switchToLocal() {
-            if (!viewingRemote) return;
+        function switchToLocal(force) {
+            if (!force && !viewingRemote) return;
             API_BASE = localApiBase;
             viewingRemote = false;
-            document.getElementById("sidebar").classList.remove("remote-mode");
+            localStorage.setItem("mauiForgeViewMode", "local");
+            var sb = document.getElementById("sidebar");
+            if (sb) sb.classList.remove("remote-mode");
             setRemoteBadge(false);
             updateViewToggle();
             initSignalR();
@@ -1844,7 +1872,9 @@
             if (!remoteInfo) return;
             API_BASE = "http://" + remoteInfo.host + ":" + remoteInfo.port;
             viewingRemote = true;
-            document.getElementById("sidebar").classList.add("remote-mode");
+            localStorage.setItem("mauiForgeViewMode", "remote");
+            var sb = document.getElementById("sidebar");
+            if (sb) sb.classList.add("remote-mode");
             setRemoteBadge(true, remoteInfo.host);
             updateViewToggle();
             initSignalR();
@@ -1858,6 +1888,7 @@
             viewingRemote = false;
             API_BASE = localApiBase;
             localStorage.removeItem("mauiForgeRemote");
+            localStorage.removeItem("mauiForgeViewMode");
             document.getElementById("remoteNotConnected").classList.remove("hidden");
             document.getElementById("remoteConnected").classList.add("hidden");
             document.getElementById("sidebar").classList.remove("remote-mode");
