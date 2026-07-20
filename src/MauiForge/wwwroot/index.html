@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MAUI Forge Dashboard</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2300839b'/%3E%3Ctext x='16' y='22' font-family='system-ui, sans-serif' font-weight='900' font-size='15' fill='%23ffffff' text-anchor='middle'%3EMF%3C/text%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2310b981'/%3E%3Cpath fill='%23ffffff' d='M6,23 V9 h3 l2.5,7 l2.5,-7 h3 V23 h-3 V14.5 l-2,5.5 h-1 l-2,-5.5 V23 Z M19,9 H26 v3.2 h-4 v2.8 h3.5 v3 H22 V23 h-3 Z'/%3E%3C/svg%3E">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -792,7 +792,10 @@
                     <span id="bpHeaderIcon" class="inline-block w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
                     Build & Run
                 </h3>
-                <span id="bpTimer" class="text-xs font-mono text-slate-500">0:00</span>
+                <div class="flex items-center gap-3">
+                    <span id="bpTimer" class="text-xs font-mono text-slate-500">0:00</span>
+                    <button onclick="closeBuildProgress()" class="text-slate-500 hover:text-white transition text-sm ml-1" aria-label="Close build modal" title="Close">✕</button>
+                </div>
             </div>
             <div class="p-6 space-y-4" id="buildProgressBody">
                 <!-- Device info card -->
@@ -824,8 +827,19 @@
                 </div>
 
                 <!-- Log area -->
-                <div class="relative">
-                    <div id="bpLogContainer" class="bg-slate-950 rounded-lg p-3 h-44 overflow-y-auto font-mono text-xs space-y-0.5 select-text border border-slate-800/50">
+                <div class="space-y-1.5">
+                    <div class="flex items-center justify-between text-xs text-slate-400">
+                        <span class="font-medium">Output Log</span>
+                        <div class="flex items-center gap-2">
+                            <button onclick="toggleBpLogAutoScroll()" id="bpAutoScrollBtn" class="text-[11px] text-blue-400 border border-blue-500/50 bg-slate-900 px-2 py-0.5 rounded transition hover:text-white" title="Toggle auto-scroll">
+                                <span>↓ Auto-scroll</span>
+                            </button>
+                            <button onclick="copyBpLogs()" class="text-[11px] text-slate-300 hover:text-white transition flex items-center gap-1 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded" title="Copy output logs to clipboard">
+                                <span>📋 Copy Log</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="bpLogContainer" class="bg-slate-950 rounded-lg p-3 h-48 overflow-y-auto font-mono text-xs space-y-0.5 select-text border border-slate-800/50">
                         <div class="text-slate-600 italic">Waiting for build output...</div>
                     </div>
                 </div>
@@ -835,7 +849,10 @@
                     <div id="bpResultIcon" class="text-4xl"></div>
                     <div id="bpResultText" class="text-base font-semibold"></div>
                     <div id="bpResultDetail" class="text-xs text-slate-500"></div>
-                    <button onclick="closeBuildProgress()" class="btn-ghost mt-1 px-6 py-2 text-sm font-semibold" title="Close progress panel">Close</button>
+                    <div class="flex items-center gap-2 mt-2">
+                        <button onclick="copyBpLogs()" class="btn-ghost px-4 py-2 text-sm font-semibold flex items-center gap-1.5" title="Copy output log">📋 Copy Log</button>
+                        <button onclick="closeBuildProgress()" class="btn-ghost px-6 py-2 text-sm font-semibold" title="Close progress panel">Close</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -915,7 +932,7 @@
                     finalizeBuildProgress(true);
                     return;
                 }
-                if (message.indexOf("launch failed") >= 0) {
+                if (message.indexOf("launch failed") >= 0 || message.indexOf("Build cancelled") >= 0) {
                     appendBuildLog(message, "bp-log-error");
                     finalizeBuildProgress(false);
                     return;
@@ -2866,8 +2883,13 @@
             document.getElementById("bpIndBuild").className = "bp-ind bp-ind-active";
             document.getElementById("bpStepBuild").className = "flex items-center gap-1.5 text-white font-medium";
 
+            bpAutoScroll = true;
+            var btn = document.getElementById("bpAutoScrollBtn");
+            if (btn) btn.className = "text-[11px] text-blue-400 border border-blue-500/50 bg-slate-900 px-2 py-0.5 rounded transition hover:text-white";
+            var container = document.getElementById("bpLogContainer");
+            if (container) container.className = "bg-slate-950 rounded-lg p-3 h-48 overflow-y-auto font-mono text-xs space-y-0.5 select-text border border-slate-800/50";
             document.getElementById("bpResult").classList.add("hidden");
-            document.getElementById("bpLogContainer").innerHTML = "";
+            if (container) container.innerHTML = "";
             document.getElementById("bpTimer").textContent = "0:00";
 
             if (bpTimerInterval) clearInterval(bpTimerInterval);
@@ -2919,7 +2941,9 @@
             }
 
             container.appendChild(line);
-            container.scrollTop = container.scrollHeight;
+            if (bpAutoScroll) {
+                container.scrollTop = container.scrollHeight;
+            }
 
             if (container.querySelector(".italic")) {
                 container.innerHTML = "";
@@ -2966,6 +2990,12 @@
                     }
                 });
 
+                // Expand log view on failure for easier debugging
+                var logContainer = document.getElementById("bpLogContainer");
+                if (logContainer) {
+                    logContainer.className = "bg-slate-950 rounded-lg p-3 h-64 overflow-y-auto font-mono text-xs space-y-0.5 select-text border border-red-500/30";
+                }
+
                 // Collect last error lines from logs
                 var logContainer = document.getElementById("bpLogContainer");
                 var errorLines = logContainer.querySelectorAll(".bp-log-error");
@@ -3004,7 +3034,51 @@
                 }
             }
 
-            document.getElementById("bpResult").classList.remove("hidden");
+            var resultEl = document.getElementById("bpResult");
+            resultEl.classList.remove("hidden");
+            resultEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+
+        let bpAutoScroll = true;
+
+        function toggleBpLogAutoScroll() {
+            bpAutoScroll = !bpAutoScroll;
+            var btn = document.getElementById("bpAutoScrollBtn");
+            if (bpAutoScroll) {
+                if (btn) btn.className = "text-[11px] text-blue-400 border border-blue-500/50 bg-slate-900 px-2 py-0.5 rounded transition hover:text-white";
+                var container = document.getElementById("bpLogContainer");
+                if (container) container.scrollTop = container.scrollHeight;
+            } else {
+                if (btn) btn.className = "text-[11px] text-slate-400 border border-slate-800 bg-slate-900 px-2 py-0.5 rounded transition hover:text-white";
+            }
+        }
+
+        function copyBpLogs() {
+            var container = document.getElementById("bpLogContainer");
+            var text = container ? container.innerText : "";
+            if (!text || text.trim() === "" || text.includes("Waiting for build output...")) {
+                showToast("No log content to copy", "info");
+                return;
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(function() {
+                    showToast("Build logs copied to clipboard!", "success");
+                }).catch(function() {
+                    fallbackCopyBpLogs(text);
+                });
+            } else {
+                fallbackCopyBpLogs(text);
+            }
+        }
+
+        function fallbackCopyBpLogs(text) {
+            var ta = document.createElement("textarea");
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand("copy");
+            document.body.removeChild(ta);
+            showToast("Build logs copied to clipboard!", "success");
         }
 
         function closeBuildProgress() {

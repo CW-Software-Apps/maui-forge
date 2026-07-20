@@ -36,6 +36,8 @@ public static class WebStartup
             WebRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot")
         });
 
+        builder.Logging.ClearProviders();
+
         // Configure ports
         builder.WebHost.ConfigureKestrel(options =>
         {
@@ -509,7 +511,7 @@ public static class WebStartup
                 {
                     var st = state.Load();
                     var csproj = Directory.EnumerateFiles(req.Dir, "*.csproj").FirstOrDefault();
-                    if (csproj is null) { await SendLog("[Error] No .csproj found."); return; }
+                    if (csproj is null) { await SendLog("[Error] No .csproj found."); await SendLog("===STEP:FAILED==="); return; }
 
                     await SendLog("=========================================");
                     await SendLog($"Starting {req.Platform} build & run...");
@@ -602,11 +604,11 @@ public static class WebStartup
                         {
                             var avdName = serial[4..];
                             var adbPath = DeviceService.FindAdb();
-                            if (adbPath is null) { await SendLog("[Error] adb not found."); await SendLog("[Hint] Set ANDROID_HOME or install Android SDK platform-tools."); return; }
+                            if (adbPath is null) { await SendLog("[Error] adb not found."); await SendLog("[Hint] Set ANDROID_HOME or install Android SDK platform-tools."); await SendLog("===STEP:FAILED==="); return; }
 
                             await SendLog($"Starting emulator: {avdName}...");
                             serial = await StartAvdAndWaitForWeb(avdName, adbPath);
-                            if (serial is null) { await SendLog("[Error] Emulator did not start in time."); return; }
+                            if (serial is null) { await SendLog("[Error] Emulator did not start in time."); await SendLog("===STEP:FAILED==="); return; }
                         }
 
                         await SendLog("===STEP:BUILD===");
@@ -632,6 +634,7 @@ public static class WebStartup
                 {
                     _runningBuilds.TryRemove(req.Dir, out _);
                     await SendLog($"[Error] Build & Run failed: {ex.Message}");
+                    await SendLog("===STEP:FAILED===");
                 }
             });
 

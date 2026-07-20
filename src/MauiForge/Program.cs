@@ -8,6 +8,27 @@ using Spectre.Console;
 Console.OutputEncoding = Encoding.UTF8;
 Console.InputEncoding  = Encoding.UTF8;
 
+AppDomain.CurrentDomain.UnhandledException += (s, e) =>
+{
+    try
+    {
+        var log = Path.Combine(Path.GetTempPath(), "maui-forge-error.log");
+        File.AppendAllText(log, $"[{DateTime.Now}] UnhandledException: {e.ExceptionObject}\n");
+    }
+    catch { }
+};
+
+TaskScheduler.UnobservedTaskException += (s, e) =>
+{
+    try
+    {
+        var log = Path.Combine(Path.GetTempPath(), "maui-forge-error.log");
+        File.AppendAllText(log, $"[{DateTime.Now}] UnobservedTaskException: {e.Exception}\n");
+    }
+    catch { }
+    e.SetObserved();
+};
+
 // On macOS/Linux, dotnet tool install prints a broken pt-BR PATH warning.
 // Show the correct instructions once if the tools dir is not in PATH yet.
 if (!OperatingSystem.IsWindows())

@@ -15,26 +15,32 @@ public class RemoteDiscoveryService
 
         _ = Task.Run(async () =>
         {
-            using var udp = new UdpClient(new IPEndPoint(IPAddress.Any, discoveryPort));
-            udp.Client.ReceiveTimeout = 5000;
-
-            while (!token2.IsCancellationRequested)
+            try
             {
-                try
-                {
-                    var result = await udp.ReceiveAsync(token2);
-                    var msg = Encoding.UTF8.GetString(result.Buffer).Trim();
+                using var udp = new UdpClient();
+                udp.Client.ReuseAddress = true;
+                udp.Client.Bind(new IPEndPoint(IPAddress.Any, discoveryPort));
+                udp.Client.ReceiveTimeout = 5000;
 
-                    if (msg == "MAUI_FORGE_PING")
+                while (!token2.IsCancellationRequested)
+                {
+                    try
                     {
-                        var response = $"MAUI_FORGE_PONG|{Environment.MachineName}|{webPort}|{(token != null ? "1" : "0")}";
-                        var data = Encoding.UTF8.GetBytes(response);
-                        await udp.SendAsync(data, data.Length, result.RemoteEndPoint);
+                        var result = await udp.ReceiveAsync(token2);
+                        var msg = Encoding.UTF8.GetString(result.Buffer).Trim();
+
+                        if (msg == "MAUI_FORGE_PING")
+                        {
+                            var response = $"MAUI_FORGE_PONG|{Environment.MachineName}|{webPort}|{(token != null ? "1" : "0")}";
+                            var data = Encoding.UTF8.GetBytes(response);
+                            await udp.SendAsync(data, data.Length, result.RemoteEndPoint);
+                        }
                     }
+                    catch (OperationCanceledException) { break; }
+                    catch (SocketException) { /* timeout, loop */ }
                 }
-                catch (OperationCanceledException) { break; }
-                catch (SocketException) { /* timeout, loop */ }
             }
+            catch { /* socket bind failed — prevent crash */ }
         }, token2);
     }
 

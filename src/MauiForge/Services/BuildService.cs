@@ -27,11 +27,23 @@ public class BuildService
             using var proc = System.Diagnostics.Process.Start(psi)!;
             onStart?.Invoke(proc);
 
-            proc.OutputDataReceived += (_, e) => HandleLine(e.Data, onLine, log);
-            proc.ErrorDataReceived  += (_, e) => HandleLine(e.Data, onLine, log);
-            proc.BeginOutputReadLine();
-            proc.BeginErrorReadLine();
-            proc.WaitForExit();
+            var readOut = Task.Run(async () =>
+            {
+                while (await proc.StandardOutput.ReadLineAsync() is { } line)
+                {
+                    HandleLine(line, onLine, log);
+                }
+            });
+
+            var readErr = Task.Run(async () =>
+            {
+                while (await proc.StandardError.ReadLineAsync() is { } line)
+                {
+                    HandleLine(line, onLine, log);
+                }
+            });
+
+            Task.WaitAll(readOut, readErr, proc.WaitForExitAsync());
             return proc.ExitCode;
         }
         finally
