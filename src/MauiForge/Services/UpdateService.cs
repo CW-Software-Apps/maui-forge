@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Spectre.Console;
 
@@ -53,17 +54,13 @@ public class UpdateService
     public static string GetManualUpdateCommand(string latestVer) =>
         $"dotnet tool update {PackageId} -g --version {latestVer}";
 
-    /// <summary>
-    /// Launches a deferred update on Windows or runs a synchronous update on macOS/Linux.
-    /// On Windows, it writes a temp batch script and launches it using ShellExecute to bypass
-    /// the Job Object process termination limit, then exits.
-    /// On macOS/Linux, it runs the update synchronously with visual feedback.
-    /// </summary>
     public static void LaunchDeferredUpdate(string latestVer, string[] originalArgs, bool interactive = true)
     {
         var currentPid = Environment.ProcessId;
         var dotnetPath = FindDotnet() ?? "dotnet";
         var manualCommand = GetManualUpdateCommand(latestVer);
+        var currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+
         if (OperatingSystem.IsWindows())
         {
             var script = Path.Combine(Path.GetTempPath(), "maui-forge-update.bat");
@@ -131,16 +128,17 @@ public class UpdateService
                 "echo  Relaunching MAUI Forge automatically...\r\n" +
                 "timeout /t 1 /nobreak >nul\r\n" +
                 "start maui-forge\r\n" +
+                "timeout /t 2 /nobreak >nul\r\n" +
+                "start http://localhost:5123\r\n" +
                 "del \"%~f0\"\r\n" +
                 "exit /b 0\r\n";
             File.WriteAllText(script, batchContent);
 
-            var updater = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe")
+            var updater = Process.Start(new ProcessStartInfo("cmd.exe")
             {
-                Arguments      = $"/c \"{script}\"",
+                Arguments      = $"/c start \"\" \"{script}\"",
                 UseShellExecute = true,
-                CreateNoWindow  = false,
-                WindowStyle     = System.Diagnostics.ProcessWindowStyle.Normal,
+                CreateNoWindow  = true
             });
 
             if (updater is null)
@@ -150,107 +148,43 @@ public class UpdateService
         }
         else
         {
-            void RunUpdateProcess(Action<string>? onSuccess, Action<string> onFailure)
+            var shPath = Path.Combine(Path.GetTempPath(), "maui-forge-update.sh");
+            var shLog = Path.Combine(Path.GetTempPath(), "maui-forge-update.log");
+
+            var shContent =
+                "#!/bin/bash\n" +
+                $"exec >> \"{shLog}\" 2>&1\n" +
+                "echo \"[$(date)] MAUI Forge self-update started\"\n" +
+                $"export PATH=\"$HOME/.dotnet/tools:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/share/dotnet:/usr/bin:/bin:/usr/sbin:/sbin:{currentPath}\"\n" +
+                "sleep 3\n" +
+                $"dotnet tool update CwSoftware.MauiForge -g --version {latestVer} || dotnet tool update CwSoftware.MauiForge -g || true\n" +
+                "echo \"[$(date)] Relaunching maui-forge...\"\n" +
+                "nohup maui-forge > /dev/null 2>&1 &\n" +
+                "sleep 2\n" +
+                "open \"http://localhost:5123\" 2>/dev/null || xdg-open \"http://localhost:5123\" 2>/dev/null || true\n";
+
+            File.WriteAllText(shPath, shContent);
+            try { Process.Start("chmod", $"+x \"{shPath}\"")?.WaitForExit(); } catch { }
+
+            var psiMac = new ProcessStartInfo("bash")
             {
-                try
-                {
-                    var processInfo = new System.Diagnostics.ProcessStartInfo(dotnetPath)
-                    {
-                        Arguments = $"tool update {PackageId} -g --version {latestVer}",
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
-
-                    processInfo.EnvironmentVariables["DOTNET_CLI_UI_LANGUAGE"] = "en";
-                    processInfo.EnvironmentVariables["LANG"] = "en_US.UTF-8";
-                    processInfo.EnvironmentVariables["LC_ALL"] = "en_US.UTF-8";
-                    processInfo.EnvironmentVariables["LC_MESSAGES"] = "en_US.UTF-8";
-                    processInfo.EnvironmentVariables["LANGUAGE"] = "en";
-
-                    using var process = System.Diagnostics.Process.Start(processInfo);
-                    if (process == null)
-                    {
-                        onFailure("Could not start update process.");
-                        return;
-                    }
-
-                    var output = process.StandardOutput.ReadToEnd();
-                    var error = process.StandardError.ReadToEnd();
-                    process.WaitForExit();
-
-                    if (process.ExitCode == 0)
-                    {
-                        onSuccess?.Invoke("Update completed successfully.");
-                    }
-                    else
-                    {
-                        var detail = !string.IsNullOrWhiteSpace(error) ? error.Trim() : output.Trim();
-                        onFailure($"Update failed with exit code {process.ExitCode}. {detail}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    onFailure($"Error during update: {ex.Message}");
-                }
-            }
-
-            if (!interactive)
-            {
-                // Called from the web dashboard: no console attached to interact with, so
-                // run the update and relaunch without any AnsiConsole prompts or key waits.
-                RunUpdateProcess(
-                    onSuccess: _ =>
-                    {
-                        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("maui-forge") { UseShellExecute = true }); }
-                        catch { /* the user can still relaunch manually if the PATH shortcut isn't set up */ }
-                        Environment.Exit(0);
-                    },
-                    onFailure: _ => Environment.Exit(1));
-                return;
-            }
-
-            AnsiConsole.Clear();
-            AnsiConsole.WriteLine();
-            AnsiConsole.Write(new Rule("[bold cyan1]  Update in Progress  [/]").RuleStyle(Style.Parse("cyan1 dim")));
-            AnsiConsole.WriteLine();
-
-            AnsiConsole.Status()
-                .Spinner(Spinner.Known.Dots)
-                .SpinnerStyle(Style.Parse("cyan1"))
-                .Start($"  [dim]Updating CwSoftware.MauiForge to version {latestVer}...[/]", ctx =>
-                {
-                    RunUpdateProcess(
-                        onSuccess: msg =>
-                        {
-                            AnsiConsole.MarkupLine($"  [green]✓ {Markup.Escape(msg)}[/]");
-                            AnsiConsole.MarkupLine("  [dim]Please restart maui-forge to run the new version.[/]");
-                        },
-                        onFailure: msg =>
-                        {
-                            AnsiConsole.MarkupLine($"  [red]x  {Markup.Escape(msg)}[/]");
-                            AnsiConsole.MarkupLine($"  [dim]Run manually:[/] [cyan1]{manualCommand}[/]");
-                        });
-                });
-
-            AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine("  Press any key to exit...");
-            Console.ReadKey(true);
+                ArgumentList = { shPath },
+                CreateNoWindow = true,
+                UseShellExecute = false
+            };
+            Process.Start(psiMac);
             Environment.Exit(0);
         }
     }
 
     private static string? FindDotnet()
     {
-        // 1. Check if the current process is dotnet (common on macOS/Linux dotnet tool run)
         var processPath = Environment.ProcessPath;
         if (processPath is not null
             && Path.GetFileNameWithoutExtension(processPath).Equals("dotnet", StringComparison.OrdinalIgnoreCase)
             && File.Exists(processPath))
             return processPath;
 
-        // 2. Search in system PATH environment variable
         var pathVar = Environment.GetEnvironmentVariable("PATH");
         if (!string.IsNullOrEmpty(pathVar))
         {
@@ -268,7 +202,6 @@ public class UpdateService
             }
         }
 
-        // 3. Fallback to candidate paths
         var candidates = OperatingSystem.IsWindows()
             ? new[]
             {

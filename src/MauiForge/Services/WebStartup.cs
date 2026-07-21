@@ -178,7 +178,7 @@ public static class WebStartup
                 buildsTotal = total,
                 buildsSuccess = success,
                 buildsFailed = failed,
-                version = typeof(WebStartup).Assembly.GetName().Version?.ToString(3) ?? "1.6.33",
+                version = typeof(WebStartup).Assembly.GetName().Version?.ToString(3) ?? "1.6.35",
                 port
             });
         });
