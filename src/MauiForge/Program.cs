@@ -216,6 +216,44 @@ if (!runTerminal)
         discoverySvc.StartResponder(webPort: servePort, token: serveToken);
     }
 
+    // Mata instâncias anteriores automaticamente ao iniciar pelo CLI
+    // (novo processo assume sem perguntar)
+    if (OperatingSystem.IsMacOS())
+    {
+        try
+        {
+            var myPid = System.Diagnostics.Process.GetCurrentProcess().Id;
+            var psi = new System.Diagnostics.ProcessStartInfo("bash")
+            {
+                Arguments = $"-c \"pgrep -f 'maui-forge' | grep -v {myPid} | xargs kill -9 2>/dev/null; kill -9 $(lsof -ti:{servePort} 2>/dev/null | grep -v {myPid}) 2>/dev/null; true\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            };
+            using var p = System.Diagnostics.Process.Start(psi);
+            p?.WaitForExit(3000);
+            if (p?.ExitCode == 0)
+                Console.WriteLine("[maui-forge] Previous instance terminated. Starting fresh...");
+        }
+        catch { }
+        // Aguarda a porta liberar
+        System.Threading.Thread.Sleep(800);
+    }
+    else if (OperatingSystem.IsWindows())
+    {
+        try
+        {
+            var myPid = System.Diagnostics.Process.GetCurrentProcess().Id;
+            foreach (var proc in System.Diagnostics.Process.GetProcessesByName("maui-forge"))
+            {
+                if (proc.Id != myPid)
+                    try { proc.Kill(true); proc.WaitForExit(2000); } catch { }
+            }
+        }
+        catch { }
+        System.Threading.Thread.Sleep(500);
+    }
+
     WebStartup.Start(args, stateService, discovery, versionSvc, gitSvc, buildSvc, deviceSvc,
         serveMode: serveMode, token: serveToken, port: servePort, noOpen: noOpen);
     return;
