@@ -569,6 +569,7 @@ public static class WebStartup
                         buildArgs.Add("Release");
                     }
 
+                    await SendLog("===CMD:dotnet " + string.Join(' ', buildArgs) + "===");
                     int exitCode = builder.Run(dir, buildArgs.ToArray(), line =>
                     {
                         _ = SendLog(line);
@@ -730,6 +731,7 @@ public static class WebStartup
                         }
 
                         await SendLog("===STEP:BUILD===");
+                        await SendLog("===CMD:dotnet " + string.Join(' ', buildArgs) + "===");
                         exit = builder.Run(dir, buildArgs.ToArray(), OnLine,
                             logFile: record.LogFilePath,
                             onStart: proc => _runningBuilds[dir] = proc);
@@ -763,6 +765,7 @@ public static class WebStartup
                         }
 
                         await SendLog("===STEP:DEPLOY===");
+                        await SendLog("===CMD:dotnet " + string.Join(' ', runArgs) + "===");
                         exit = builder.Run(dir, runArgs.ToArray(), OnLine,
                             logFile: record.LogFilePath,
                             onStart: proc => _runningBuilds[dir] = proc);
@@ -828,6 +831,7 @@ public static class WebStartup
                             $"-p:AdbTarget=-s {serial}"
                         };
 
+                        await SendLog("===CMD:dotnet " + string.Join(' ', runArgs) + "===");
                         exit = builder.Run(dir, runArgs.ToArray(), OnLine,
                             logFile: record.LogFilePath,
                             onStart: proc => _runningBuilds[dir] = proc);

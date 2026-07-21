@@ -966,6 +966,13 @@
                     </div>
                 </div>
 
+                <!-- Stall banner: shown when the build has gone quiet for a while so the
+                     user knows the process is still alive and which command is running -->
+                <div id="bpStallBanner" class="hidden flex items-center gap-2 text-xs text-slate-400 bg-slate-900/50 border border-slate-800 rounded-lg px-3 py-2">
+                    <span class="bp-spinner"></span>
+                    <span id="bpStallText" class="truncate"></span>
+                </div>
+
                 <!-- Log area -->
                 <div class="space-y-1.5">
                     <div class="flex items-center justify-between text-xs text-slate-400">
@@ -1013,6 +1020,13 @@
         }
         .animate-pulse-glow {
             animation: pulseGlow 2.5s ease-in-out infinite;
+        }
+        @keyframes bpSpin { to { transform: rotate(360deg); } }
+        .bp-spinner {
+            width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%;
+            border: 2px solid rgba(148,163,184,.25);
+            border-top-color: var(--accent);
+            animation: bpSpin 0.8s linear infinite;
         }
         #bpLogContainer::-webkit-scrollbar { width: 4px; }
         #bpLogContainer::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 2px; }
@@ -1142,6 +1156,11 @@
                     if (message === "===STEP:DEPLOY===") { updateBuildStep("deploy"); return; }
                     if (message === "===STEP:DONE===") { finalizeBuildProgress(true); return; }
                     if (message === "===STEP:FAILED===") { finalizeBuildProgress(false); return; }
+                    if (message.startsWith("===CMD:") && message.endsWith("===")) {
+                        currentHeavyCommand = message.slice(7, -3);
+                        noteBuildActivity();
+                        return;
+                    }
                     if (message.indexOf("launched successfully") >= 0) {
                         appendBuildLog(message, "bp-log-ok");
                         finalizeBuildProgress(true);
@@ -3192,6 +3211,10 @@
         var bpLogPollInterval = null;
         var lastPolledLogLength = 0;
         var seenLogLines = new Set();
+        var bpStallInterval = null;
+        var currentHeavyCommand = "";
+        var lastBuildActivityAt = 0;
+        var BP_STALL_THRESHOLD_MS = 4000;
 
         async function executeBuildRun() {
             var selectedDevice = document.querySelector('input[name="brDevice"]:checked');
@@ -3243,6 +3266,10 @@
             activeBuildId = buildId || null;
             lastPolledLogLength = 0;
             seenLogLines.clear();
+            currentHeavyCommand = "";
+            lastBuildActivityAt = Date.now();
+            var stallBanner = document.getElementById("bpStallBanner");
+            if (stallBanner) stallBanner.classList.add("hidden");
 
             document.getElementById("bpDeviceName").textContent = deviceName;
             document.getElementById("bpPlatform").textContent = platform;
@@ -3281,6 +3308,9 @@
                 document.getElementById("bpTimer").textContent = m + ":" + (s < 10 ? "0" : "") + s;
             }, 500);
 
+            if (bpStallInterval) clearInterval(bpStallInterval);
+            bpStallInterval = setInterval(updateStallIndicator, 1000);
+
             if (bpLogPollInterval) clearInterval(bpLogPollInterval);
             bpLogPollInterval = setInterval(pollActiveBuildLogs, 1200);
 
@@ -3308,6 +3338,11 @@
                     if (msg === "===STEP:DEPLOY===") { updateBuildStep("deploy"); return; }
                     if (msg === "===STEP:DONE===") { finalizeBuildProgress(true); return; }
                     if (msg === "===STEP:FAILED===") { finalizeBuildProgress(false); return; }
+                    if (msg.startsWith("===CMD:") && msg.endsWith("===")) {
+                        currentHeavyCommand = msg.slice(7, -3);
+                        noteBuildActivity();
+                        return;
+                    }
                     if (msg.indexOf("launched successfully") >= 0) {
                         appendBuildLog(msg, "bp-log-ok");
                         finalizeBuildProgress(true);
@@ -3344,6 +3379,7 @@
         }
 
         function appendBuildLog(message, className) {
+            noteBuildActivity();
             var container = document.getElementById("bpLogContainer");
             if (!container) return;
             var trimmed = (message || "").trim();
@@ -3378,11 +3414,40 @@
             }
         }
 
+        function noteBuildActivity() {
+            lastBuildActivityAt = Date.now();
+            var banner = document.getElementById("bpStallBanner");
+            if (banner) banner.classList.add("hidden");
+        }
+
+        function updateStallIndicator() {
+            if (!buildProgressActive || !lastBuildActivityAt) return;
+            var banner = document.getElementById("bpStallBanner");
+            var text = document.getElementById("bpStallText");
+            if (!banner || !text) return;
+
+            var idleMs = Date.now() - lastBuildActivityAt;
+            if (idleMs < BP_STALL_THRESHOLD_MS) {
+                banner.classList.add("hidden");
+                return;
+            }
+
+            var idleSeconds = Math.floor(idleMs / 1000);
+            var label = "Ainda processando (" + idleSeconds + "s sem saída)";
+            if (currentHeavyCommand) label += " — " + currentHeavyCommand;
+            text.textContent = label;
+            text.title = currentHeavyCommand || "";
+            banner.classList.remove("hidden");
+        }
+
         function finalizeBuildProgress(success) {
             buildProgressActive = false;
             currentBuildDir = null;
             if (bpTimerInterval) { clearInterval(bpTimerInterval); bpTimerInterval = null; }
             if (bpLogPollInterval) { clearInterval(bpLogPollInterval); bpLogPollInterval = null; }
+            if (bpStallInterval) { clearInterval(bpStallInterval); bpStallInterval = null; }
+            var stallBanner = document.getElementById("bpStallBanner");
+            if (stallBanner) stallBanner.classList.add("hidden");
             seenLogLines.clear();
 
 
@@ -3515,6 +3580,7 @@
         function closeBuildProgress() {
             if (bpTimerInterval) { clearInterval(bpTimerInterval); bpTimerInterval = null; }
             if (bpLogPollInterval) { clearInterval(bpLogPollInterval); bpLogPollInterval = null; }
+            if (bpStallInterval) { clearInterval(bpStallInterval); bpStallInterval = null; }
             seenLogLines.clear();
             buildProgressActive = false;
             currentBuildDir = null;
