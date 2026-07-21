@@ -76,6 +76,7 @@ public class LaunchAgentService
                     <key>ProgramArguments</key>
                     <array>
                         <string>{execPath}</string>
+                        <string>--no-open</string>
                     </array>
                     <key>RunAtLoad</key>
                     <true/>

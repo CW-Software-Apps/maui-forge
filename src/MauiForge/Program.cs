@@ -68,6 +68,7 @@ var runHelp     = false;
 var serveMode   = false;
 var serveToken  = (string?)null;
 var servePort   = 5123;
+var noOpen      = false;
 
 for (int i = 0; i < args.Length; i++)
 {
@@ -79,6 +80,7 @@ for (int i = 0; i < args.Length; i++)
     if (args[i] == "--serve") serveMode = true;
     if (args[i] == "--token" && i + 1 < args.Length) serveToken = args[i + 1];
     if (args[i] == "--port"  && i + 1 < args.Length && int.TryParse(args[i + 1], out var p)) servePort = p;
+    if (args[i] == "--no-open" || args[i] == "--headless") noOpen = true;
 }
 
 // Server Mode persists across restarts once enabled from the UI — a plain launch
@@ -215,7 +217,7 @@ if (!runTerminal)
     }
 
     WebStartup.Start(args, stateService, discovery, versionSvc, gitSvc, buildSvc, deviceSvc,
-        serveMode: serveMode, token: serveToken, port: servePort);
+        serveMode: serveMode, token: serveToken, port: servePort, noOpen: noOpen);
     return;
 }
 

@@ -84,7 +84,7 @@ public static class WebStartup
 
 
     public static void Start(string[] args, StateService stateService, AppDiscoveryService discoveryService, VersionService versionService, GitService gitService, BuildService buildService, DeviceService deviceService,
-        bool serveMode = false, string? token = null, int port = 5123)
+        bool serveMode = false, string? token = null, int port = 5123, bool noOpen = false)
     {
         OriginalArgs = args;
         _serveToken = serveMode ? token : null;
@@ -178,7 +178,7 @@ public static class WebStartup
                 buildsTotal = total,
                 buildsSuccess = success,
                 buildsFailed = failed,
-                version = typeof(WebStartup).Assembly.GetName().Version?.ToString(3) ?? "1.6.32",
+                version = typeof(WebStartup).Assembly.GetName().Version?.ToString(3) ?? "1.6.33",
                 port
             });
         });
@@ -1009,13 +1009,16 @@ public static class WebStartup
         var url = "http://localhost:5123";
         Console.WriteLine($"Maui-Forge Web Server started at {url}");
         
-        try
+        if (!noOpen)
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
-        }
-        catch
-        {
-            // Ignore browser launch failure
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+            }
+            catch
+            {
+                // Ignore browser launch failure
+            }
         }
 
         app.MapHub<LogHub>("/hubs/logs");

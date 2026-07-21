@@ -89,7 +89,7 @@ public class AutoStartService
                         ".dotnet", "tools", "maui-forge.exe"
                     );
 
-                    var execPath = File.Exists(dotnetToolPath) ? $"\"{dotnetToolPath}\"" : $"\"{Environment.ProcessPath}\"";
+                    var execPath = File.Exists(dotnetToolPath) ? $"\"{dotnetToolPath}\" --no-open" : $"\"{Environment.ProcessPath}\" --no-open";
                     key.SetValue(AppName, execPath);
                     message = "Auto-start added to Windows startup (HKCU Run).";
                     return true;

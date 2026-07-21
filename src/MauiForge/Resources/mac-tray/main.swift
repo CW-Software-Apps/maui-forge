@@ -24,7 +24,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var isBuilding = false
     private var currentJobName = ""
     private var lastBuildInfo = "No recent builds"
-    private var appVersion = "1.6.32"
+    private var appVersion = "1.6.33"
     private var isUpdateAvailable = false
     private var latestVersionFound = ""
 
