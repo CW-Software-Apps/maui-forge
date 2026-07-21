@@ -19,11 +19,11 @@ private struct AgentStatus: Codable {
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var pollingTimer: Timer?
-    private var statusText = "Conectando ao MAUI Forge..."
+    private var statusText = "Connecting to MAUI Forge..."
     private var isConnected = false
     private var isBuilding = false
     private var currentJobName = ""
-    private var lastBuildInfo = "Nenhum build recente"
+    private var lastBuildInfo = "No recent builds"
     private var appVersion = "1.6.31"
     private var isUpdateAvailable = false
     private var latestVersionFound = ""
@@ -63,13 +63,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let button = statusItem.button else { return }
         let visible = button.window?.isVisible ?? false
         if !visible {
-            NSLog("[MAUI Forge] NSStatusItem nao esta visivel — possivelmente bloqueado pelo macOS ControlCenter.")
+            NSLog("[MAUI Forge] NSStatusItem is not visible — possibly hidden by macOS ControlCenter.")
             let alert = NSAlert()
-            alert.messageText = "Ícone não aparece na Menu Bar?"
-            alert.informativeText = "O macOS (incluindo versões recentes como Tahoe/Sequoia) pode ocultar ícones da barra de menus.\n\n"
-                + "Abra System Settings → Menu Bar e procure por \"mac-tray\" ou \"maui-forge\".\n\n"
-                + "Se estiver lá, marque como \"Show in Menu Bar\"."
-            alert.addButton(withTitle: "Abrir Configurações")
+            alert.messageText = "Icon not showing in Menu Bar?"
+            alert.informativeText = "macOS may hide menu bar icons in Control Center settings.\n\n"
+                + "Open System Settings → Menu Bar and look for \"maui-forge-tray\" or \"maui-forge\".\n\n"
+                + "Set it to \"Show in Menu Bar\"."
+            alert.addButton(withTitle: "Open Settings")
             alert.addButton(withTitle: "OK")
             let response = alert.runModal()
             if response == .alertFirstButtonReturn {
@@ -83,14 +83,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildMenu() {
         let menu = NSMenu()
 
-        // 1. Header com Nome e Versão estilo Dashboard
-        let titleItem = NSMenuItem(title: "🔨 MAUI Forge   v\(appVersion)", action: nil, keyEquivalent: "")
+        // 1. Header with Dashboard-style version title
+        let headerTitle = "🔨 MAUI Forge   v\(appVersion)"
+        let titleItem = NSMenuItem(title: headerTitle, action: nil, keyEquivalent: "")
         titleItem.tag = 99
         titleItem.isEnabled = false
         menu.addItem(titleItem)
 
-        // 2. Botão de Update em destaque no topo
-        let updateTitle = isUpdateAvailable ? "⬆ Nova Versão Disponível (\(latestVersionFound)) — Atualizar" : "🔄 Checar Atualizações (Update)"
+        // 2. Top-level Update button
+        let updateTitle = isUpdateAvailable ? "⬆ New Version Available (\(latestVersionFound)) — Update" : "🔄 Check for Updates"
         let updateItem = NSMenuItem(title: updateTitle, action: #selector(checkForUpdates), keyEquivalent: "u")
         updateItem.tag = 102
         updateItem.image = systemIcon("arrow.triangle.2.circlepath")
@@ -98,14 +99,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        // 3. Status detalhado
+        // 3. Detailed status
         let statusMenuItem = NSMenuItem(title: "● Status: \(statusText)", action: nil, keyEquivalent: "")
         statusMenuItem.tag = 100
         statusMenuItem.isEnabled = false
         statusMenuItem.image = systemIcon("smallcircle.filled.circle")
         menu.addItem(statusMenuItem)
 
-        let lastBuildItem = NSMenuItem(title: "📦 Último build: \(lastBuildInfo)", action: nil, keyEquivalent: "")
+        let lastBuildItem = NSMenuItem(title: "📦 Last build: \(lastBuildInfo)", action: nil, keyEquivalent: "")
         lastBuildItem.tag = 101
         lastBuildItem.isEnabled = false
         lastBuildItem.image = systemIcon("cube.box")
@@ -113,31 +114,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        // 4. Ações Principais
-        let webItem = NSMenuItem(title: "🌐 Abrir Web Dashboard", action: #selector(openWebUI), keyEquivalent: "w")
+        // 4. Primary actions
+        let webItem = NSMenuItem(title: "🌐 Open Web Dashboard", action: #selector(openWebUI), keyEquivalent: "w")
         webItem.image = systemIcon("safari")
         menu.addItem(webItem)
 
-        let logsItem = NSMenuItem(title: "📂 Abrir Pasta de Logs", action: #selector(openLogsFolder), keyEquivalent: "l")
+        let logsItem = NSMenuItem(title: "📂 Open Logs Directory", action: #selector(openLogsFolder), keyEquivalent: "l")
         logsItem.image = systemIcon("folder")
         menu.addItem(logsItem)
 
-        let gitItem = NSMenuItem(title: "🐙 Repositório GitHub", action: #selector(openGitHub), keyEquivalent: "g")
+        let gitItem = NSMenuItem(title: "🐙 GitHub Repository", action: #selector(openGitHub), keyEquivalent: "g")
         gitItem.image = systemIcon("arrow.up.right.square")
         menu.addItem(gitItem)
 
         menu.addItem(NSMenuItem.separator())
 
-        // 5. Configurações e Gerenciamento
-        let settingsItem = NSMenuItem(title: "⚙ Config. Menu Bar (System Settings)", action: #selector(openMenuBarSettings), keyEquivalent: "")
+        // 5. Settings and Management
+        let settingsItem = NSMenuItem(title: "⚙ Menu Bar Settings (System Settings)", action: #selector(openMenuBarSettings), keyEquivalent: "")
         settingsItem.image = systemIcon("gearshape")
         menu.addItem(settingsItem)
 
-        let restartItem = NSMenuItem(title: "🔄 Reiniciar MAUI Forge", action: #selector(restartAgent), keyEquivalent: "r")
+        let restartItem = NSMenuItem(title: "🔄 Restart MAUI Forge", action: #selector(restartAgent), keyEquivalent: "r")
         restartItem.image = systemIcon("arrow.clockwise.circle")
         menu.addItem(restartItem)
 
-        let quitItem = NSMenuItem(title: "❌ Sair do MacAgent", action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "❌ Quit MacAgent", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.image = systemIcon("xmark.circle")
         menu.addItem(quitItem)
 
@@ -162,10 +163,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             item.title = "● Status: \(statusText)"
         }
         if let item = menu.item(withTag: 101) {
-            item.title = "📦 Último build: \(lastBuildInfo)"
+            item.title = "📦 Last build: \(lastBuildInfo)"
         }
         if let item = menu.item(withTag: 102) {
-            item.title = isUpdateAvailable ? "⬆ Nova Versão Disponível (\(latestVersionFound)) — Atualizar" : "🔄 Checar Atualizações (Update)"
+            item.title = isUpdateAvailable ? "⬆ New Version Available (\(latestVersionFound)) — Update" : "🔄 Check for Updates"
         }
     }
 
@@ -184,9 +185,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         if let ver = s.version { self.appVersion = ver }
 
                         if self.isBuilding {
-                            self.statusText = "Compilando \(self.currentJobName)..."
+                            self.statusText = "Building \(self.currentJobName)..."
                         } else if self.isConnected {
-                            self.statusText = "Pronto / Ativo (Porta \(self.agentPort))"
+                            self.statusText = "Ready / Active (Port \(self.agentPort))"
                         } else {
                             self.statusText = "Offline"
                         }
@@ -194,7 +195,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         if let name = s.lastBuildName, let result = s.lastBuildResult {
                             self.lastBuildInfo = "\(name) (\(result))"
                         } else {
-                            self.lastBuildInfo = "Nenhum no momento"
+                            self.lastBuildInfo = "None"
                         }
 
                         if let button = self.statusItem.button {
@@ -218,7 +219,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.async {
             self.isConnected = false
             self.isBuilding = false
-            self.statusText = "MAUI Forge Parado"
+            self.statusText = "MAUI Forge Stopped"
             self.lastBuildInfo = "—"
             if let button = self.statusItem.button {
                 button.image = self.iconFor(state: "offline")
@@ -281,28 +282,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         self.updateMenu()
                         
                         let updateAlert = NSAlert()
-                        updateAlert.messageText = "⬆ Nova Versão Disponível!"
-                        updateAlert.informativeText = "Uma nova versão do MAUI Forge foi encontrada no NuGet:\n\n"
-                            + "• Versão instalada: \(self.appVersion)\n"
-                            + "• Nova versão: \(latest)\n\n"
-                            + "Deseja atualizar agora automaticamente?"
-                        updateAlert.addButton(withTitle: "Atualizar Agora")
-                        updateAlert.addButton(withTitle: "Agora Não")
+                        updateAlert.messageText = "⬆ New Version Available!"
+                        updateAlert.informativeText = "A new version of MAUI Forge was found on NuGet:\n\n"
+                            + "• Installed version: \(self.appVersion)\n"
+                            + "• Latest version: \(latest)\n\n"
+                            + "Would you like to update now?"
+                        updateAlert.addButton(withTitle: "Update Now")
+                        updateAlert.addButton(withTitle: "Not Now")
                         let resp = updateAlert.runModal()
                         if resp == .alertFirstButtonReturn {
                             self.runUpdateCommand()
                         }
                     } else {
                         let upToDateAlert = NSAlert()
-                        upToDateAlert.messageText = "✓ Sistema Atualizado"
-                        upToDateAlert.informativeText = "O MAUI Forge já está rodando a versão mais recente (\(self.appVersion))."
+                        upToDateAlert.messageText = "✓ System Up to Date"
+                        upToDateAlert.informativeText = "MAUI Forge is already running the latest version (\(self.appVersion))."
                         upToDateAlert.addButton(withTitle: "OK")
                         upToDateAlert.runModal()
                     }
                 } else {
                     let errAlert = NSAlert()
-                    errAlert.messageText = "⚠ Falha ao Checar Atualizações"
-                    errAlert.informativeText = "Não foi possível verificar novas versões no NuGet.org no momento. Verifique sua conexão de rede."
+                    errAlert.messageText = "⚠ Failed to Check Updates"
+                    errAlert.informativeText = "Could not check for new versions on NuGet.org at this time. Please check your internet connection."
                     errAlert.addButton(withTitle: "OK")
                     errAlert.runModal()
                 }

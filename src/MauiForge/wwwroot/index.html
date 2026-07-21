@@ -402,6 +402,10 @@
                 <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
                 Diagnostics
             </button>
+            <button onclick="toggleAgentMenu(event)" class="btn-ghost text-xs flex items-center gap-1.5 py-1.5" id="agentMenuBtn" aria-haspopup="true" aria-expanded="false" title="System Agent & Status Bar controls">
+                <span id="agentDot" class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                System Agent
+            </button>
             <button onclick="toggleConnectionMenu(event)" class="btn-ghost text-xs flex items-center gap-2 py-1.5" id="hostStatusBtn" aria-haspopup="true" aria-expanded="false" title="Connection status — local, remote, and server mode">
                 <span id="hostStatusDot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
                 <span id="hostStatusText">Local Host Connected</span>
@@ -411,9 +415,33 @@
         </div>
     </header>
 
-    <!-- Connection menu: fixed-position dropdown anchored under hostStatusBtn, kept as a
-         header-level sibling (not nested inside the scrollable sidebar/main panes) so it
-         can never be clipped by an ancestor's overflow. -->
+    <!-- Dedicated System Agent Menu -->
+    <div id="agentMenu" class="hidden" style="position:fixed; z-index:60; width:300px; max-height:80vh; overflow-y:auto; background:var(--surface-raised); border:1px solid var(--border); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.45); padding:16px;" role="menu" aria-label="System Agent Settings">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                System Agent (Mac / PC)
+            </h3>
+            <button onclick="closeAgentMenu()" class="text-[var(--ink-muted)] hover:text-[var(--ink)] transition" aria-label="Close" title="Close">✕</button>
+        </div>
+        <div class="space-y-3">
+            <div class="flex items-center justify-between">
+                <span class="text-xs text-[var(--ink-dim)] font-medium">Status</span>
+                <span id="agentStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400">Checking...</span>
+            </div>
+            <div id="agentDetailsText" class="text-[11px] text-[var(--ink-muted)] leading-tight bg-[var(--surface-hover)] p-2 rounded-lg border border-[var(--border)]"></div>
+            <div class="space-y-2 pt-1">
+                <button id="startTrayBtn" onclick="startSystemTray()" class="btn-ghost text-xs w-full py-2 flex items-center justify-center gap-1.5" title="Start Status Bar in macOS menu bar">
+                    🚀 Start Status Bar
+                </button>
+                <button id="toggleAutoStartBtn" onclick="toggleAutoStart()" class="btn-primary text-xs w-full py-2 flex items-center justify-center gap-1.5" title="Enable or disable auto-start on login">
+                    🔄 Auto-Start on Login
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connection menu: fixed-position dropdown anchored under hostStatusBtn -->
     <div id="connectionMenu" class="hidden" style="position:fixed; z-index:60; width:320px; max-height:80vh; overflow-y:auto; background:var(--surface-raised); border:1px solid var(--border); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.45); padding:16px;" role="menu" aria-label="Connection settings">
         <div class="flex items-center justify-between mb-3">
             <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
@@ -3493,6 +3521,29 @@
             document.getElementById("buildProgressModal").classList.add("hidden");
         }
 
+        function toggleAgentMenu(ev) {
+            if (ev) ev.stopPropagation();
+            var menu = document.getElementById("agentMenu");
+            var btn = document.getElementById("agentMenuBtn");
+            if (!menu || !btn) return;
+            var isHidden = menu.classList.contains("hidden");
+            if (isHidden) {
+                closeConnectionMenu();
+                var rect = btn.getBoundingClientRect();
+                menu.style.top = (rect.bottom + 8) + "px";
+                menu.style.left = Math.max(12, rect.right - 300) + "px";
+                menu.classList.remove("hidden");
+                loadAgentStatus();
+            } else {
+                menu.classList.add("hidden");
+            }
+        }
+
+        function closeAgentMenu() {
+            var menu = document.getElementById("agentMenu");
+            if (menu) menu.classList.add("hidden");
+        }
+
         async function loadAgentStatus() {
             try {
                 const res = await fetch('/api/agent/info');
@@ -3502,26 +3553,29 @@
                 const badge = document.getElementById('agentStatusBadge');
                 const details = document.getElementById('agentDetailsText');
                 const autoStartBtn = document.getElementById('toggleAutoStartBtn');
+                const dot = document.getElementById('agentDot');
                 
                 if (!badge || !details) return;
                 
                 if (data.isRunning) {
                     badge.className = "text-[10px] px-2 py-0.5 rounded-full font-medium bg-green-950/60 border border-green-700/40 text-green-400";
-                    badge.textContent = "● Rodando";
+                    badge.textContent = "● Running";
+                    if (dot) dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500";
                 } else {
                     badge.className = "text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400";
-                    badge.textContent = "Parado";
+                    badge.textContent = "Stopped";
+                    if (dot) dot.className = "w-1.5 h-1.5 rounded-full bg-slate-500";
                 }
                 
                 details.textContent = (data.platform || '') + ': ' + (data.details || '');
                 
                 if (autoStartBtn) {
                     if (data.enabled) {
-                        autoStartBtn.className = "btn-success text-[10px] flex-1 py-1.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded";
-                        autoStartBtn.textContent = "✓ Auto-Start Ativo";
+                        autoStartBtn.className = "btn-success text-xs w-full py-2 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg";
+                        autoStartBtn.textContent = "✓ Auto-Start Enabled";
                     } else {
-                        autoStartBtn.className = "btn-primary text-[10px] flex-1 py-1.5";
-                        autoStartBtn.textContent = "➕ Ativar Auto-Start";
+                        autoStartBtn.className = "btn-primary text-xs w-full py-2 flex items-center justify-center gap-1.5";
+                        autoStartBtn.textContent = "➕ Enable Auto-Start";
                     }
                 }
             } catch(e) {}
@@ -3532,13 +3586,13 @@
                 const res = await fetch('/api/agent/tray/start', { method: 'POST' });
                 const data = await res.json();
                 if (typeof showToast === 'function') {
-                    showToast(data.message || (data.success ? 'Status Bar iniciada!' : 'Falha ao iniciar Status Bar'), data.success ? 'success' : 'error');
+                    showToast(data.message || (data.success ? 'Status Bar started!' : 'Failed to start Status Bar'), data.success ? 'success' : 'error');
                 } else {
                     alert(data.message);
                 }
                 loadAgentStatus();
             } catch(e) {
-                if (typeof showToast === 'function') showToast('Erro de comunicação com o agente', 'error');
+                if (typeof showToast === 'function') showToast('Error communicating with agent', 'error');
             }
         }
 
@@ -3547,17 +3601,26 @@
                 const res = await fetch('/api/agent/autostart/toggle', { method: 'POST' });
                 const data = await res.json();
                 if (typeof showToast === 'function') {
-                    showToast(data.message || 'Auto-start atualizado', data.success ? 'success' : 'error');
+                    showToast(data.message || 'Auto-start setting updated', data.success ? 'success' : 'error');
                 } else {
                     alert(data.message);
                 }
                 loadAgentStatus();
             } catch(e) {
-                if (typeof showToast === 'function') showToast('Erro ao alterar auto-start', 'error');
+                if (typeof showToast === 'function') showToast('Error updating auto-start setting', 'error');
             }
         }
 
-        // Carrega o status do agente ao iniciar
+        // Close dropdown when clicking outside
+        document.addEventListener("click", function(ev) {
+            var agentMenu = document.getElementById("agentMenu");
+            var agentBtn = document.getElementById("agentMenuBtn");
+            if (agentMenu && !agentMenu.classList.contains("hidden") && !agentMenu.contains(ev.target) && !agentBtn.contains(ev.target)) {
+                agentMenu.classList.add("hidden");
+            }
+        });
+
+        // Load agent status on launch
         document.addEventListener("DOMContentLoaded", function() {
             loadAgentStatus();
         });

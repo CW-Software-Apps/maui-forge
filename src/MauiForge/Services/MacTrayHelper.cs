@@ -9,7 +9,7 @@ public static class MacTrayHelper
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".maui-forge");
 
     public static readonly string TrayBinaryPath =
-        Path.Combine(AgentStateDir, "mac-tray", "mac-tray");
+        Path.Combine(AgentStateDir, "mac-tray", "maui-forge-tray");
 
     private static readonly string TrayVersionFile =
         Path.Combine(AgentStateDir, "mac-tray", ".version");
@@ -38,7 +38,7 @@ public static class MacTrayHelper
 
     public static bool IsTrayProcessRunning()
     {
-        try { return Process.GetProcessesByName("mac-tray").Length > 0; }
+        try { return Process.GetProcessesByName("maui-forge-tray").Length > 0; }
         catch { return false; }
     }
 
@@ -46,13 +46,13 @@ public static class MacTrayHelper
     {
         if (!OperatingSystem.IsMacOS())
         {
-            return (false, "Menu bar (Tray) está disponível apenas no macOS.");
+            return (false, "Menu bar (Tray) is available on macOS only.");
         }
 
-        // Encerra instância prévia do mac-tray para atualizar/relançar
+        // Terminate previous instance of maui-forge-tray before update/relaunch
         try
         {
-            foreach (var p in Process.GetProcessesByName("mac-tray"))
+            foreach (var p in Process.GetProcessesByName("maui-forge-tray"))
             {
                 try { p.Kill(); p.WaitForExit(2000); } catch { }
             }
@@ -63,14 +63,14 @@ public static class MacTrayHelper
         if (binary == null)
         {
             var reason = string.IsNullOrWhiteSpace(installError)
-                ? "binário não encontrado e não foi possível compilar via swiftc"
+                ? "binary not found and failed to compile via swiftc"
                 : installError;
-            return (false, $"⚠ Helper da menu bar não pôde ser iniciado: {reason}");
+            return (false, $"⚠ Menu bar helper could not be started: {reason}");
         }
 
         try
         {
-            var existing = Process.GetProcessesByName("mac-tray");
+            var existing = Process.GetProcessesByName("maui-forge-tray");
             if (existing.Length > 0)
             {
                 var psi = new ProcessStartInfo("open", $"\"{binary}\"")
@@ -78,7 +78,7 @@ public static class MacTrayHelper
                     UseShellExecute = true
                 };
                 Process.Start(psi);
-                return (true, "Menu bar (mac-tray) já estava em execução. Trazendo para a frente...");
+                return (true, "Menu bar (maui-forge-tray) is already running. Bringing to front...");
             }
 
             var startPsi = new ProcessStartInfo(binary)
@@ -87,40 +87,45 @@ public static class MacTrayHelper
                 WorkingDirectory = Path.GetDirectoryName(binary)
             };
             Process.Start(startPsi);
-            return (true, "✅ Menu bar do MAUI Forge iniciada com sucesso na barra de status do macOS.");
+            return (true, "✅ MAUI Forge Status Bar icon started successfully in macOS menu bar.");
         }
         catch (Exception ex)
         {
-            return (false, $"Erro ao iniciar menu bar: {ex.Message}");
+            return (false, $"Error starting menu bar: {ex.Message}");
         }
     }
 
     private static (string? Binary, string? Error) GetOrInstallBinary()
     {
-        // 1) Tenta extrair binário pré-compilado do recurso embarcado
+        // 1) Try extracting pre-compiled binary from embedded resources
         try
         {
             var assembly = typeof(MacTrayHelper).Assembly;
-            var resourceName = "MauiForge.Resources.mac-tray.mac-tray";
-            using var stream = assembly.GetManifestResourceStream(resourceName);
-            if (stream != null)
+            var resourceName = assembly.GetManifestResourceNames()
+                .FirstOrDefault(n => n.EndsWith("maui-forge-tray", StringComparison.OrdinalIgnoreCase) || n.EndsWith("mac-tray", StringComparison.OrdinalIgnoreCase));
+
+            if (resourceName != null)
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(TrayBinaryPath)!);
-                using var fileStream = new FileStream(TrayBinaryPath, FileMode.Create, FileAccess.Write, FileShare.None);
-                stream.CopyTo(fileStream);
-                fileStream.Flush();
-                Process.Start("chmod", $"+x \"{TrayBinaryPath}\"")?.WaitForExit();
-                WriteVersionFile();
-                return (TrayBinaryPath, null);
+                using var stream = assembly.GetManifestResourceStream(resourceName);
+                if (stream != null)
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(TrayBinaryPath)!);
+                    using var fileStream = new FileStream(TrayBinaryPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                    stream.CopyTo(fileStream);
+                    fileStream.Flush();
+                    Process.Start("chmod", $"+x \"{TrayBinaryPath}\"")?.WaitForExit();
+                    WriteVersionFile();
+                    return (TrayBinaryPath, null);
+                }
             }
         }
         catch { }
 
-        // 2) Binário já existe no disco e está atualizado
+        // 2) Binary already exists on disk and is up to date
         if (File.Exists(TrayBinaryPath) && !IsTrayBinaryStale())
             return (TrayBinaryPath, null);
 
-        // 3) Recompila do fonte Swift se estiver no macOS
+        // 3) Recompile from Swift source on macOS
         if (OperatingSystem.IsMacOS())
         {
             var result = CompileFromSource();
@@ -128,11 +133,11 @@ public static class MacTrayHelper
                 return result;
         }
 
-        // 4) Recurso de último caso
+        // 4) Fallback: use existing binary even if stale
         if (File.Exists(TrayBinaryPath))
-            return (TrayBinaryPath, "usando binário prévio (recompilação recomendada)");
+            return (TrayBinaryPath, "using previous binary (recompilation recommended)");
 
-        return (null, "Não foi possível preparar o binário do mac-tray");
+        return (null, "Could not prepare maui-forge-tray binary");
     }
 
     private static (string? Binary, string? Error) CompileFromSource()
@@ -144,9 +149,12 @@ public static class MacTrayHelper
 
             string? swiftContent = null;
             var assembly = typeof(MacTrayHelper).Assembly;
-            var swiftResource = "MauiForge.Resources.mac-tray.main.swift";
-            using (var stream = assembly.GetManifestResourceStream(swiftResource))
+            var swiftResource = assembly.GetManifestResourceNames()
+                .FirstOrDefault(n => n.EndsWith("main.swift", StringComparison.OrdinalIgnoreCase));
+
+            if (swiftResource != null)
             {
+                using var stream = assembly.GetManifestResourceStream(swiftResource);
                 if (stream != null)
                 {
                     using var reader = new StreamReader(stream);
@@ -156,7 +164,7 @@ public static class MacTrayHelper
 
             if (string.IsNullOrEmpty(swiftContent))
             {
-                return (null, "Não foi possível carregar o arquivo main.swift dos recursos embarcados.");
+                return (null, "Could not load embedded main.swift resource.");
             }
 
             var tempSwift = Path.Combine(targetDir, "main.swift");
@@ -170,7 +178,7 @@ public static class MacTrayHelper
             };
 
             var proc = Process.Start(psi);
-            if (proc == null) return (null, "Falha ao iniciar o compilador swiftc");
+            if (proc == null) return (null, "Failed to start swiftc compiler");
 
             var stderr = proc.StandardError.ReadToEnd();
             proc.WaitForExit();
@@ -179,7 +187,7 @@ public static class MacTrayHelper
 
             if (proc.ExitCode != 0)
             {
-                return (null, $"Erro na compilação do main.swift: {stderr}");
+                return (null, $"Error compiling main.swift: {stderr}");
             }
 
             Process.Start("chmod", $"+x \"{TrayBinaryPath}\"")?.WaitForExit();
@@ -188,7 +196,7 @@ public static class MacTrayHelper
         }
         catch (Exception ex)
         {
-            return (null, $"Exceção ao compilar main.swift: {ex.Message}");
+            return (null, $"Exception compiling main.swift: {ex.Message}");
         }
     }
 

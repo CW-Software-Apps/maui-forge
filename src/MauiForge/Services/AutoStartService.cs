@@ -21,7 +21,7 @@ public class AutoStartService
                 Enabled: macStatus.Installed,
                 IsRunning: isRunning,
                 Platform: "macOS",
-                Details: macStatus.Loaded ? "LaunchAgent ativo e rodando" : (macStatus.Installed ? "LaunchAgent instalado" : "Não instalado")
+                Details: macStatus.Loaded ? "LaunchAgent active and running" : (macStatus.Installed ? "LaunchAgent installed" : "Not installed")
             );
         }
 
@@ -31,13 +31,13 @@ public class AutoStartService
             return new AutoStartStatus(
                 Supported: true,
                 Enabled: enabled,
-                IsRunning: true, // Server is running current process
+                IsRunning: true,
                 Platform: "Windows",
-                Details: enabled ? "Inicialização no Registro do Windows (HKCU) ativa" : "Inicialização no login não configurada"
+                Details: enabled ? "Windows Registry (HKCU Run) startup enabled" : "Login auto-start not configured"
             );
         }
 
-        return new AutoStartStatus(false, false, true, Environment.OSVersion.Platform.ToString(), "Auto-start não suportado neste SO");
+        return new AutoStartStatus(false, false, true, Environment.OSVersion.Platform.ToString(), "Auto-start not supported on this OS");
     }
 
     public bool ToggleAutoStart(out string message)
@@ -45,7 +45,7 @@ public class AutoStartService
         var current = GetStatus();
         if (!current.Supported)
         {
-            message = "Auto-start não é suportado nesta plataforma.";
+            message = "Auto-start is not supported on this platform.";
             return false;
         }
 
@@ -60,13 +60,13 @@ public class AutoStartService
             if (enable)
             {
                 var ok = _macLaunchAgent.Install();
-                message = ok ? "Auto-start do macOS (LaunchAgent) instalado com sucesso." : "Falha ao instalar LaunchAgent do macOS.";
+                message = ok ? "macOS Auto-start (LaunchAgent) installed successfully." : "Failed to install macOS LaunchAgent.";
                 return ok;
             }
             else
             {
                 var ok = _macLaunchAgent.Uninstall();
-                message = ok ? "Auto-start do macOS (LaunchAgent) removido." : "Falha ao remover LaunchAgent do macOS.";
+                message = ok ? "macOS Auto-start (LaunchAgent) removed." : "Failed to remove macOS LaunchAgent.";
                 return ok;
             }
         }
@@ -78,7 +78,7 @@ public class AutoStartService
                 using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
                 if (key == null)
                 {
-                    message = "Não foi possível abrir a chave do Registro do Windows.";
+                    message = "Could not open Windows Registry key.";
                     return false;
                 }
 
@@ -91,7 +91,7 @@ public class AutoStartService
 
                     var execPath = File.Exists(dotnetToolPath) ? $"\"{dotnetToolPath}\"" : $"\"{Environment.ProcessPath}\"";
                     key.SetValue(AppName, execPath);
-                    message = "Auto-start adicionado à inicialização do Windows (HKCU Run).";
+                    message = "Auto-start added to Windows startup (HKCU Run).";
                     return true;
                 }
                 else
@@ -100,18 +100,18 @@ public class AutoStartService
                     {
                         key.DeleteValue(AppName, false);
                     }
-                    message = "Auto-start removido da inicialização do Windows.";
+                    message = "Auto-start removed from Windows startup.";
                     return true;
                 }
             }
             catch (Exception ex)
             {
-                message = $"Erro ao configurar Registro do Windows: {ex.Message}";
+                message = $"Error configuring Windows Registry: {ex.Message}";
                 return false;
             }
         }
 
-        message = "Plataforma não suportada.";
+        message = "Platform not supported.";
         return false;
     }
 
