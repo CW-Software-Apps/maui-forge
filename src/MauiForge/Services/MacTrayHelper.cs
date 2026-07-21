@@ -19,7 +19,7 @@ public static class MacTrayHelper
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
             ?.InformationalVersion?.Split('+')[0]
         ?? typeof(MacTrayHelper).Assembly.GetName().Version?.ToString(3)
-        ?? "1.6.31";
+        ?? "1.6.32";
 
     public static bool IsTrayInstalled() => File.Exists(TrayBinaryPath);
 
