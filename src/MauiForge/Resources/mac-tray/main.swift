@@ -24,7 +24,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var isBuilding = false
     private var currentJobName = ""
     private var lastBuildInfo = "No recent builds"
-    private var appVersion = "1.6.33"
+    private var appVersion = "1.6.34"
     private var isUpdateAvailable = false
     private var latestVersionFound = ""
 
@@ -182,7 +182,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         self.isConnected = s.isConnected ?? true
                         self.isBuilding = !(s.isIdle ?? true)
                         self.currentJobName = s.currentJob ?? ""
-                        if let ver = s.version { self.appVersion = ver }
+                        if let ver = s.version, !ver.isEmpty {
+                            if self.appVersion != ver {
+                                self.appVersion = ver
+                                if self.latestVersionFound == ver || self.latestVersionFound.isEmpty {
+                                    self.isUpdateAvailable = false
+                                }
+                            }
+                        }
 
                         if self.isBuilding {
                             self.statusText = "Building \(self.currentJobName)..."
@@ -294,6 +301,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                             self.runUpdateCommand()
                         }
                     } else {
+                        self.isUpdateAvailable = false
+                        self.updateMenu()
+                        
                         let upToDateAlert = NSAlert()
                         upToDateAlert.messageText = "✓ System Up to Date"
                         upToDateAlert.informativeText = "MAUI Forge is already running the latest version (\(self.appVersion))."
@@ -341,6 +351,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func restartAgent() {
+        openWebUI()
         let task = Process()
         task.launchPath = "/bin/bash"
         task.arguments = ["-c", "launchctl kickstart -k gui/$(id -u)/com.cwsoftware.mauiforge 2>/dev/null || pkill -f maui-forge; sleep 1; nohup maui-forge > /dev/null 2>&1 &"]
