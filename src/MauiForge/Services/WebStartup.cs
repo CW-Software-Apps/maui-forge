@@ -134,7 +134,7 @@ public static class WebStartup
         {
             if (_serveToken != null && context.Request.Path.StartsWithSegments("/api"))
             {
-                if (context.Request.Path == "/api/remote/info")
+                if (context.Request.Path == "/api/remote/info" || context.Request.Path == "/api/status" || context.Request.Path.StartsWithSegments("/api/agent"))
                 {
                     await next(); return;
                 }
@@ -149,6 +149,61 @@ public static class WebStartup
         });
 
         _hubContext = app.Services.GetRequiredService<IHubContext<LogHub>>();
+
+        // Status endpoint for Mac Tray / Agent Status
+        app.MapGet("/api/status", () =>
+        {
+            var activeCount = _runningBuilds.Count;
+            var isIdle = activeCount == 0;
+            BuildRecord? lastRecord = null;
+
+            lock (_buildsLock)
+            {
+                lastRecord = _recentBuilds.FirstOrDefault();
+            }
+
+            var total = _recentBuilds.Count;
+            var success = _recentBuilds.Count(b => b.Status == "Success");
+            var failed = _recentBuilds.Count(b => b.Status == "Failed");
+
+            return Results.Ok(new
+            {
+                isRunning = true,
+                isConnected = true,
+                isIdle,
+                statusText = isIdle ? "Pronto" : $"Compilando ({activeCount} ativo(s))",
+                currentJob = _runningBuilds.Keys.FirstOrDefault(),
+                lastBuildName = lastRecord?.AppName,
+                lastBuildResult = lastRecord?.Status,
+                buildsTotal = total,
+                buildsSuccess = success,
+                buildsFailed = failed,
+                version = typeof(WebStartup).Assembly.GetName().Version?.ToString(3) ?? "1.6.30",
+                port
+            });
+        });
+
+        // Agent & Auto-Start endpoints
+        var autoStartService = new AutoStartService();
+
+        app.MapGet("/api/agent/info", () =>
+        {
+            var st = autoStartService.GetStatus();
+            return Results.Ok(st);
+        });
+
+        app.MapPost("/api/agent/tray/start", () =>
+        {
+            var (ok, msg) = MacTrayHelper.LaunchOrActivate();
+            return Results.Ok(new { success = ok, message = msg });
+        });
+
+        app.MapPost("/api/agent/autostart/toggle", () =>
+        {
+            var ok = autoStartService.ToggleAutoStart(out var message);
+            var status = autoStartService.GetStatus();
+            return Results.Ok(new { success = ok, message, status });
+        });
 
         // Remote info endpoint (no auth required)
         app.MapGet("/api/remote/info", () =>
@@ -687,10 +742,10 @@ public static class WebStartup
                             return;
                         }
 
-                        // Step 2: run
                         var runArgs = new List<string>
                         {
-                            "build", csproj, "-t:Run", "-f", req.Framework, "-c", req.Configuration
+                            "build", csproj, "-t:Run", "-f", req.Framework, "-c", req.Configuration,
+                            "-p:MtouchExtraArgs=--wait-for-exit=false"
                         };
                         if (req.DeviceType == "Device")
                         {
@@ -713,16 +768,20 @@ public static class WebStartup
                             onStart: proc => _runningBuilds[dir] = proc);
                         _runningBuilds.TryRemove(dir, out _);
 
-                        // mlaunch often exits 134 after successfully launching the app
-                        // (it tries to read stdin for --wait-for-exit in non-interactive context)
-                        if (exit != 0 && outputLines.Any(l => l.Contains("Launched application", StringComparison.OrdinalIgnoreCase)))
+                        // mlaunch often exits with code 1 or 134 after successfully launching the app on simulator/device
+                        // (because it tries to read stdin for --wait-for-exit in a non-interactive background process).
+                        bool appWasLaunched = outputLines.Any(l => 
+                            l.Contains("Launched application", StringComparison.OrdinalIgnoreCase) ||
+                            l.Contains("Application launched", StringComparison.OrdinalIgnoreCase) ||
+                            l.Contains("Successfully launched", StringComparison.OrdinalIgnoreCase) ||
+                            l.Contains("Launch succeeded", StringComparison.OrdinalIgnoreCase));
+
+                        if (exit != 0 && appWasLaunched)
                         {
-                            await SendLog("── APP LAUNCHED SUCCESSFULLY ──────────────────────────────");
-                            await SendLog("The iOS deploy tool (mlaunch) reported an exit code " + exit + ",");
-                            await SendLog("but this is a KNOWN false positive — mlaunch crashes after");
-                            await SendLog("launch because it cannot read stdin in non-interactive mode.");
-                            await SendLog("Your app IS running on " + req.DeviceName + ".");
-                            await SendLog("───────────────────────────────────────────────────────────");
+                            await SendLog("✔ ── APLICATIVO IOS LANÇADO COM SUCESSO ────────────────────");
+                            await SendLog($"✔ O aplicativo foi instalado e iniciado com sucesso no dispositivo {req.DeviceName}.");
+                            await SendLog($"✔ (Código de saída {exit} da ferramenta mlaunch ignorado — falso positivo de pós-lançamento).");
+                            await SendLog("✔ ───────────────────────────────────────────────────────────");
                             exit = 0;
                         }
 

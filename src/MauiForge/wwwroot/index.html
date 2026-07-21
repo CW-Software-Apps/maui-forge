@@ -498,6 +498,26 @@
             </div>
             <button onclick="hideServerModeInfo()" class="btn-ghost text-xs w-full py-2">Dismiss</button>
         </div>
+
+        <!-- System Agent / Menu Bar Status & Auto-Start -->
+        <div id="agentSection" class="mt-4 pt-3 border-t border-[var(--border)] space-y-2">
+            <div class="flex items-center justify-between">
+                <h4 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    System Agent (Mac / PC)
+                </h4>
+                <span id="agentStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400">Verificando...</span>
+            </div>
+            <div id="agentDetailsText" class="text-[10px] text-slate-400 leading-tight"></div>
+            <div class="flex items-center gap-2">
+                <button id="startTrayBtn" onclick="startSystemTray()" class="btn-ghost text-[10px] flex-1 py-1.5" title="Iniciar Status Bar na barra do sistema">
+                    🚀 Iniciar Status Bar
+                </button>
+                <button id="toggleAutoStartBtn" onclick="toggleAutoStart()" class="btn-primary text-[10px] flex-1 py-1.5" title="Ativar ou desativar inicialização automática no login">
+                    🔄 Auto-Start
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Main Container -->
@@ -3307,6 +3327,8 @@
 
             if (className) {
                 line.className = className;
+            } else if (message.startsWith("✔") || /SUCESSO|SUCCESS|successfully/i.test(message)) {
+                line.className = "text-green-400 font-semibold";
             } else if (/[Ee]rror|FAILED|failed|error MSB|: error\b/.test(message)) {
                 line.className = "bp-log-error";
             } else if (/[Ww]arning/.test(message)) {
@@ -3470,6 +3492,75 @@
             currentBuildDir = null;
             document.getElementById("buildProgressModal").classList.add("hidden");
         }
+
+        async function loadAgentStatus() {
+            try {
+                const res = await fetch('/api/agent/info');
+                if (!res.ok) return;
+                const data = await res.json();
+                
+                const badge = document.getElementById('agentStatusBadge');
+                const details = document.getElementById('agentDetailsText');
+                const autoStartBtn = document.getElementById('toggleAutoStartBtn');
+                
+                if (!badge || !details) return;
+                
+                if (data.isRunning) {
+                    badge.className = "text-[10px] px-2 py-0.5 rounded-full font-medium bg-green-950/60 border border-green-700/40 text-green-400";
+                    badge.textContent = "● Rodando";
+                } else {
+                    badge.className = "text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400";
+                    badge.textContent = "Parado";
+                }
+                
+                details.textContent = (data.platform || '') + ': ' + (data.details || '');
+                
+                if (autoStartBtn) {
+                    if (data.enabled) {
+                        autoStartBtn.className = "btn-success text-[10px] flex-1 py-1.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded";
+                        autoStartBtn.textContent = "✓ Auto-Start Ativo";
+                    } else {
+                        autoStartBtn.className = "btn-primary text-[10px] flex-1 py-1.5";
+                        autoStartBtn.textContent = "➕ Ativar Auto-Start";
+                    }
+                }
+            } catch(e) {}
+        }
+
+        async function startSystemTray() {
+            try {
+                const res = await fetch('/api/agent/tray/start', { method: 'POST' });
+                const data = await res.json();
+                if (typeof showToast === 'function') {
+                    showToast(data.message || (data.success ? 'Status Bar iniciada!' : 'Falha ao iniciar Status Bar'), data.success ? 'success' : 'error');
+                } else {
+                    alert(data.message);
+                }
+                loadAgentStatus();
+            } catch(e) {
+                if (typeof showToast === 'function') showToast('Erro de comunicação com o agente', 'error');
+            }
+        }
+
+        async function toggleAutoStart() {
+            try {
+                const res = await fetch('/api/agent/autostart/toggle', { method: 'POST' });
+                const data = await res.json();
+                if (typeof showToast === 'function') {
+                    showToast(data.message || 'Auto-start atualizado', data.success ? 'success' : 'error');
+                } else {
+                    alert(data.message);
+                }
+                loadAgentStatus();
+            } catch(e) {
+                if (typeof showToast === 'function') showToast('Erro ao alterar auto-start', 'error');
+            }
+        }
+
+        // Carrega o status do agente ao iniciar
+        document.addEventListener("DOMContentLoaded", function() {
+            loadAgentStatus();
+        });
     </script>
 </body>
 </html>

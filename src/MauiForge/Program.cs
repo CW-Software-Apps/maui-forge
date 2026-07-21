@@ -95,11 +95,55 @@ if (!serveMode)
     }
 }
 
+if (args.Length > 0 && (args[0] is "tray" or "--tray"))
+{
+    var (ok, msg) = MacTrayHelper.LaunchOrActivate();
+    Console.WriteLine(msg);
+    return;
+}
+
+if (args.Length > 0 && (args[0] is "autostart" or "service"))
+{
+    if (!OperatingSystem.IsMacOS())
+    {
+        Console.WriteLine("O comando autostart/service está disponível apenas no macOS.");
+        return;
+    }
+    var launchAgent = new LaunchAgentService();
+    var action = args.Length > 1 ? args[1].ToLowerInvariant() : "status";
+    switch (action)
+    {
+        case "install":
+            var installed = launchAgent.Install();
+            Console.WriteLine(installed ? "✅ Auto-start (LaunchAgent) instalado e iniciado com sucesso." : "❌ Falha ao instalar auto-start.");
+            return;
+        case "uninstall":
+        case "remove":
+            var uninstalled = launchAgent.Uninstall();
+            Console.WriteLine(uninstalled ? "✅ Auto-start (LaunchAgent) removido." : "❌ Falha ao remover auto-start.");
+            return;
+        case "logs":
+            Console.WriteLine(launchAgent.GetLogs());
+            return;
+        case "status":
+        default:
+            var agentStatus = launchAgent.GetStatus();
+            Console.WriteLine($"Instalado: {(agentStatus.Installed ? "Sim" : "Não")}");
+            Console.WriteLine($"Ativo:     {(agentStatus.Loaded ? "Sim" : "Não")}");
+            Console.WriteLine($"Label:     {agentStatus.Label}");
+            Console.WriteLine($"Plist:     {agentStatus.PlistPath}");
+            if (!string.IsNullOrWhiteSpace(agentStatus.Details)) Console.WriteLine($"Detalhes:  {agentStatus.Details}");
+            return;
+    }
+}
+
 if (runHelp)
 {
     AnsiConsole.MarkupLine("[bold cyan1]MAUI Forge Command Line Help[/]");
     AnsiConsole.MarkupLine("Usage:");
     AnsiConsole.MarkupLine("  [cyan1]maui-forge[/]                         Starts the local Web Dashboard (default)");
+    AnsiConsole.MarkupLine("  [cyan1]maui-forge tray[/]                    Opens the macOS Status Bar tray icon");
+    AnsiConsole.MarkupLine("  [cyan1]maui-forge autostart [action][/]      Manages macOS LaunchAgent (install/uninstall/status/logs)");
     AnsiConsole.MarkupLine("  [cyan1]maui-forge --cli[/]                  Starts the traditional terminal interface");
     AnsiConsole.MarkupLine("  [cyan1]maui-forge --update[/]               Forces check and installs updates");
     AnsiConsole.MarkupLine("  [cyan1]maui-forge --serve --token X[/]      Starts in remote server mode (binds 0.0.0.0)");
