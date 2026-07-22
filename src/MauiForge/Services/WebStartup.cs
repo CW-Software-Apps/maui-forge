@@ -1061,18 +1061,21 @@ public static class WebStartup
             }
         }
 
-        // Theme persistence endpoint (port-independent localStorage via backend)
-        app.MapGet("/api/theme", (StateService state) =>
+        // Persist frontend preferences across port changes
+        app.MapGet("/api/prefs", (StateService state) =>
         {
             var st = state.Load();
-            return Results.Ok(new { theme = st.Theme ?? "dark" });
+            return Results.Ok(new { theme = st.Theme ?? "dark", prefs = st.Preferences });
         });
-        app.MapPost("/api/theme", (StateService state, ThemeRequest req) =>
+        app.MapPost("/api/prefs", (StateService state, PrefsRequest req) =>
         {
             var st = state.Load();
-            st.Theme = req.Theme;
+            if (req.Theme != null) st.Theme = req.Theme;
+            if (req.Prefs != null)
+                foreach (var kv in req.Prefs)
+                    st.Preferences[kv.Key] = kv.Value;
             state.Save(st);
-            return Results.Ok(new { theme = st.Theme });
+            return Results.Ok(new { theme = st.Theme, prefs = st.Preferences });
         });
 
         app.MapHub<LogHub>("/hubs/logs");
@@ -1303,4 +1306,4 @@ public record DevicesResponse(List<DeviceItem> Devices);
 public record ConfigRequest(string Dir, string Platform);
 public record ConfigResponse(List<string> Configurations, List<string> Frameworks);
 public record RunRequest(string Dir, string Platform, string DeviceId, string DeviceName, string DeviceType, string Configuration, string Framework);
-public record ThemeRequest(string Theme);
+public record PrefsRequest(string? Theme, Dictionary<string, string>? Prefs);

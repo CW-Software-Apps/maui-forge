@@ -1302,6 +1302,24 @@
         };
         let appsList = [];
         let monitoredPaths = [];
+        var _prefsTimer = null;
+        function savePrefs() {
+            if (_prefsTimer) clearTimeout(_prefsTimer);
+            _prefsTimer = setTimeout(function() {
+                var theme = document.documentElement.dataset.theme || "dark";
+                var prefs = {};
+                var keys = ["sidebarCollapsed", "layout", "mauiForgeViewMode"];
+                for (var i = 0; i < keys.length; i++) {
+                    var v = localStorage.getItem(keys[i]);
+                    if (v !== null) prefs[keys[i]] = v;
+                }
+                origFetch(API_BASE + "/api/prefs", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ theme: theme, prefs: prefs })
+                }).catch(function(){});
+            }, 300);
+        }
         let currentLayout = localStorage.getItem("layout") || "card";
         let buildRunDir = null;
         let buildRunPlatform = null;
@@ -1740,6 +1758,7 @@
             var collapsed = !document.getElementById("sidebar").classList.contains("sidebar-collapsed");
             applySidebarCollapsed(collapsed);
             localStorage.setItem("sidebarCollapsed", collapsed ? "1" : "0");
+            savePrefs();
         }
 
         // Terminal: closed by default every load; opens itself the moment a build,
@@ -1953,17 +1972,29 @@
         // Load paths, apps, and version info on load
         window.addEventListener("DOMContentLoaded", async function () {
             applySidebarCollapsed(localStorage.getItem("sidebarCollapsed") === "1");
-            // Sync theme from backend (persists across port changes)
+            // Sync all frontend prefs from backend (port-independent)
             try {
-                var themeRes = await origFetch(API_BASE + "/api/theme");
-                if (themeRes.ok) {
-                    var themeData = await themeRes.json();
-                    if (themeData && themeData.theme) {
-                        localStorage.setItem("theme", themeData.theme);
-                        document.documentElement.dataset.theme = themeData.theme;
+                var prefsRes = await origFetch(API_BASE + "/api/prefs");
+                if (prefsRes.ok) {
+                    var prefsData = await prefsRes.json();
+                    if (prefsData) {
+                        if (prefsData.theme) {
+                            localStorage.setItem("theme", prefsData.theme);
+                            document.documentElement.dataset.theme = prefsData.theme;
+                        }
+                        if (prefsData.prefs) {
+                            for (var k in prefsData.prefs) {
+                                if (prefsData.prefs.hasOwnProperty(k))
+                                    localStorage.setItem(k, prefsData.prefs[k]);
+                            }
+                        }
                     }
                 }
             } catch(e) {}
+            // Apply sidebar/layout prefs from localStorage after API sync
+            applySidebarCollapsed(localStorage.getItem("sidebarCollapsed") === "1");
+            var savedLayout = localStorage.getItem("mauiForgeLayout") || "card";
+            if (savedLayout === "table") { currentLayout = "table"; }
             updateThemeToggle();
             updateLayoutButtons();
 
@@ -2018,7 +2049,7 @@ function toggleTheme() {
     document.documentElement.dataset.theme = next;
     localStorage.setItem("theme", next);
     updateThemeToggle();
-    fetch(API_BASE + "/api/theme", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme: next }) }).catch(function(){});
+    savePrefs();
 }
 
         async function loadVersionInfo() {
@@ -2038,6 +2069,7 @@ function toggleTheme() {
         function setLayout(layout) {
             currentLayout = layout;
             localStorage.setItem("layout", layout);
+            savePrefs();
             updateLayoutButtons();
             renderApps();
         }
@@ -2422,6 +2454,7 @@ function toggleTheme() {
             API_BASE = localApiBase;
             viewingRemote = false;
             localStorage.setItem("mauiForgeViewMode", "local");
+            savePrefs();
             var sb = document.getElementById("sidebar");
             if (sb) sb.classList.remove("remote-mode");
             setRemoteBadge(false);
@@ -2437,6 +2470,7 @@ function toggleTheme() {
             API_BASE = "http://" + remoteInfo.host + ":" + remoteInfo.port;
             viewingRemote = true;
             localStorage.setItem("mauiForgeViewMode", "remote");
+            savePrefs();
             var sb = document.getElementById("sidebar");
             if (sb) sb.classList.add("remote-mode");
             setRemoteBadge(true, remoteInfo.host);

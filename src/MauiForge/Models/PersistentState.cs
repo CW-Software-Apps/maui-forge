@@ -17,6 +17,7 @@ public class PersistentState
     public string? ServeToken { get; set; }
     public bool ServerModeEnabled { get; set; }
     public string? Theme { get; set; }
+    public Dictionary<string, string> Preferences { get; set; } = [];
     public List<SavedRemote> KnownRemotes { get; set; } = [];
 }
 
