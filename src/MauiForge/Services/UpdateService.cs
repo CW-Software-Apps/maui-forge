@@ -54,7 +54,7 @@ public class UpdateService
     public static string GetManualUpdateCommand(string latestVer) =>
         $"dotnet tool update {PackageId} -g --version {latestVer}";
 
-    public static void LaunchDeferredUpdate(string latestVer, string[] originalArgs, bool interactive = true)
+    public static void LaunchDeferredUpdate(string latestVer, string[] originalArgs, bool interactive = true, int port = 5123)
     {
         var currentPid = Environment.ProcessId;
         var dotnetPath = FindDotnet() ?? "dotnet";
@@ -84,6 +84,7 @@ public class UpdateService
                 $"set \"DOTNET_CMD={dotnetPath}\"\r\n" +
                 $"set \"VERSION={latestVer}\"\r\n" +
                 $"set \"LOG_FILE={log}\"\r\n" +
+                $"set \"PORT={port}\"\r\n" +
                 "\r\n" +
                 "echo === MAUI Forge updater started %DATE% %TIME% === > \"!LOG_FILE!\"\r\n" +
                 "\r\n" +
@@ -127,9 +128,9 @@ public class UpdateService
                 "echo.\r\n" +
                 "echo  Relaunching MAUI Forge automatically...\r\n" +
                 "timeout /t 1 /nobreak >nul\r\n" +
-                "start maui-forge\r\n" +
+                $"start maui-forge --port !PORT!\r\n" +
                 "timeout /t 2 /nobreak >nul\r\n" +
-                "start http://localhost:5123\r\n" +
+                $"start http://localhost:!PORT!\r\n" +
                 "del \"%~f0\"\r\n" +
                 "exit /b 0\r\n";
             File.WriteAllText(script, batchContent);
@@ -159,9 +160,9 @@ public class UpdateService
                 "sleep 3\n" +
                 $"dotnet tool update CwSoftware.MauiForge -g --version {latestVer} || dotnet tool update CwSoftware.MauiForge -g || true\n" +
                 "echo \"[$(date)] Relaunching maui-forge...\"\n" +
-                "nohup maui-forge > /dev/null 2>&1 &\n" +
+                $"nohup maui-forge --port {port} > /dev/null 2>&1 &\n" +
                 "sleep 2\n" +
-                "open \"http://localhost:5123\" 2>/dev/null || xdg-open \"http://localhost:5123\" 2>/dev/null || true\n";
+                $"open \"http://localhost:{port}\" 2>/dev/null || xdg-open \"http://localhost:{port}\" 2>/dev/null || true\n";
 
             File.WriteAllText(shPath, shContent);
             try { Process.Start("chmod", $"+x \"{shPath}\"")?.WaitForExit(); } catch { }

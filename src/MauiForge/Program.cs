@@ -200,6 +200,10 @@ if (!runTerminal)
     var gitSvc     = services.GetRequiredService<GitService>();
     var buildSvc   = services.GetRequiredService<BuildService>();
 
+    var preferRandom = !args.Contains("--port");
+    servePort = WebStartup.FindAvailablePort(servePort, preferRandom);
+    WebStartup.ActualPort = servePort;
+
     if (serveMode)
     {
         if (string.IsNullOrEmpty(serveToken))

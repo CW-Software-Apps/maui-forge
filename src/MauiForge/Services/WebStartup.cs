@@ -27,6 +27,37 @@ public static class WebStartup
     private static readonly object _buildsLock = new();
     public static string[]? OriginalArgs { get; set; }
     private static string? _serveToken;
+    public static int ActualPort { get; set; } = 5123;
+
+    public static int FindAvailablePort(int preferredPort, bool preferRandom = false)
+    {
+        var usedPorts = IPGlobalProperties.GetIPGlobalProperties()
+            .GetActiveTcpListeners()
+            .Select(l => l.Port)
+            .ToHashSet();
+
+        int startPort = preferRandom ? Random.Shared.Next(5000, 65535) : preferredPort;
+
+        if (!usedPorts.Contains(startPort))
+            return startPort;
+
+        for (int i = 1; i < 200; i++)
+        {
+            int candidate = preferredPort + i;
+            if (candidate > 65535) candidate = 1024 + (candidate - 65536) % 60000;
+            if (!usedPorts.Contains(candidate))
+                return candidate;
+        }
+
+        for (int i = 0; i < 200; i++)
+        {
+            int candidate = Random.Shared.Next(1024, 65535);
+            if (!usedPorts.Contains(candidate))
+                return candidate;
+        }
+
+        return preferredPort;
+    }
 
     private static string GetBuildLogPath(string appName, string buildId)
     {
@@ -88,6 +119,10 @@ public static class WebStartup
     {
         OriginalArgs = args;
         _serveToken = serveMode ? token : null;
+
+        var preferRandom = !args.Contains("--port");
+        port = FindAvailablePort(port, preferRandom);
+        ActualPort = port;
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -993,7 +1028,7 @@ public static class WebStartup
             _ = Task.Run(async () =>
             {
                 await Task.Delay(500);
-                UpdateService.LaunchDeferredUpdate(latest, args, interactive: false);
+                UpdateService.LaunchDeferredUpdate(latest, args, interactive: false, port: ActualPort);
             });
 
             return Results.Ok(new { Success = true, Version = latest });
@@ -1011,7 +1046,7 @@ public static class WebStartup
         });
 
         // Start Kestrel and launch browser
-        var url = "http://localhost:5123";
+        var url = $"http://localhost:{ActualPort}";
         Console.WriteLine($"Maui-Forge Web Server started at {url}");
         
         if (!noOpen)
