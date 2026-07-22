@@ -10,7 +10,8 @@ public class AppDetailScreen(
     BuildService build,
     DeviceService devices,
     StateService state,
-    AiCommitService aiCommit)
+    AiCommitService aiCommit,
+    SfxService sfx)
 {
     private enum Act
     {
@@ -377,6 +378,7 @@ public class AppDetailScreen(
 
         SaveSnapshot(app, master, st);
         ApplyVersion(app, newVer, newBld);
+        sfx.PlayBump();
         st.LastAction = incrementVersion ? "Bump Version and Build" : "Bump Build Number";
         state.Save(st);
         AnsiConsole.MarkupLine("  [green]ok  Version updated.[/]");
@@ -398,6 +400,7 @@ public class AppDetailScreen(
         var newBld = AnsiConsole.Ask<string>("  [cyan1]New build:[/]",   master?.Build   ?? "1");
         if (master is not null) SaveSnapshot(app, master, st);
         ApplyVersion(app, newVer, newBld);
+        sfx.PlayBump();
         AnsiConsole.MarkupLine("  [green]ok  Version updated.[/]");
         Pause();
     }
@@ -421,6 +424,7 @@ public class AppDetailScreen(
         var (ver, bld) = source == "ios" ? (v.iOS.Version, v.iOS.Build) : (v.Android.Version, v.Android.Build);
         SaveSnapshot(app, v.Master!, st);
         ApplyVersion(app, ver, bld);
+        sfx.PlayBump();
         AnsiConsole.MarkupLine("  [green]ok  Versions synchronized.[/]");
         Pause();
     }

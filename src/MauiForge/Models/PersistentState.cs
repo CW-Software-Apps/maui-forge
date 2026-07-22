@@ -21,6 +21,7 @@ public class PersistentState
     public bool? ProtocolRegistered { get; set; }
     public List<SavedRemote> KnownRemotes { get; set; } = [];
     public HashSet<string> FavoriteApps { get; set; } = [];
+    public bool EnableSfx { get; set; } = true;
 }
 
 public class SavedRemote

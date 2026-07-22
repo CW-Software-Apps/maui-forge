@@ -55,6 +55,7 @@ var services = new ServiceCollection()
     .AddSingleton<BuildService>()
     .AddSingleton<DeviceService>()
     .AddSingleton<StateService>()
+    .AddSingleton<SfxService>()
     .AddSingleton<AppDiscoveryService>()
     .AddSingleton<AiCommitService>()
     .AddSingleton<AppDetailScreen>()
@@ -246,6 +247,7 @@ if (!runTerminal)
     var versionSvc = services.GetRequiredService<VersionService>();
     var gitSvc     = services.GetRequiredService<GitService>();
     var buildSvc   = services.GetRequiredService<BuildService>();
+    var sfxSvc     = services.GetRequiredService<SfxService>();
 
     var preferRandom = !args.Contains("--port");
     servePort = WebStartup.FindAvailablePort(servePort, preferRandom);
@@ -305,7 +307,7 @@ if (!runTerminal)
         System.Threading.Thread.Sleep(500);
     }
 
-    WebStartup.Start(args, stateService, discovery, versionSvc, gitSvc, buildSvc, deviceSvc,
+    WebStartup.Start(args, stateService, discovery, versionSvc, gitSvc, buildSvc, deviceSvc, sfxSvc,
         serveMode: serveMode, token: serveToken, port: servePort, noOpen: noOpen);
     return;
 }
@@ -350,7 +352,8 @@ while (true)
         var versionSvc = services.GetRequiredService<VersionService>();
         var gitSvc     = services.GetRequiredService<GitService>();
         var buildSvc   = services.GetRequiredService<BuildService>();
-        WebStartup.Start(args, stateService, discovery, versionSvc, gitSvc, buildSvc, deviceSvc);
+        var sfxSvc     = services.GetRequiredService<SfxService>();
+        WebStartup.Start(args, stateService, discovery, versionSvc, gitSvc, buildSvc, deviceSvc, sfxSvc);
         return;
     }
 

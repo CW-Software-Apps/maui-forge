@@ -21,6 +21,7 @@ public class LogHub : Hub
 public static class WebStartup
 {
     private static IHubContext<LogHub>? _hubContext;
+    private static SfxService? _sfxService;
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Diagnostics.Process> _runningBuilds = new();
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, BuildRecord> _buildRecords = new();
     private static readonly List<BuildRecord> _recentBuilds = new();
@@ -118,15 +119,23 @@ public static class WebStartup
         if (_hubContext != null)
         {
             _ = _hubContext.Clients.All.SendAsync("BuildStatusUpdated", record);
+            _ = _hubContext.Clients.All.SendAsync("PlaySfx", status == "Success" ? "success" : "failure");
+        }
+
+        if (_sfxService != null)
+        {
+            if (status == "Success") _sfxService.PlaySuccess();
+            else _sfxService.PlayFailure();
         }
     }
 
 
-    public static void Start(string[] args, StateService stateService, AppDiscoveryService discoveryService, VersionService versionService, GitService gitService, BuildService buildService, DeviceService deviceService,
+    public static void Start(string[] args, StateService stateService, AppDiscoveryService discoveryService, VersionService versionService, GitService gitService, BuildService buildService, DeviceService deviceService, SfxService sfxService,
         bool serveMode = false, string? token = null, int port = 5123, bool noOpen = false)
     {
         OriginalArgs = args;
         _serveToken = serveMode ? token : null;
+        _sfxService = sfxService;
 
         var preferRandom = !args.Contains("--port");
         port = FindAvailablePort(port, preferRandom);
@@ -156,6 +165,7 @@ public static class WebStartup
         builder.Services.AddSingleton(gitService);
         builder.Services.AddSingleton(buildService);
         builder.Services.AddSingleton(deviceService);
+        builder.Services.AddSingleton(sfxService);
 
         builder.Services.AddSignalR();
         builder.Services.AddCors(options =>
@@ -485,6 +495,7 @@ public static class WebStartup
             if (csproj is not null) versions.WriteCsproj(csproj, newVersion, newBuild);
             versions.WriteAssemblyInfo(req.Dir, newVersion, newBuild);
 
+            TriggerBumpSfx();
             RefreshCacheAndNotify(discovery, state, req.Dir);
             return Results.Ok(new { Success = true, Version = newVersion, Build = newBuild });
         });
@@ -564,8 +575,21 @@ public static class WebStartup
             var commitMsg = $"chore: bump version to {newVersion} #{newBuild}";
             var (gitSuccess, gitOutput) = git.Push(req.Dir, commitMsg);
 
+            TriggerBumpSfx();
             RefreshCacheAndNotify(discovery, state, req.Dir);
             return Results.Ok(new { Success = gitSuccess, Output = gitOutput, Version = newVersion, Build = newBuild });
+        });
+
+        // SFX Settings Endpoints
+        app.MapGet("/api/settings/sfx", (SfxService sfx) => Results.Ok(new { enabled = sfx.IsEnabled }));
+        app.MapPost("/api/settings/sfx", (SfxService sfx, SfxToggleRequest req) =>
+        {
+            sfx.IsEnabled = req.Enabled;
+            if (_hubContext != null)
+            {
+                _ = _hubContext.Clients.All.SendAsync("SfxStateChanged", sfx.IsEnabled);
+            }
+            return Results.Ok(new { enabled = sfx.IsEnabled });
         });
 
         // Build History Endpoints
@@ -1314,6 +1338,15 @@ public static class WebStartup
         }
     }
 
+    private static void TriggerBumpSfx()
+    {
+        _sfxService?.PlayBump();
+        if (_hubContext != null)
+        {
+            _ = _hubContext.Clients.All.SendAsync("PlaySfx", "bump");
+        }
+    }
+
     private static List<string> GetLanAddresses()
     {
         var addresses = new List<string>();
@@ -1334,6 +1367,7 @@ public static class WebStartup
     }
 }
 
+public record SfxToggleRequest(bool Enabled);
 public record SetTokenRequest(string? Token);
 public record PathRequest(string Path);
 public record GitRequest(string Dir);

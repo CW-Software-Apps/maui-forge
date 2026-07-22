@@ -475,6 +475,9 @@
         </div>
         
         <div class="flex items-center gap-3">
+            <button id="sfxToggleBtn" onclick="toggleSfx(event)" class="btn-ghost text-xs py-1.5 px-2.5" aria-label="Toggle SFX sound effects" title="SFX Sonoros: Ativados (Clique para silenciar)">
+                🔊
+            </button>
             <button id="themeToggle" onclick="toggleTheme()" class="btn-ghost text-xs py-1.5 px-2.5" aria-label="Switch to light theme" title="Switch theme">
                 <span id="themeToggleIcon">&#x2600;</span>
             </button>
@@ -2051,7 +2054,103 @@
             }
 
             loadVersionInfo();
+            updateSfxBtnUI();
+            initSignalR();
         });
+
+        // ── SFX Web Audio Synthesizer ───────────────────────────────────────────
+        let sfxEnabled = localStorage.getItem("maui_forge_sfx") !== "false";
+
+        function playAudioSfx(type) {
+            if (!sfxEnabled) return;
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                const ctx = new AudioCtx();
+                if (ctx.state === "suspended") ctx.resume();
+
+                const playTone = (freq, start, duration, toneType) => {
+                    toneType = toneType || "sine";
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = toneType;
+                    osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
+                    gain.gain.setValueAtTime(0.15, ctx.currentTime + start);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(ctx.currentTime + start);
+                    osc.stop(ctx.currentTime + start + duration);
+                };
+
+                if (type === "success") {
+                    playTone(523.25, 0, 0.12, "triangle");
+                    playTone(659.25, 0.1, 0.12, "triangle");
+                    playTone(783.99, 0.2, 0.25, "sine");
+                } else if (type === "failure") {
+                    playTone(329.63, 0, 0.15, "sawtooth");
+                    playTone(261.63, 0.12, 0.3, "sawtooth");
+                } else if (type === "bump") {
+                    playTone(880, 0, 0.08, "sine");
+                    playTone(1046.50, 0.07, 0.15, "triangle");
+                }
+            } catch (e) {}
+        }
+
+        function toggleSfx(ev) {
+            if (ev) ev.stopPropagation();
+            sfxEnabled = !sfxEnabled;
+            localStorage.setItem("maui_forge_sfx", sfxEnabled ? "true" : "false");
+            updateSfxBtnUI();
+            fetch(API_BASE + "/api/settings/sfx", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled: sfxEnabled })
+            }).catch(function () {});
+            if (sfxEnabled) playAudioSfx("bump");
+        }
+
+        function updateSfxBtnUI() {
+            const btn = document.getElementById("sfxToggleBtn");
+            if (!btn) return;
+            btn.innerHTML = sfxEnabled ? "🔊" : "🔇";
+            btn.title = sfxEnabled ? "SFX Sonoros: Ativados (Clique para silenciar)" : "SFX Sonoros: Silenciados (Clique para ativar)";
+            btn.className = sfxEnabled
+                ? "btn-ghost text-xs py-1.5 px-2.5 text-emerald-400"
+                : "btn-ghost text-xs py-1.5 px-2.5 text-slate-500 opacity-60";
+        }
+
+        let hubConnection = null;
+
+        function initSignalR() {
+            if (typeof signalR === "undefined") return;
+            if (hubConnection) {
+                try { hubConnection.stop(); } catch (e) {}
+            }
+            const hubUrl = API_BASE ? (API_BASE + "/logHub") : "/logHub";
+            hubConnection = new signalR.HubConnectionBuilder()
+                .withUrl(hubUrl)
+                .withAutomaticReconnect()
+                .build();
+
+            hubConnection.on("BuildStatusUpdated", function (record) {
+                if (typeof loadApps === "function") loadApps();
+            });
+
+            hubConnection.on("PlaySfx", function (type) {
+                playAudioSfx(type);
+            });
+
+            hubConnection.on("SfxStateChanged", function (enabled) {
+                sfxEnabled = enabled;
+                localStorage.setItem("maui_forge_sfx", enabled ? "true" : "false");
+                updateSfxBtnUI();
+            });
+
+            hubConnection.start().catch(function (err) {
+                console.warn("SignalR hub connection failed:", err);
+            });
+        }
 
         // Theme (data-theme is already set pre-paint by the inline script in <head>)
         function updateThemeToggle() {
@@ -4099,6 +4198,7 @@ function toggleTheme() {
         }
 
         function finalizeBuildProgress(success) {
+            playAudioSfx(success ? "success" : "failure");
             buildProgressActive = false;
             currentBuildDir = null;
             if (bpTimerInterval) { clearInterval(bpTimerInterval); bpTimerInterval = null; }
