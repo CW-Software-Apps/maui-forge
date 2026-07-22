@@ -2083,7 +2083,10 @@
                     osc.stop(ctx.currentTime + start + duration);
                 };
 
-                if (type === "success") {
+                if (type === "start") {
+                    playTone(440, 0, 0.08, "sine");
+                    playTone(554.37, 0.07, 0.14, "triangle");
+                } else if (type === "success") {
                     playTone(523.25, 0, 0.12, "triangle");
                     playTone(659.25, 0.1, 0.12, "triangle");
                     playTone(783.99, 0.2, 0.25, "sine");
@@ -2135,6 +2138,16 @@
 
             hubConnection.on("BuildStatusUpdated", function (record) {
                 if (typeof loadApps === "function") loadApps();
+                if (record && record.status === "Running" && record.id) {
+                    if (!buildProgressActive) {
+                        showBuildProgress(record.deviceName || "Desconhecido", record.platform || "Auto", record.configuration || "Release", record.id, record.version || "--", record.buildNumber || "--");
+                    } else {
+                        var vEl = document.getElementById("bpVersion");
+                        var bEl = document.getElementById("bpBuild");
+                        if (vEl && record.version && record.version !== "--") vEl.textContent = record.version;
+                        if (bEl && record.buildNumber && record.buildNumber !== "--") bEl.textContent = record.buildNumber;
+                    }
+                }
             });
 
             hubConnection.on("PlaySfx", function (type) {

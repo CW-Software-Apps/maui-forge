@@ -76,10 +76,26 @@ public static class WebStartup
         return Path.Combine(logsDir, $"{safeName}_{buildId}.log");
     }
 
-    private static BuildRecord RecordBuildStart(string dir, string platform, string configuration = "Debug", string? deviceId = null, string? deviceName = null)
+    private static BuildRecord RecordBuildStart(string dir, string platform, string configuration = "Debug", string? deviceId = null, string? deviceName = null, VersionService? versions = null)
     {
         var appName = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         if (string.IsNullOrWhiteSpace(appName)) appName = "App";
+
+        string? ver = null;
+        string? bld = null;
+        if (versions != null)
+        {
+            try
+            {
+                var ios = versions.ReadiOS(dir);
+                var android = versions.ReadAndroid(dir);
+                var csproj = Directory.EnumerateFiles(dir, "*.csproj").FirstOrDefault();
+                var csprojVersion = csproj is not null ? (versions.ReadCsproj(csproj) ?? versions.ReadAssemblyInfo(dir)) : null;
+                ver = csprojVersion?.Version ?? ios?.Version ?? android?.Version;
+                bld = csprojVersion?.Build ?? ios?.Build ?? android?.Build;
+            }
+            catch { }
+        }
 
         var buildId = Guid.NewGuid().ToString("N")[..10];
         var record = new BuildRecord
@@ -91,6 +107,8 @@ public static class WebStartup
             Configuration = configuration,
             DeviceId = deviceId,
             DeviceName = deviceName,
+            Version = ver,
+            BuildNumber = bld,
             StartTime = DateTime.UtcNow,
             Status = "Running",
             LogFilePath = GetBuildLogPath(appName, buildId)
@@ -102,9 +120,16 @@ public static class WebStartup
             if (_recentBuilds.Count > 100) _recentBuilds.RemoveAt(_recentBuilds.Count - 1);
         }
         _buildRecords[record.Id] = record;
+
+        if (_sfxService != null)
+        {
+            _sfxService.PlayStart();
+        }
+
         if (_hubContext != null)
         {
             _ = _hubContext.Clients.All.SendAsync("BuildStatusUpdated", record);
+            _ = _hubContext.Clients.All.SendAsync("PlaySfx", "start");
         }
         return record;
     }
@@ -630,10 +655,10 @@ public static class WebStartup
         });
 
         // Build Endpoint
-        app.MapPost("/api/apps/build", (BuildService builder, DeviceService devices, StateService state, BuildRequest req) =>
+        app.MapPost("/api/apps/build", (BuildService builder, VersionService versions, DeviceService devices, StateService state, BuildRequest req) =>
         {
             var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
-            var record = RecordBuildStart(dir, req.Platform, req.Configuration);
+            var record = RecordBuildStart(dir, req.Platform, req.Configuration, versions: versions);
 
             _ = Task.Run(async () =>
             {
@@ -769,10 +794,10 @@ public static class WebStartup
         });
 
         // Run Endpoint — build + deploy num device específico
-        app.MapPost("/api/apps/run", (BuildService builder, StateService state, RunRequest req) =>
+        app.MapPost("/api/apps/run", (BuildService builder, VersionService versions, StateService state, RunRequest req) =>
         {
             var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
-            var record = RecordBuildStart(dir, req.Platform, req.Configuration, req.DeviceId, req.DeviceName);
+            var record = RecordBuildStart(dir, req.Platform, req.Configuration, req.DeviceId, req.DeviceName, versions: versions);
 
             _ = Task.Run(async () =>
             {

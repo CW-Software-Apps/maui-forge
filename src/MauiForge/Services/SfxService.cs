@@ -16,6 +16,28 @@ public class SfxService(StateService stateService)
         }
     }
 
+    public void PlayStart()
+    {
+        if (!IsEnabled) return;
+
+        Task.Run(() =>
+        {
+            try
+            {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    Console.Beep(440, 80);
+                    Console.Beep(554, 120);
+                }
+                else
+                {
+                    Console.Write("\a");
+                }
+            }
+            catch { /* audio playback fallback ignored */ }
+        });
+    }
+
     public void PlaySuccess()
     {
         if (!IsEnabled) return;

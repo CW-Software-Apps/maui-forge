@@ -9,6 +9,8 @@ public class BuildRecord
     public string Configuration { get; set; } = "Debug";
     public string? DeviceId { get; set; }
     public string? DeviceName { get; set; }
+    public string? Version { get; set; }
+    public string? BuildNumber { get; set; }
     public DateTime StartTime { get; set; } = DateTime.UtcNow;
     public DateTime? EndTime { get; set; }
     public string Status { get; set; } = "Running"; // Running, Success, Failed, Cancelled
