@@ -18,6 +18,7 @@ public class PersistentState
     public bool ServerModeEnabled { get; set; }
     public string? Theme { get; set; }
     public Dictionary<string, string> Preferences { get; set; } = [];
+    public bool? ProtocolRegistered { get; set; }
     public List<SavedRemote> KnownRemotes { get; set; } = [];
 }
 

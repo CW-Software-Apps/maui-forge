@@ -2545,6 +2545,16 @@ function toggleTheme() {
         }
 
         function relaunchMauiForge() {
+            origFetch(API_BASE + "/api/protocol").then(function (r) { return r.json(); }).then(function (data) {
+                if (data && data.registered) {
+                    window.location.href = "maui-forge://relaunch";
+                    showToast("Relançando MAUI Forge...", "info");
+                } else {
+                    fallbackRelaunch();
+                }
+            }).catch(function () { fallbackRelaunch(); });
+        }
+        function fallbackRelaunch() {
             var cmd = "maui-forge";
             try { navigator.clipboard.writeText(cmd); } catch(e) {}
             showToast("Comando \"" + cmd + "\" copiado! Cole no terminal para relançar.", "info");

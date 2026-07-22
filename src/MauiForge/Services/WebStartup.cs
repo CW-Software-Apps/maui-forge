@@ -1078,6 +1078,13 @@ public static class WebStartup
             return Results.Ok(new { theme = st.Theme, prefs = st.Preferences });
         });
 
+        // Protocol registration status
+        app.MapGet("/api/protocol", (StateService state) =>
+        {
+            var st = state.Load();
+            return Results.Ok(new { registered = st.ProtocolRegistered == true });
+        });
+
         app.MapHub<LogHub>("/hubs/logs");
         app.Run();
     }

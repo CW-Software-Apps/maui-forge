@@ -194,6 +194,53 @@ var discovery    = services.GetRequiredService<AppDiscoveryService>();
 var detail       = services.GetRequiredService<AppDetailScreen>();
 var deviceSvc    = services.GetRequiredService<DeviceService>();
 
+// First-run protocol registration prompt
+var protoState = stateService.Load();
+if (protoState.ProtocolRegistered == null)
+{
+    AnsiConsole.MarkupLine("\n[bold cyan1]🔗 Protocolo maui-forge://[/]");
+    AnsiConsole.MarkupLine("Este recurso permite que o navegador [bold]relançe[/] o MAUI Forge automaticamente");
+    AnsiConsole.MarkupLine("quando o servidor local cair — um clique no botão \"Relançar\" do dashboard");
+    AnsiConsole.MarkupLine("vai abrir o terminal e executar o comando, sem precisar copiar/colar.\n");
+    if (AnsiConsole.Confirm("Deseja registrar o protocolo maui-forge://?", defaultValue: true))
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                foreach (var cmd in new[]
+                {
+                    $"add HKCU\\Software\\Classes\\maui-forge /ve /d \"URL:maui-forge\" /f",
+                    $"add HKCU\\Software\\Classes\\maui-forge\\shell\\open\\command /ve /d \"\\\"dotnet\\\" tool run maui-forge \\\"%1\\\"\" /f"
+                })
+                {
+                    using var p = System.Diagnostics.Process.Start("reg", cmd);
+                    p?.WaitForExit();
+                }
+                protoState.ProtocolRegistered = true;
+                AnsiConsole.MarkupLine("[green]✓ Protocolo maui-forge:// registrado com sucesso![/]");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("[yellow]O registro automático do protocolo não está disponível neste sistema.[/]");
+                AnsiConsole.MarkupLine("[dim]No macOS, crie um .app bundle com CFBundleURLSchemes contendo \"maui-forge\".[/]");
+                AnsiConsole.MarkupLine("[dim]No Linux, adicione MimeType=x-scheme-handler/maui-forge ao seu .desktop file.[/]");
+                protoState.ProtocolRegistered = false;
+            }
+        }
+        catch
+        {
+            AnsiConsole.MarkupLine("[red]✗ Falha ao registrar protocolo.[/]");
+            protoState.ProtocolRegistered = false;
+        }
+    }
+    else
+    {
+        protoState.ProtocolRegistered = false;
+    }
+    stateService.Save(protoState);
+}
+
 if (!runTerminal)
 {
     var versionSvc = services.GetRequiredService<VersionService>();
