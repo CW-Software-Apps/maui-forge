@@ -20,6 +20,7 @@ public class PersistentState
     public Dictionary<string, string> Preferences { get; set; } = [];
     public bool? ProtocolRegistered { get; set; }
     public List<SavedRemote> KnownRemotes { get; set; } = [];
+    public HashSet<string> FavoriteApps { get; set; } = [];
 }
 
 public class SavedRemote

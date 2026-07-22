@@ -44,6 +44,7 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                         var branchU = git.GetBranch(dir);
                         var statusU = git.FetchAndGetStatus(dir);
                         var iconU = GetAppIconBase64(dir);
+                        var lastActivityU = MaxDate(GetLastWriteTimeUtc(projectFile), GetLastBuildOutputTime(dir));
 
                         entries.Add(new AppEntry(
                             Name: name,
@@ -52,7 +53,8 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                             Versions: new AppVersions(null, null, unityV),
                             Git: statusU,
                             ProjectType: "Unity",
-                            IconBase64: iconU
+                            IconBase64: iconU,
+                            LastActivityAt: lastActivityU
                         ));
                         continue;
                     }
@@ -97,6 +99,9 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                     var branch = git.GetBranch(dir);
                     var status = git.FetchAndGetStatus(dir);
                     var icon = GetAppIconBase64(dir);
+                    var lastActivity = MaxDate(
+                        versions.GetVersionFilesLastWriteTime(dir, projectFile),
+                        GetLastBuildOutputTime(dir));
 
                     entries.Add(new AppEntry(
                         Name: nameC,
@@ -105,7 +110,8 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                         Versions: new AppVersions(ios, android, csprojV),
                         Git: status,
                         ProjectType: projType,
-                        IconBase64: icon
+                        IconBase64: icon,
+                        LastActivityAt: lastActivity
                     ));
                 }
                 catch (Exception ex)
@@ -134,6 +140,7 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                 var branchU = git.GetBranch(dir);
                 var statusU = git.FetchAndGetStatus(dir);
                 var iconU = GetAppIconBase64(dir);
+                var lastActivityU = MaxDate(GetLastWriteTimeUtc(unitySettings), GetLastBuildOutputTime(dir));
 
                 return new AppEntry(
                     Name: name,
@@ -142,7 +149,8 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                     Versions: new AppVersions(null, null, unityV),
                     Git: statusU,
                     ProjectType: "Unity",
-                    IconBase64: iconU
+                    IconBase64: iconU,
+                    LastActivityAt: lastActivityU
                 );
             }
 
@@ -180,6 +188,9 @@ public class AppDiscoveryService(VersionService versions, GitService git)
             var branch = git.GetBranch(dir);
             var status = git.FetchAndGetStatus(dir);
             var icon = GetAppIconBase64(dir);
+            var lastActivity = MaxDate(
+                versions.GetVersionFilesLastWriteTime(dir, csproj),
+                GetLastBuildOutputTime(dir));
 
             return new AppEntry(
                 Name: nameC,
@@ -188,7 +199,8 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                 Versions: new AppVersions(ios, android, csprojV),
                 Git: status,
                 ProjectType: projType,
-                IconBase64: icon
+                IconBase64: icon,
+                LastActivityAt: lastActivity
             );
         }
         catch (Exception ex)
@@ -262,6 +274,47 @@ public class AppDiscoveryService(VersionService versions, GitService git)
         }
         catch { }
         return null;
+    }
+
+    // Most recent write time under bin/ (build output), used as the "last build generated"
+    // half of the LastActivityAt signal. Bounded by try/catch since bin/ can contain
+    // locked or permission-denied files without that being worth failing the whole scan.
+    private static DateTimeOffset? GetLastBuildOutputTime(string dir)
+    {
+        try
+        {
+            var bin = Path.Combine(dir, "bin");
+            if (!Directory.Exists(bin)) return null;
+            DateTime? latest = null;
+            foreach (var file in Directory.EnumerateFiles(bin, "*", SearchOption.AllDirectories))
+            {
+                try
+                {
+                    var written = File.GetLastWriteTimeUtc(file);
+                    if (latest is null || written > latest) latest = written;
+                }
+                catch { }
+            }
+            return latest is null ? null : new DateTimeOffset(latest.Value, TimeSpan.Zero);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static DateTimeOffset? GetLastWriteTimeUtc(string? path)
+    {
+        if (path is null || !File.Exists(path)) return null;
+        try { return new DateTimeOffset(File.GetLastWriteTimeUtc(path), TimeSpan.Zero); }
+        catch { return null; }
+    }
+
+    private static DateTimeOffset? MaxDate(DateTimeOffset? a, DateTimeOffset? b)
+    {
+        if (a is null) return b;
+        if (b is null) return a;
+        return a > b ? a : b;
     }
 
     private static string ToBase64(string path, string mimeType)

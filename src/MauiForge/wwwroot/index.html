@@ -30,12 +30,20 @@
                             400: 'var(--blue)', 500: 'var(--blue)', 600: 'var(--blue-hover)',
                             800: 'var(--blue-subtle)', 950: 'var(--blue-subtle)'
                         },
+                        cyan: {
+                            300: 'var(--accent)', 400: 'var(--accent)', 500: 'var(--accent)', 600: 'var(--accent-hover)',
+                            800: 'var(--accent-subtle)', 950: 'var(--accent-subtle)'
+                        },
+                        indigo: {
+                            300: 'var(--indigo-maui)', 400: 'var(--indigo-maui)', 500: 'var(--indigo-maui)', 600: 'var(--indigo-maui)',
+                            800: 'var(--indigo-maui-subtle)', 950: 'var(--indigo-maui-subtle)'
+                        },
                         amber: {
-                            400: 'var(--amber)', 500: 'var(--amber)', 600: 'var(--amber-hover)',
+                            300: 'var(--amber)', 400: 'var(--amber)', 500: 'var(--amber)', 600: 'var(--amber-hover)',
                             800: 'var(--amber-subtle)', 950: 'var(--amber-subtle)'
                         },
-                        green: { 400: 'var(--green)', 500: 'var(--green)', 800: 'var(--green-subtle)', 950: 'var(--green-subtle)' },
-                        emerald: { 400: 'var(--green)', 500: 'var(--green)', 800: 'var(--green-subtle)', 950: 'var(--green-subtle)' },
+                        green: { 300: 'var(--green)', 400: 'var(--green)', 500: 'var(--green)', 800: 'var(--green-subtle)', 950: 'var(--green-subtle)' },
+                        emerald: { 300: 'var(--green)', 400: 'var(--green)', 500: 'var(--green)', 800: 'var(--green-subtle)', 950: 'var(--green-subtle)' },
                         red: { 400: 'var(--red)', 500: 'var(--red)' }
                     }
                 }
@@ -363,71 +371,73 @@
             display: none !important;
         }
 
-        /* Build Progress Stage Cards Styling & Color Themes */
+        /* Build Progress Stage Cards Styling & Color Themes
+           Base surface/border always come from the theme tokens (var(--surface)/var(--border))
+           so the cards adapt to light/dark instead of staying a fixed dark navy (rgba(15,23,42,*)). */
         .bp-stage-card {
-            background: rgba(15, 23, 42, 0.4);
-            border-color: rgba(51, 65, 85, 0.5);
+            background: var(--surface);
+            border-color: var(--border);
         }
         .bp-stage-pending {
             opacity: 0.55;
-            border-color: rgba(51, 65, 85, 0.4);
+            border-color: var(--border);
         }
 
         /* Stage 1: Cyan */
         .bp-stage-cyan.bp-stage-active {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(6, 182, 212, 0.22), rgba(15, 23, 42, 0.85));
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.22), var(--surface));
             border-color: rgba(6, 182, 212, 0.65);
             box-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
         }
         .bp-stage-cyan.bp-stage-done {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(15, 23, 42, 0.75));
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), var(--surface));
             border-color: rgba(6, 182, 212, 0.4);
         }
 
         /* Stage 2: Indigo */
         .bp-stage-indigo.bp-stage-active {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(15, 23, 42, 0.85));
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), var(--surface));
             border-color: rgba(99, 102, 241, 0.65);
             box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
         }
         .bp-stage-indigo.bp-stage-done {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(15, 23, 42, 0.75));
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), var(--surface));
             border-color: rgba(99, 102, 241, 0.4);
         }
 
         /* Stage 3: Amber */
         .bp-stage-amber.bp-stage-active {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(15, 23, 42, 0.85));
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), var(--surface));
             border-color: rgba(245, 158, 11, 0.65);
             box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
         }
         .bp-stage-amber.bp-stage-done {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(15, 23, 42, 0.75));
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), var(--surface));
             border-color: rgba(245, 158, 11, 0.4);
         }
 
         /* Stage 4: Emerald */
         .bp-stage-emerald.bp-stage-active {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(15, 23, 42, 0.85));
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), var(--surface));
             border-color: rgba(16, 185, 129, 0.65);
             box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
         }
         .bp-stage-emerald.bp-stage-done {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(15, 23, 42, 0.75));
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), var(--surface));
             border-color: rgba(16, 185, 129, 0.4);
         }
 
         .bp-stage-failed {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(127, 29, 29, 0.3), rgba(15, 23, 42, 0.85));
+            background: linear-gradient(135deg, rgba(127, 29, 29, 0.3), var(--surface));
             border-color: rgba(239, 68, 68, 0.55);
         }
 
@@ -732,6 +742,10 @@
                                 <option value="behind">Pull Pending (Behind)</option>
                                 <option value="clean">Clean</option>
                             </select>
+                        </div>
+                        <div class="flex items-center gap-1 rounded-lg p-0.5" style="background:var(--surface-hover);border:1px solid var(--border)">
+                            <button onclick="setSortMode('urgency')" id="sortModeUrgencyBtn" class="text-xs px-2.5 py-1 rounded-md font-medium transition" title="Sort by git priority (Behind > Dirty > Clean)">Priority</button>
+                            <button onclick="setSortMode('recent')" id="sortModeRecentBtn" class="text-xs px-2.5 py-1 rounded-md font-medium transition" title="Sort by most recent activity (last build or version change on disk)">Recent</button>
                         </div>
                     </div>
                 </div>
@@ -1192,7 +1206,7 @@
                     </div>
 
                     <!-- Live Command Line Box -->
-                    <div class="bg-[#070a11] rounded-xl p-2.5 border border-slate-800/80 font-mono text-[11px] text-slate-300 flex items-center justify-between gap-3 overflow-hidden">
+                    <div class="bg-slate-950 rounded-xl p-2.5 border border-slate-800/80 font-mono text-[11px] text-slate-300 flex items-center justify-between gap-3 overflow-hidden">
                         <div class="flex items-center gap-2 overflow-hidden">
                             <span class="text-cyan-500 select-none">$</span>
                             <span id="bpLiveCmdText" class="truncate text-slate-300">Aguardando comando...</span>
@@ -1227,7 +1241,7 @@
                             </button>
                         </div>
                     </div>
-                    <div id="bpLogContainer" class="bg-[#070a11] rounded-xl p-3.5 h-44 overflow-y-auto font-mono text-xs space-y-0.5 select-text border border-slate-800/80 shadow-inner transition-all duration-300">
+                    <div id="bpLogContainer" class="bg-slate-950 rounded-xl p-3.5 h-44 overflow-y-auto font-mono text-xs space-y-0.5 select-text border border-slate-800/80 shadow-inner transition-all duration-300">
                         <div class="text-slate-600 italic">Aguardando saída de log...</div>
                     </div>
                 </div>
@@ -1973,6 +1987,7 @@
         // Load paths, apps, and version info on load
         window.addEventListener("DOMContentLoaded", async function () {
             applySidebarCollapsed(localStorage.getItem("sidebarCollapsed") === "1");
+            updateSortModeButtons();
             // Sync all frontend prefs from backend (port-independent)
             try {
                 var prefsRes = await origFetch(API_BASE + "/api/prefs");
@@ -2787,6 +2802,54 @@ function toggleTheme() {
             return [...apps].sort((a, b) => urgencyRank(a) - urgencyRank(b) || a.name.localeCompare(b.name));
         }
 
+        // "Priority" (default, git urgency) vs "Recent" (last build/version activity on
+        // disk). Favorites always float to the top regardless of which mode is active.
+        let sortMode = localStorage.getItem("mauiForgeSortMode") || "urgency";
+
+        function compareByMode(a, b) {
+            return sortMode === "recent"
+                ? new Date(b.lastActivityAt || 0) - new Date(a.lastActivityAt || 0) || a.name.localeCompare(b.name)
+                : urgencyRank(a) - urgencyRank(b) || a.name.localeCompare(b.name);
+        }
+
+        function sortAppsForDisplay(apps) {
+            return [...apps].sort((a, b) => (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0) || compareByMode(a, b));
+        }
+
+        function setSortMode(mode) {
+            sortMode = mode;
+            localStorage.setItem("mauiForgeSortMode", mode);
+            updateSortModeButtons();
+            renderApps();
+        }
+
+        function updateSortModeButtons() {
+            const urgencyBtn = document.getElementById("sortModeUrgencyBtn");
+            const recentBtn = document.getElementById("sortModeRecentBtn");
+            if (!urgencyBtn || !recentBtn) return;
+            const active = "text-xs px-2.5 py-1 rounded-md font-semibold transition";
+            const inactive = "text-xs px-2.5 py-1 rounded-md font-medium transition text-[var(--ink-muted)]";
+            urgencyBtn.className = sortMode === "urgency" ? active + " bg-[var(--surface-raised)] text-[var(--ink)] shadow-sm" : inactive;
+            recentBtn.className = sortMode === "recent" ? active + " bg-[var(--surface-raised)] text-[var(--ink)] shadow-sm" : inactive;
+        }
+
+        async function toggleFavorite(dir) {
+            try {
+                const res = await fetch(API_BASE + "/api/apps/favorite", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dir })
+                });
+                const data = await res.json();
+                const normalized = (dir || "").replace(/\\/g, "/");
+                const app = appsList.find(a => (a.dir || "").replace(/\\/g, "/") === normalized);
+                if (app) app.isFavorite = data.isFavorite;
+                renderApps();
+            } catch (e) {
+                showToast("Failed to update favorite: " + e.message, "error");
+            }
+        }
+
         const ICON_PROJECT = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
         const ICON_ANDROID = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><line x1="10" y1="18" x2="14" y2="18"/></svg>`;
         const ICON_IOS = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3.5"/><line x1="10" y1="18" x2="14" y2="18"/></svg>`;
@@ -2945,11 +3008,29 @@ function toggleTheme() {
                 wrapper.className = "flex flex-col gap-9";
                 let globalIdx = 0;
 
-                groupApps(filteredApps).forEach(([groupPath, groupAppsRaw]) => {
+                // Favorites get their own section at the very top, above every monitored-path
+                // group — pulled out before grouping so they never also show up in their
+                // regular group further down.
+                const favoriteApps = filteredApps.filter(a => a.isFavorite);
+                const nonFavoriteApps = filteredApps.filter(a => !a.isFavorite);
+                const groups = groupApps(nonFavoriteApps);
+                if (favoriteApps.length > 0) groups.unshift(["__favorites__", favoriteApps]);
+
+                groups.forEach(([groupPath, groupAppsRaw]) => {
+                    const isFavoritesSection = groupPath === "__favorites__";
                     const section = document.createElement("section");
                     const header = document.createElement("div");
-                    header.className = "flex items-baseline gap-2 mb-3.5 pb-2 border-b border-[var(--border)]";
-                    header.innerHTML = `
+                    header.className = isFavoritesSection
+                        ? "flex items-baseline gap-2 mb-3.5 pb-2 border-b-2 border-amber-400/60"
+                        : "flex items-baseline gap-2 mb-3.5 pb-2 border-b border-[var(--border)]";
+                    header.innerHTML = isFavoritesSection
+                        ? `
+                        <h3 class="text-sm font-bold text-amber-400 flex items-center gap-1.5">
+                            <span class="text-base">&#9733;</span> Favorites
+                        </h3>
+                        <span class="text-[11px] text-[var(--ink-muted)] flex-shrink-0 ml-auto">${groupAppsRaw.length} app${groupAppsRaw.length === 1 ? "" : "s"}</span>
+                    `
+                        : `
                         <h3 class="text-sm font-bold text-[var(--ink)]">${folderLabel(groupPath)}</h3>
                         <span class="text-[11px] font-mono text-[var(--ink-muted)] truncate" title="${groupPath}">${groupPath}</span>
                         <span class="text-[11px] text-[var(--ink-muted)] flex-shrink-0 ml-auto">${groupAppsRaw.length} app${groupAppsRaw.length === 1 ? "" : "s"}</span>
@@ -2959,7 +3040,7 @@ function toggleTheme() {
                     const grid = document.createElement("div");
                     grid.className = "app-grid";
 
-                    sortByUrgency(groupAppsRaw).forEach((app) => {
+                    sortAppsForDisplay(groupAppsRaw).forEach((app) => {
                         const idx = globalIdx++;
                         const card = document.createElement("div");
                         const isDirty = app.git.dirty;
@@ -3005,6 +3086,20 @@ function toggleTheme() {
                                </span>`
                             : "";
 
+                        const lastActivity = sortMode === "recent" ? relativeTime(app.lastActivityAt) : "";
+                        const lastActivityHtml = lastActivity
+                            ? `<span class="inline-flex items-center gap-1 text-[11px] text-[var(--ink-muted)] flex-shrink-0" title="Last build or version change on disk">
+                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                                 ${lastActivity}
+                               </span>`
+                            : "";
+
+                        const dirForFavorite = app.dir.replace(/\\/g, '/').replace(/'/g, "\\'");
+                        const favoriteStarHtml = `
+                            <button onclick="toggleFavorite('${dirForFavorite}')" class="${app.isFavorite ? 'text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.5)]' : 'text-[var(--ink-muted)] hover:text-amber-400'} transition text-2xl leading-none hover:scale-110" aria-label="${app.isFavorite ? 'Remove from favorites' : 'Add to favorites'}" title="${app.isFavorite ? 'Remove from favorites' : 'Add to favorites'}">
+                                ${app.isFavorite ? '&#9733;' : '&#9734;'}
+                            </button>`;
+
                         card.innerHTML = `
                             <div class="flex flex-col gap-3.5">
                                 <div class="flex items-start justify-between gap-3 flex-wrap">
@@ -3012,6 +3107,7 @@ function toggleTheme() {
                                         ${appIconHtml}
                                         <div class="min-w-0">
                                             <div class="flex items-center gap-2 flex-wrap">
+                                                ${favoriteStarHtml}
                                                 <h3 class="font-bold text-[var(--ink)] text-base truncate">${app.name}</h3>
                                                 ${getTechBadge(app.projectType)}
                                                 <button onclick="refreshSingleApp('${app.dir.replace(/\\/g, '\\\\')}', 'ic-${idx}')" class="text-[var(--ink-muted)] hover:text-[var(--ink)] transition text-xs" aria-label="Refresh ${app.name}" title="Refresh">
@@ -3025,6 +3121,7 @@ function toggleTheme() {
                                         </div>
                                     </div>
                                     <div class="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
+                                        ${lastActivityHtml}
                                         ${lastActiveHtml}
                                         ${branchChip(app.branch)}
                                         <span class="${gitBadgeClass}" title="${gitStatusTitle}"><span class="inline-block w-1.5 h-1.5 rounded-full bg-current mr-1 align-middle"></span>${gitStatusText}</span>
@@ -3063,7 +3160,20 @@ function toggleTheme() {
                         <tbody class="divide-y divide-slate-800">
                 `;
 
-                filteredApps.forEach((app, idx) => {
+                // Favorites get their own labeled block at the very top of the table too,
+                // instead of just being bubbled to the front of one continuous list.
+                const favoriteRows = filteredApps.filter(a => a.isFavorite).sort(compareByMode);
+                const otherRows = filteredApps.filter(a => !a.isFavorite).sort(compareByMode);
+                const orderedApps = [...favoriteRows, ...otherRows];
+
+                if (favoriteRows.length > 0) {
+                    tableHtml += `<tr><td colspan="4" class="px-4 py-2 bg-amber-500/10 text-amber-400 font-bold text-[11px] uppercase tracking-wider">&#9733; Favorites</td></tr>`;
+                }
+
+                orderedApps.forEach((app, idx) => {
+                    if (idx === favoriteRows.length && favoriteRows.length > 0) {
+                        tableHtml += `<tr><td colspan="4" class="px-4 py-2 bg-[var(--table-head)] text-slate-500 font-bold text-[11px] uppercase tracking-wider">All Apps</td></tr>`;
+                    }
                     const isBehind = app.git.behind > 0;
 
                     const pullAlert = isBehind
@@ -3076,6 +3186,12 @@ function toggleTheme() {
                         ? `<img src="${app.iconBase64}" class="w-6 h-6 rounded object-contain bg-[var(--bg)] border border-slate-800 shadow" alt="${app.name} Icon">`
                         : iconFallbackHtml(app, "w-6 h-6 rounded border border-slate-800", "text-[10px]");
 
+                    const dirForFavoriteRow = app.dir.replace(/\\/g, '/').replace(/'/g, "\\'");
+                    const favoriteStarRowHtml = `
+                        <button onclick="toggleFavorite('${dirForFavoriteRow}')" class="${app.isFavorite ? 'text-amber-400 drop-shadow-[0_0_4px_rgba(251,191,36,0.5)]' : 'text-slate-600 hover:text-amber-400'} transition text-lg leading-none hover:scale-110" aria-label="${app.isFavorite ? 'Remove from favorites' : 'Add to favorites'}" title="${app.isFavorite ? 'Remove from favorites' : 'Add to favorites'}">
+                            ${app.isFavorite ? '&#9733;' : '&#9734;'}
+                        </button>`;
+
                     tableHtml += `
                         <tr class="hover:bg-slate-900/20 transition">
                             <td class="px-4 py-3.5">
@@ -3083,6 +3199,7 @@ function toggleTheme() {
                                     ${appIconHtml}
                                     <div class="min-w-0">
                                         <div class="flex items-center gap-2 flex-wrap">
+                                            ${favoriteStarRowHtml}
                                             <span class="font-bold text-white">${app.name}</span>
                                             ${getTechBadge(app.projectType)}
                                             <button onclick="refreshSingleApp('${app.dir.replace(/\\/g, '\\\\')}', 'il-${idx}')" class="text-slate-600 hover:text-slate-300 transition" aria-label="Refresh ${app.name}" title="Rescan this app's versions and git status">
@@ -3355,8 +3472,11 @@ function toggleTheme() {
             dir = (dir || '').replace(/\\/g, '/');
             buildRunDir = dir;
             buildRunPlatform = platform;
-            var app = appsList.find(function(a) { return a.dir === dir; });
-            var verObj = app && app.versions && (app.versions.master || app.versions.ios || app.versions.android || app.versions.csproj);
+            // appsList entries keep the OS-native path (backslashes on Windows); normalize
+            // both sides before comparing or this lookup never matches and version/build
+            // always fall back to "--" in the progress modal.
+            var app = appsList.find(function(a) { return (a.dir || '').replace(/\\/g, '/') === dir; });
+            var verObj = app && app.versions && (app.versions.master || app.versions.iOS || app.versions.android || app.versions.csproj);
             buildRunVersion = verObj ? verObj.version : "";
             buildRunBuild = verObj ? verObj.build : "";
 
@@ -3738,7 +3858,7 @@ function toggleTheme() {
 
             var container = document.getElementById("bpLogContainer");
             if (container) {
-                container.className = "bg-[#070a11] rounded-xl p-3.5 h-44 overflow-y-auto font-mono text-xs space-y-0.5 select-text border border-slate-800/80 shadow-inner transition-all duration-300";
+                container.className = "bg-slate-950 rounded-xl p-3.5 h-44 overflow-y-auto font-mono text-xs space-y-0.5 select-text border border-slate-800/80 shadow-inner transition-all duration-300";
                 container.innerHTML = '<div class="text-slate-600 italic">Aguardando saída de log...</div>';
             }
             

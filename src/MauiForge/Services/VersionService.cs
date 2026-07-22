@@ -57,6 +57,29 @@ public partial class VersionService
         doc.Save(manifest);
     }
 
+    // Max last-write time across the version files that actually exist for this app
+    // (Info.plist / AndroidManifest.xml / csproj), used to sort "most recently changed"
+    // in the web dashboard. Null if none of them could be found.
+    public DateTimeOffset? GetVersionFilesLastWriteTime(string dir, string? csprojPath)
+    {
+        DateTimeOffset? latest = null;
+        void Consider(string? path)
+        {
+            if (path is null || !File.Exists(path)) return;
+            try
+            {
+                var written = File.GetLastWriteTimeUtc(path);
+                if (latest is null || written > latest) latest = written;
+            }
+            catch { /* file removed/locked between find and stat — ignore */ }
+        }
+
+        Consider(FindPlist(dir));
+        Consider(FindFile(dir, "AndroidManifest.xml"));
+        Consider(csprojPath);
+        return latest;
+    }
+
     // ── .csproj ─────────────────────────────────────────────────────────────
 
     public PlatformVersion? ReadCsproj(string csprojPath)

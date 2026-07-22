@@ -59,6 +59,14 @@ public static class WebStartup
         return preferredPort;
     }
 
+    private static string NormalizeDir(string dir) => (dir ?? "").Replace('\\', '/').TrimEnd('/');
+
+    private static List<AppEntry> WithFavorites(List<AppEntry> apps, PersistentState st)
+    {
+        if (st.FavoriteApps.Count == 0) return apps;
+        return apps.Select(a => a with { IsFavorite = st.FavoriteApps.Contains(NormalizeDir(a.Dir)) }).ToList();
+    }
+
     private static string GetBuildLogPath(string appName, string buildId)
     {
         var logsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".maui-forge", "build_logs");
@@ -396,7 +404,7 @@ public static class WebStartup
 
                     if (_hubContext != null)
                     {
-                        _ = _hubContext.Clients.All.SendAsync("ScanCompleted", freshApps);
+                        _ = _hubContext.Clients.All.SendAsync("ScanCompleted", WithFavorites(freshApps, curState));
                     }
                 }
                 catch (Exception ex)
@@ -405,7 +413,30 @@ public static class WebStartup
                 }
             });
 
-            return Results.Ok(cached);
+            return Results.Ok(WithFavorites(cached, st));
+        });
+
+        // Favorite toggle — flips membership in PersistentState.FavoriteApps, keyed by
+        // a slash-normalized dir so it matches regardless of how the caller wrote it.
+        app.MapPost("/api/apps/favorite", (StateService state, FavoriteRequest req) =>
+        {
+            var st = state.Load();
+            var key = NormalizeDir(req.Dir);
+
+            bool isFavorite;
+            if (st.FavoriteApps.Contains(key))
+            {
+                st.FavoriteApps.Remove(key);
+                isFavorite = false;
+            }
+            else
+            {
+                st.FavoriteApps.Add(key);
+                isFavorite = true;
+            }
+
+            state.Save(st);
+            return Results.Ok(new { isFavorite });
         });
 
         // Version Update Endpoint
@@ -876,7 +907,15 @@ public static class WebStartup
                         SaveRunConfig(st, req, csproj);
                         state.Save(st);
 
-                        if (exit == 0) await SendLog("===STEP:DONE===");
+                        // dotnet build -t:Run does build+deploy+launch for Android in a single
+                        // process — there's no separate CLI invocation to bracket a real "deploy"
+                        // phase like iOS has. Emit the marker here on success so the Deploy stage
+                        // gets marked done instead of staying stuck on "pending" forever.
+                        if (exit == 0)
+                        {
+                            await SendLog("===STEP:DEPLOY===");
+                            await SendLog("===STEP:DONE===");
+                        }
                         else await SendLog("===STEP:FAILED===");
                         await SendLog(exit == 0 ? "Android app launched successfully." : $"Android launch failed (exit {exit}).");
                         RecordBuildEnd(record, exit == 0 ? "Success" : "Failed", exit);
@@ -1298,6 +1337,7 @@ public static class WebStartup
 public record SetTokenRequest(string? Token);
 public record PathRequest(string Path);
 public record GitRequest(string Dir);
+public record FavoriteRequest(string Dir);
 public record GitPushRequest(string Dir, string Message);
 public record VersionUpdateRequest(string Dir, string Version, string Build);
 public record BuildRequest(string Dir, string Platform, string Configuration);

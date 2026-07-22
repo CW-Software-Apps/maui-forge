@@ -7,5 +7,7 @@ public record AppEntry(
     AppVersions Versions,
     GitStatus Git,
     string ProjectType = "MAUI",
-    string? IconBase64 = null
+    string? IconBase64 = null,
+    DateTimeOffset? LastActivityAt = null,
+    bool IsFavorite = false
 );
