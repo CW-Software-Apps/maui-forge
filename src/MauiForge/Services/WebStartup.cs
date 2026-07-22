@@ -1061,6 +1061,20 @@ public static class WebStartup
             }
         }
 
+        // Theme persistence endpoint (port-independent localStorage via backend)
+        app.MapGet("/api/theme", (StateService state) =>
+        {
+            var st = state.Load();
+            return Results.Ok(new { theme = st.Theme ?? "dark" });
+        });
+        app.MapPost("/api/theme", (StateService state, ThemeRequest req) =>
+        {
+            var st = state.Load();
+            st.Theme = req.Theme;
+            state.Save(st);
+            return Results.Ok(new { theme = st.Theme });
+        });
+
         app.MapHub<LogHub>("/hubs/logs");
         app.Run();
     }
@@ -1289,3 +1303,4 @@ public record DevicesResponse(List<DeviceItem> Devices);
 public record ConfigRequest(string Dir, string Platform);
 public record ConfigResponse(List<string> Configurations, List<string> Frameworks);
 public record RunRequest(string Dir, string Platform, string DeviceId, string DeviceName, string DeviceType, string Configuration, string Framework);
+public record ThemeRequest(string Theme);
