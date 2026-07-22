@@ -363,31 +363,88 @@
             display: none !important;
         }
 
-        /* Build Progress Stage Cards Styling */
+        /* Build Progress Stage Cards Styling & Color Themes */
         .bp-stage-card {
             background: rgba(15, 23, 42, 0.4);
             border-color: rgba(51, 65, 85, 0.5);
         }
         .bp-stage-pending {
-            opacity: 0.65;
+            opacity: 0.55;
             border-color: rgba(51, 65, 85, 0.4);
         }
-        .bp-stage-active {
+
+        /* Stage 1: Cyan */
+        .bp-stage-cyan.bp-stage-active {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(30, 58, 138, 0.35), rgba(15, 23, 42, 0.75));
-            border-color: rgba(59, 130, 246, 0.6);
-            box-shadow: 0 0 16px rgba(59, 130, 246, 0.18);
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.22), rgba(15, 23, 42, 0.85));
+            border-color: rgba(6, 182, 212, 0.65);
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
         }
-        .bp-stage-done {
+        .bp-stage-cyan.bp-stage-done {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(6, 78, 59, 0.25), rgba(15, 23, 42, 0.75));
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(15, 23, 42, 0.75));
+            border-color: rgba(6, 182, 212, 0.4);
+        }
+
+        /* Stage 2: Indigo */
+        .bp-stage-indigo.bp-stage-active {
+            opacity: 1;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(15, 23, 42, 0.85));
+            border-color: rgba(99, 102, 241, 0.65);
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+        }
+        .bp-stage-indigo.bp-stage-done {
+            opacity: 1;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(15, 23, 42, 0.75));
+            border-color: rgba(99, 102, 241, 0.4);
+        }
+
+        /* Stage 3: Amber */
+        .bp-stage-amber.bp-stage-active {
+            opacity: 1;
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(15, 23, 42, 0.85));
+            border-color: rgba(245, 158, 11, 0.65);
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
+        }
+        .bp-stage-amber.bp-stage-done {
+            opacity: 1;
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(15, 23, 42, 0.75));
+            border-color: rgba(245, 158, 11, 0.4);
+        }
+
+        /* Stage 4: Emerald */
+        .bp-stage-emerald.bp-stage-active {
+            opacity: 1;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(15, 23, 42, 0.85));
+            border-color: rgba(16, 185, 129, 0.65);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+        }
+        .bp-stage-emerald.bp-stage-done {
+            opacity: 1;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(15, 23, 42, 0.75));
             border-color: rgba(16, 185, 129, 0.4);
         }
+
         .bp-stage-failed {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(127, 29, 29, 0.3), rgba(15, 23, 42, 0.75));
-            border-color: rgba(239, 68, 68, 0.5);
+            background: linear-gradient(135deg, rgba(127, 29, 29, 0.3), rgba(15, 23, 42, 0.85));
+            border-color: rgba(239, 68, 68, 0.55);
         }
+
+        /* Equalizer Wave Animation for Processing Widget */
+        @keyframes bpEqualizerWave {
+            0%, 100% { height: 4px; }
+            50% { height: 18px; }
+        }
+        .bp-eq-bar {
+            width: 3px;
+            background: #38bdf8;
+            border-radius: 2px;
+            animation: bpEqualizerWave 1.1s ease-in-out infinite;
+        }
+        .bp-eq-bar:nth-child(2) { animation-delay: 0.2s; background: #818cf8; }
+        .bp-eq-bar:nth-child(3) { animation-delay: 0.4s; background: #fbbf24; }
+        .bp-eq-bar:nth-child(4) { animation-delay: 0.6s; background: #34d399; }
     </style>
 </head>
 <body class="h-full flex flex-col overflow-hidden">
@@ -945,149 +1002,224 @@
                 <div class="flex items-center justify-center py-6">
                     <span class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full spinning"></span>
                     <span class="ml-3 text-sm text-slate-400">Loading devices...</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Build Progress Modal -->
+        <!-- Build Progress Modal -->
     <div id="buildProgressModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="buildProgressTitle">
-        <div class="modal-panel" style="max-width:52rem; width:92vw;">
+        <div class="modal-panel" style="max-width:54rem; width:94vw;">
             <!-- Header -->
-            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/80 backdrop-blur">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 backdrop-blur">
                 <div class="flex items-center gap-3">
-                    <div id="bpHeaderBadge" class="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-                        <span id="bpHeaderIcon" class="w-3 h-3 rounded-full bg-blue-400 animate-ping"></span>
+                    <div id="bpHeaderBadge" class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                        <span id="bpHeaderIcon" class="w-3.5 h-3.5 rounded-full bg-blue-400 animate-ping"></span>
                     </div>
                     <div>
                         <div class="flex items-center gap-2">
-                            <h3 id="buildProgressTitle" class="font-bold text-white text-base">Build & Run Pipeline</h3>
-                            <span id="bpStatusBadge" class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30">Em Execução</span>
+                            <h3 id="buildProgressTitle" class="font-bold text-white text-base">Pipeline de Compilação & Execução</h3>
+                            <span id="bpStatusBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30">Em Execução</span>
                         </div>
-                        <p class="text-xs text-slate-400">Acompanhamento e histórico de execução por etapa</p>
+                        <p class="text-xs text-slate-400">Monitoramento dinâmico em tempo real do Build & Deploy</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-3">
-                    <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300">
-                        <span class="text-slate-500">Total:</span>
-                        <span id="bpTimer" class="text-blue-400 font-bold">0:00</span>
+                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 shadow-inner">
+                        <span class="text-slate-500">Tempo Total:</span>
+                        <span id="bpTimer" class="text-blue-400 font-bold text-sm">0:00</span>
                     </div>
                     <button onclick="closeBuildProgress()" class="w-8 h-8 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white transition flex items-center justify-center text-sm border border-slate-800" aria-label="Close build modal" title="Close">✕</button>
                 </div>
             </div>
 
             <div class="p-6 space-y-5" id="buildProgressBody">
-                <!-- Device & Config info cards -->
-                <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <!-- Target Device Specs Card -->
+                <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs shadow-sm">
                     <div class="space-y-0.5">
-                        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1">📱 Dispositivo</span>
-                        <div id="bpDeviceName" class="text-white font-medium truncate">--</div>
+                        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">📱 Dispositivo Alvo</span>
+                        <div id="bpDeviceName" class="text-white font-semibold truncate">--</div>
                     </div>
                     <div class="space-y-0.5">
-                        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1">💻 Plataforma</span>
-                        <div id="bpPlatform" class="text-white font-medium capitalize">--</div>
+                        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">💻 Plataforma</span>
+                        <div id="bpPlatform" class="text-cyan-400 font-medium capitalize">--</div>
                     </div>
                     <div class="space-y-0.5">
-                        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1">⚙️ Configuração</span>
-                        <div id="bpConfig" class="text-white font-medium">--</div>
+                        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">⚙️ Configuração</span>
+                        <div id="bpConfig" class="text-amber-400 font-medium">--</div>
                     </div>
                     <div class="space-y-0.5">
-                        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1">⚡ Build ID</span>
+                        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">⚡ ID da Build</span>
                         <div id="bpBuildId" class="text-slate-400 font-mono text-[11px] truncate">#--</div>
                     </div>
                 </div>
 
-                <!-- Multi-stage timeline grid with step timing -->
+                <!-- Stage Cards with Color Themes & Bar Charts -->
                 <div class="space-y-2.5">
-                    <div class="flex items-center justify-between text-xs text-slate-400 px-0.5">
-                        <span class="font-semibold uppercase tracking-wider text-[10px] text-slate-400">Histórico de Etapas do Processo</span>
-                        <span id="bpProgressPct" class="font-mono text-[11px] text-blue-400 font-bold">0%</span>
+                    <div class="flex items-center justify-between text-xs px-0.5">
+                        <span class="font-bold uppercase tracking-wider text-[10px] text-slate-400 flex items-center gap-1.5">
+                            📊 Progresso Visual das Etapas
+                        </span>
+                        <div class="flex items-center gap-2">
+                            <span id="bpStepsSummary" class="text-[11px] text-slate-400 font-medium">Etapa 1 de 4</span>
+                            <span id="bpProgressPct" class="font-mono text-xs text-blue-400 font-bold bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full">0%</span>
+                        </div>
                     </div>
 
-                    <!-- Progress bar -->
-                    <div class="h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800/60">
-                        <div id="bpProgressFill" class="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-400 rounded-full transition-all duration-700 ease-out" style="width: 0%"></div>
+                    <!-- Main Progress Bar -->
+                    <div class="h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800/80 shadow-inner">
+                        <div id="bpProgressFill" class="h-full bg-gradient-to-r from-cyan-500 via-indigo-500 to-emerald-400 rounded-full transition-all duration-700 ease-out" style="width: 0%"></div>
                     </div>
 
-                    <!-- 4 Stage Cards Grid -->
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-2.5 pt-1">
-                        <!-- Stage 1: Init -->
-                        <div id="bpStage_init" class="bp-stage-card bp-stage-active p-3 rounded-xl border transition-all duration-300">
-                            <div class="flex items-center justify-between mb-1.5">
-                                <span id="bpStageIcon_init" class="text-base">⚙️</span>
-                                <span id="bpStageDur_init" class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-blue-500/20 text-blue-400 border border-blue-500/30 font-medium animate-pulse">0s</span>
+                    <!-- 4 Distinct Color-Coded Stage Cards Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 pt-1">
+                        <!-- Stage 1: Init (Cyan) -->
+                        <div id="bpStage_init" class="bp-stage-card bp-stage-cyan bp-stage-active p-3.5 rounded-xl border transition-all duration-300 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center gap-1.5">
+                                        <span id="bpStageIcon_init" class="text-base">⚙️</span>
+                                        <span class="font-bold text-xs text-cyan-300">1. Inicialização</span>
+                                    </div>
+                                    <span id="bpStageDur_init" class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-medium animate-pulse">0s</span>
+                                </div>
+                                <div class="text-[10px] text-slate-400 truncate" title="Checagem de dispositivo e ambiente">Ambiente & Target</div>
                             </div>
-                            <div class="font-semibold text-xs text-white">1. Inicialização</div>
-                            <div class="text-[10px] text-slate-400 mt-0.5 truncate" title="Checagem de dispositivo e ambiente">Ambiente & Target</div>
+                            <!-- Mini Duration Bar Graph -->
+                            <div class="mt-3 space-y-1">
+                                <div class="h-1.5 bg-slate-950/80 rounded-full overflow-hidden border border-slate-800/50">
+                                    <div id="bpStageBar_init" class="h-full bg-cyan-400 rounded-full transition-all duration-500" style="width: 10%"></div>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Stage 2: Build -->
-                        <div id="bpStage_build" class="bp-stage-card bp-stage-pending p-3 rounded-xl border transition-all duration-300">
-                            <div class="flex items-center justify-between mb-1.5">
-                                <span id="bpStageIcon_build" class="text-base">🔨</span>
-                                <span id="bpStageDur_build" class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-800/60 text-slate-500 font-medium">--:--</span>
+                        <!-- Stage 2: Build (Indigo) -->
+                        <div id="bpStage_build" class="bp-stage-card bp-stage-indigo bp-stage-pending p-3.5 rounded-xl border transition-all duration-300 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center gap-1.5">
+                                        <span id="bpStageIcon_build" class="text-base">🔨</span>
+                                        <span class="font-bold text-xs text-slate-300">2. Compilação</span>
+                                    </div>
+                                    <span id="bpStageDur_build" class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-800/60 text-slate-500 font-medium">--:--</span>
+                                </div>
+                                <div class="text-[10px] text-slate-500 truncate" title="C#, XAML e assets nativos">.NET MAUI & Assets</div>
                             </div>
-                            <div class="font-semibold text-xs text-slate-300">2. Compilação</div>
-                            <div class="text-[10px] text-slate-500 mt-0.5 truncate" title="C#, XAML e assets nativos">.NET MAUI & Assets</div>
+                            <!-- Mini Duration Bar Graph -->
+                            <div class="mt-3 space-y-1">
+                                <div class="h-1.5 bg-slate-950/80 rounded-full overflow-hidden border border-slate-800/50">
+                                    <div id="bpStageBar_build" class="h-full bg-indigo-400 rounded-full transition-all duration-500" style="width: 0%"></div>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Stage 3: Deploy -->
-                        <div id="bpStage_deploy" class="bp-stage-card bp-stage-pending p-3 rounded-xl border transition-all duration-300">
-                            <div class="flex items-center justify-between mb-1.5">
-                                <span id="bpStageIcon_deploy" class="text-base">📦</span>
-                                <span id="bpStageDur_deploy" class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-800/60 text-slate-500 font-medium">--:--</span>
+                        <!-- Stage 3: Deploy (Amber) -->
+                        <div id="bpStage_deploy" class="bp-stage-card bp-stage-amber bp-stage-pending p-3.5 rounded-xl border transition-all duration-300 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center gap-1.5">
+                                        <span id="bpStageIcon_deploy" class="text-base">📦</span>
+                                        <span class="font-bold text-xs text-slate-300">3. Deploy</span>
+                                    </div>
+                                    <span id="bpStageDur_deploy" class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-800/60 text-slate-500 font-medium">--:--</span>
+                                </div>
+                                <div class="text-[10px] text-slate-500 truncate" title="Pacote e instalação no dispositivo">Transferência & APK/IPA</div>
                             </div>
-                            <div class="font-semibold text-xs text-slate-300">3. Deploy & Instalação</div>
-                            <div class="text-[10px] text-slate-500 mt-0.5 truncate" title="Pacote e instalação no dispositivo">Transferência & APK/IPA</div>
+                            <!-- Mini Duration Bar Graph -->
+                            <div class="mt-3 space-y-1">
+                                <div class="h-1.5 bg-slate-950/80 rounded-full overflow-hidden border border-slate-800/50">
+                                    <div id="bpStageBar_deploy" class="h-full bg-amber-400 rounded-full transition-all duration-500" style="width: 0%"></div>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Stage 4: Launch -->
-                        <div id="bpStage_launch" class="bp-stage-card bp-stage-pending p-3 rounded-xl border transition-all duration-300">
-                            <div class="flex items-center justify-between mb-1.5">
-                                <span id="bpStageIcon_launch" class="text-base">🚀</span>
-                                <span id="bpStageDur_launch" class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-800/60 text-slate-500 font-medium">--:--</span>
+                        <!-- Stage 4: Launch (Emerald) -->
+                        <div id="bpStage_launch" class="bp-stage-card bp-stage-emerald bp-stage-pending p-3.5 rounded-xl border transition-all duration-300 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center gap-1.5">
+                                        <span id="bpStageIcon_launch" class="text-base">🚀</span>
+                                        <span class="font-bold text-xs text-slate-300">4. Execução</span>
+                                    </div>
+                                    <span id="bpStageDur_launch" class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-800/60 text-slate-500 font-medium">--:--</span>
+                                </div>
+                                <div class="text-[10px] text-slate-500 truncate" title="Inicialização do Processo no Target">Launch & Verificação</div>
                             </div>
-                            <div class="font-semibold text-xs text-slate-300">4. Execução</div>
-                            <div class="text-[10px] text-slate-500 mt-0.5 truncate" title="Inicialização da Activity / App">Launch & Verificação</div>
+                            <!-- Mini Duration Bar Graph -->
+                            <div class="mt-3 space-y-1">
+                                <div class="h-1.5 bg-slate-950/80 rounded-full overflow-hidden border border-slate-800/50">
+                                    <div id="bpStageBar_launch" class="h-full bg-emerald-400 rounded-full transition-all duration-500" style="width: 0%"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Stall / Command active status banner -->
-                <div id="bpStallBanner" class="hidden flex items-center justify-between text-xs text-slate-300 bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-2.5">
-                    <div class="flex items-center gap-2.5 overflow-hidden">
-                        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping flex-shrink-0"></span>
-                        <span id="bpStallText" class="truncate font-mono text-[11px] text-cyan-300"></span>
+                <!-- LIVE ANIMATED PROCESSING CARD (Painel de processamento em tempo real) -->
+                <div class="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-slate-800/90 rounded-2xl p-4 space-y-3 shadow-xl relative overflow-hidden">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <!-- Equalizer Animation Widget -->
+                            <div class="h-6 flex items-end gap-1 px-2 py-1 bg-slate-950 rounded-lg border border-slate-800 flex-shrink-0">
+                                <span class="bp-eq-bar"></span>
+                                <span class="bp-eq-bar"></span>
+                                <span class="bp-eq-bar"></span>
+                                <span class="bp-eq-bar"></span>
+                            </div>
+                            <div class="overflow-hidden">
+                                <div class="text-xs font-bold text-white flex items-center gap-2">
+                                    <span>Processamento Ativo</span>
+                                    <span id="bpTaskStepTag" class="px-2 py-0.2 rounded text-[10px] font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">Inicializando...</span>
+                                </div>
+                                <div id="bpLiveActionName" class="text-[11px] text-slate-400 mt-0.5 font-medium truncate">Preparando ambiente e parâmetros de compilação</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 text-right flex-shrink-0">
+                            <div class="text-right">
+                                <div class="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Duração Ação</div>
+                                <div id="bpLiveActionTimer" class="font-mono text-xs text-cyan-400 font-bold">0s</div>
+                            </div>
+                        </div>
                     </div>
-                    <span class="text-[10px] uppercase font-bold text-slate-500 tracking-wider flex-shrink-0 ml-2">Comando Ativo</span>
+
+                    <!-- Live Command Line Box -->
+                    <div class="bg-[#070a11] rounded-xl p-2.5 border border-slate-800/80 font-mono text-[11px] text-slate-300 flex items-center justify-between gap-3 overflow-hidden">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="text-cyan-500 select-none">$</span>
+                            <span id="bpLiveCmdText" class="truncate text-slate-300">Aguardando comando...</span>
+                        </div>
+                        <span id="bpLiveCmdStatus" class="text-[10px] px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 font-sans flex-shrink-0">Em execução</span>
+                    </div>
+
+                    <!-- Inactivity / Stall Banner -->
+                    <div id="bpStallBanner" class="hidden flex items-center justify-between text-xs text-amber-300 bg-amber-950/30 border border-amber-500/30 rounded-xl px-3 py-1.5">
+                        <span id="bpStallText" class="truncate font-mono text-[11px]">Ainda processando (sem saída)</span>
+                        <span class="text-[10px] uppercase font-bold text-amber-400 flex-shrink-0">Status: Ativo</span>
+                    </div>
                 </div>
 
-                <!-- Terminal Output Console -->
+                <!-- Collapsible Terminal Output Console -->
                 <div class="space-y-1.5">
                     <div class="flex items-center justify-between text-xs text-slate-400 px-0.5">
                         <div class="flex items-center gap-2">
-                            <span class="font-semibold text-slate-300">Console de Saída</span>
+                            <button onclick="toggleBpLogCollapse()" class="flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-white transition">
+                                <span id="bpLogCollapseIcon" class="text-blue-400 text-xs">▼</span>
+                                <span>Console de Saída Detalhado</span>
+                            </button>
                             <span id="bpLogCount" class="text-[10px] bg-slate-900 border border-slate-800 text-slate-500 px-1.5 py-0.2 rounded font-mono">0 linhas</span>
                         </div>
                         <div class="flex items-center gap-2">
-                            <div class="relative">
-                                <input type="text" id="bpLogSearch" oninput="filterBpLogs()" placeholder="Filtrar saída..." class="bg-slate-950 border border-slate-800 rounded px-2 py-0.5 text-[11px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 w-32 md:w-44" />
-                            </div>
+                            <input type="text" id="bpLogSearch" oninput="filterBpLogs()" placeholder="Filtrar saída..." class="bg-slate-950 border border-slate-800 rounded px-2 py-0.5 text-[11px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 w-32 md:w-44" />
                             <button onclick="toggleBpLogAutoScroll()" id="bpAutoScrollBtn" class="text-[11px] text-blue-400 border border-blue-500/50 bg-slate-900 px-2 py-0.5 rounded transition hover:text-white flex items-center gap-1" title="Alternar rolagem automática">
                                 <span>↓ Auto-scroll</span>
                             </button>
-                            <button onclick="copyBpLogs()" class="text-[11px] text-slate-300 hover:text-white transition flex items-center gap-1 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded" title="Copiar logs para a área de transferência">
+                            <button onclick="copyBpLogs()" class="text-[11px] text-slate-300 hover:text-white transition flex items-center gap-1 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded" title="Copiar logs">
                                 <span>📋 Copiar Log</span>
                             </button>
                         </div>
                     </div>
-                    <div id="bpLogContainer" class="bg-[#090d16] rounded-xl p-3.5 h-52 overflow-y-auto font-mono text-xs space-y-0.5 select-text border border-slate-800/80 shadow-inner">
+                    <div id="bpLogContainer" class="bg-[#070a11] rounded-xl p-3.5 h-44 overflow-y-auto font-mono text-xs space-y-0.5 select-text border border-slate-800/80 shadow-inner transition-all duration-300">
                         <div class="text-slate-600 italic">Aguardando saída de log...</div>
                     </div>
                 </div>
 
                 <!-- Result Card (hidden until done) -->
-                <div id="bpResult" class="hidden border border-slate-800 bg-slate-950/80 rounded-xl p-4 flex flex-col items-center text-center gap-2">
+                <div id="bpResult" class="hidden border border-slate-800 bg-slate-950/90 rounded-xl p-4 flex flex-col items-center text-center gap-2">
                     <div id="bpResultIcon" class="text-4xl"></div>
                     <div id="bpResultText" class="text-base font-bold"></div>
                     <div id="bpResultDetail" class="text-xs text-slate-400 font-mono"></div>
@@ -3332,17 +3464,19 @@
             }
         }
 
-        /* ── Build & Run Progress Modal (Enhanced Timeline & Step Durations) ─────── */
+        /* ── Build & Run Progress Modal (Enhanced Visual Graphs & Processing Widget) ── */
 
         const BP_STEPS = [
-            { id: "init",   name: "1. Inicialização", icon: "⚙️", pct: 15 },
-            { id: "build",  name: "2. Compilação", icon: "🔨", pct: 55 },
-            { id: "deploy", name: "3. Deploy & Instalação", icon: "📦", pct: 85 },
-            { id: "launch", name: "4. Execução", icon: "🚀", pct: 100 }
+            { id: "init",   name: "1. Inicialização", icon: "⚙️", theme: "cyan", colorHex: "#06b6d4", pct: 15, label: "Ambiente & Target" },
+            { id: "build",  name: "2. Compilação", icon: "🔨", theme: "indigo", colorHex: "#6366f1", pct: 55, label: "C#, XAML & Native Assets" },
+            { id: "deploy", name: "3. Deploy & Instalação", icon: "📦", theme: "amber", colorHex: "#f59e0b", pct: 85, label: "Transferência & Pacote APK/IPA" },
+            { id: "launch", name: "4. Execução", icon: "🚀", theme: "emerald", colorHex: "#10b981", pct: 100, label: "Launch & Verificação" }
         ];
 
         var bpStepStates = {};
         var currentBpStepId = "init";
+        var liveActionStartTime = Date.now();
+        var bpLogCollapsed = false;
 
         function resetBpStepStates() {
             bpStepStates = {
@@ -3352,6 +3486,7 @@
                 launch: { status: "pending", startTime: null, durationSec: null }
             };
             currentBpStepId = "init";
+            liveActionStartTime = Date.now();
         }
 
         function formatDuration(seconds) {
@@ -3371,41 +3506,73 @@
             }
             var bar = document.getElementById("bpProgressFill");
             if (bar) bar.style.width = pct + "%";
+            
             var pctEl = document.getElementById("bpProgressPct");
             if (pctEl) pctEl.textContent = pct + "%";
+
+            var summaryEl = document.getElementById("bpStepsSummary");
+            if (summaryEl) {
+                summaryEl.textContent = buildProgressActive 
+                    ? ("Etapa " + (activeIdx >= 0 ? activeIdx + 1 : 1) + " de 4") 
+                    : (pct === 100 ? "4 de 4 Concluídas" : "Finalizado");
+            }
+
+            var totalElapsedSec = buildProgressStartTime ? Math.max(1, Math.floor((Date.now() - buildProgressStartTime) / 1000)) : 1;
 
             BP_STEPS.forEach(function(step) {
                 var state = bpStepStates[step.id];
                 var card = document.getElementById("bpStage_" + step.id);
                 var iconEl = document.getElementById("bpStageIcon_" + step.id);
                 var durEl = document.getElementById("bpStageDur_" + step.id);
+                var barEl = document.getElementById("bpStageBar_" + step.id);
                 if (!card || !durEl || !state) return;
 
-                card.className = "bp-stage-card p-3 rounded-xl border transition-all duration-300 ";
+                card.className = "bp-stage-card bp-stage-" + step.theme + " p-3.5 rounded-xl border transition-all duration-300 flex flex-col justify-between ";
+
+                var stepDurSec = 0;
 
                 if (state.status === "active") {
                     card.className += "bp-stage-active";
                     if (iconEl) iconEl.textContent = step.icon;
-                    var elapsedSec = state.startTime ? Math.floor((Date.now() - state.startTime) / 1000) : 0;
-                    durEl.className = "px-2 py-0.5 rounded-full text-[10px] font-mono bg-blue-500/20 text-blue-400 border border-blue-500/30 font-medium animate-pulse";
-                    durEl.textContent = "⏱️ " + formatDuration(elapsedSec);
+                    stepDurSec = state.startTime ? Math.floor((Date.now() - state.startTime) / 1000) : 0;
+                    durEl.className = "px-2 py-0.5 rounded-full text-[10px] font-mono bg-" + step.theme + "-500/20 text-" + step.theme + "-300 border border-" + step.theme + "-500/30 font-medium animate-pulse";
+                    durEl.textContent = "⏱️ " + formatDuration(stepDurSec);
                 } else if (state.status === "done") {
                     card.className += "bp-stage-done";
                     if (iconEl) iconEl.textContent = "✅";
+                    stepDurSec = state.durationSec || 0;
                     durEl.className = "px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium";
-                    durEl.textContent = "✓ " + formatDuration(state.durationSec);
+                    durEl.textContent = "✓ " + formatDuration(stepDurSec);
                 } else if (state.status === "failed") {
                     card.className += "bp-stage-failed";
                     if (iconEl) iconEl.textContent = "❌";
+                    stepDurSec = state.durationSec || 0;
                     durEl.className = "px-2 py-0.5 rounded-full text-[10px] font-mono bg-red-500/20 text-red-400 border border-red-500/30 font-medium";
-                    durEl.textContent = "✕ " + formatDuration(state.durationSec);
+                    durEl.textContent = "✕ " + formatDuration(stepDurSec);
                 } else {
                     card.className += "bp-stage-pending";
                     if (iconEl) iconEl.textContent = step.icon;
                     durEl.className = "px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-800/60 text-slate-500 font-medium";
                     durEl.textContent = "--:--";
                 }
+
+                // Mini duration bar chart calculation
+                if (barEl) {
+                    if (state.status === "active" || state.status === "done" || state.status === "failed") {
+                        var ratio = Math.min(100, Math.max(10, Math.round((stepDurSec / totalElapsedSec) * 100)));
+                        barEl.style.width = ratio + "%";
+                    } else {
+                        barEl.style.width = "0%";
+                    }
+                }
             });
+
+            // Update live action timer in processing card
+            var liveTimerEl = document.getElementById("bpLiveActionTimer");
+            if (liveTimerEl && buildProgressActive) {
+                var actionSec = Math.floor((Date.now() - liveActionStartTime) / 1000);
+                liveTimerEl.textContent = actionSec + "s";
+            }
         }
 
         function updateBuildStep(stepId) {
@@ -3424,6 +3591,19 @@
             currentBpStepId = stepId;
             bpStepStates[stepId].status = "active";
             bpStepStates[stepId].startTime = now;
+            liveActionStartTime = now;
+
+            // Update live processing widget step tag
+            var targetStepObj = BP_STEPS.find(function(s) { return s.id === stepId; });
+            var tagEl = document.getElementById("bpTaskStepTag");
+            var nameEl = document.getElementById("bpLiveActionName");
+            if (tagEl && targetStepObj) {
+                tagEl.textContent = targetStepObj.name;
+                tagEl.className = "px-2 py-0.2 rounded text-[10px] font-mono bg-" + targetStepObj.theme + "-500/20 text-" + targetStepObj.theme + "-300 border border-" + targetStepObj.theme + "-500/30";
+            }
+            if (nameEl && targetStepObj) {
+                nameEl.textContent = targetStepObj.label;
+            }
 
             renderBpStepsUI();
         }
@@ -3452,7 +3632,7 @@
                 badge.className = "px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30";
             }
             var headerIcon = document.getElementById("bpHeaderIcon");
-            if (headerIcon) headerIcon.className = "w-3 h-3 rounded-full bg-blue-400 animate-ping";
+            if (headerIcon) headerIcon.className = "w-3.5 h-3.5 rounded-full bg-blue-400 animate-ping";
 
             // Reset step timeline & start Init stage
             resetBpStepStates();
@@ -3469,12 +3649,15 @@
 
             var container = document.getElementById("bpLogContainer");
             if (container) {
-                container.className = "bg-[#090d16] rounded-xl p-3.5 h-52 overflow-y-auto font-mono text-xs space-y-0.5 select-text border border-slate-800/80 shadow-inner";
+                container.className = "bg-[#070a11] rounded-xl p-3.5 h-44 overflow-y-auto font-mono text-xs space-y-0.5 select-text border border-slate-800/80 shadow-inner transition-all duration-300";
                 container.innerHTML = '<div class="text-slate-600 italic">Aguardando saída de log...</div>';
             }
             
             var countEl = document.getElementById("bpLogCount");
             if (countEl) countEl.textContent = "0 linhas";
+
+            var liveCmdText = document.getElementById("bpLiveCmdText");
+            if (liveCmdText) liveCmdText.textContent = "Iniciando compilação do projeto...";
 
             document.getElementById("bpResult").classList.add("hidden");
             document.getElementById("bpTimer").textContent = "0:00";
@@ -3528,6 +3711,8 @@
             if (msg === "===STEP:FAILED===") { finalizeBuildProgress(false); return; }
             if (msg.startsWith("===CMD:") && msg.endsWith("===")) {
                 currentHeavyCommand = msg.slice(7, -3);
+                var liveCmdText = document.getElementById("bpLiveCmdText");
+                if (liveCmdText) liveCmdText.textContent = currentHeavyCommand;
                 noteBuildActivity();
                 return;
             }
@@ -3541,6 +3726,14 @@
                 updateBuildStep("launch");
             }
 
+            // Update live action text from informative log messages
+            if (msg.length > 5 && !msg.startsWith("[") && !msg.startsWith("✔") && !msg.startsWith("===")) {
+                var liveActionName = document.getElementById("bpLiveActionName");
+                if (liveActionName && msg.length < 120) {
+                    liveActionName.textContent = msg;
+                }
+            }
+
             if (msg.indexOf("launched successfully") >= 0 || msg.indexOf("APLICATIVO IOS LANÇADO COM SUCESSO") >= 0) {
                 appendBuildLog(msg, "text-emerald-400 font-semibold");
                 finalizeBuildProgress(true);
@@ -3552,6 +3745,28 @@
                 return;
             }
             appendBuildLog(msg);
+        }
+
+        function toggleBpLogCollapse() {
+            bpLogCollapsed = !bpLogCollapsed;
+            var container = document.getElementById("bpLogContainer");
+            var icon = document.getElementById("bpLogCollapseIcon");
+            if (!container) return;
+            if (bpLogCollapsed) {
+                container.style.height = "0px";
+                container.style.paddingTop = "0px";
+                container.style.paddingBottom = "0px";
+                container.style.overflow = "hidden";
+                container.style.border = "none";
+                if (icon) icon.textContent = "▶";
+            } else {
+                container.style.height = "11rem";
+                container.style.paddingTop = "0.875rem";
+                container.style.paddingBottom = "0.875rem";
+                container.style.overflowY = "auto";
+                container.style.border = "";
+                if (icon) icon.textContent = "▼";
+            }
         }
 
         function appendBuildLog(message, className) {
