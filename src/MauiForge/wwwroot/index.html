@@ -1425,6 +1425,28 @@
                 if (!document.getElementById("buildHistoryModal").classList.contains("hidden")) {
                     loadBuildHistoryData();
                 }
+                if (typeof loadApps === "function") loadApps();
+                if (record && record.status === "Running" && record.id) {
+                    var isActive = typeof buildProgressActive !== "undefined" && buildProgressActive;
+                    if (!isActive && typeof showBuildProgress === "function") {
+                        showBuildProgress(record.deviceName || "Desconhecido", record.platform || "Auto", record.configuration || "Release", record.id, record.version || "--", record.buildNumber || "--");
+                    } else {
+                        var vEl = document.getElementById("bpVersion");
+                        var bEl = document.getElementById("bpBuild");
+                        if (vEl && record.version && record.version !== "--") vEl.textContent = record.version;
+                        if (bEl && record.buildNumber && record.buildNumber !== "--") bEl.textContent = record.buildNumber;
+                    }
+                }
+            });
+
+            connection.on("PlaySfx", function (type) {
+                if (typeof playAudioSfx === "function") playAudioSfx(type);
+            });
+
+            connection.on("SfxStateChanged", function (enabled) {
+                sfxEnabled = enabled;
+                localStorage.setItem("maui_forge_sfx", enabled ? "true" : "false");
+                if (typeof updateSfxBtnUI === "function") updateSfxBtnUI();
             });
 
             connection.on("LogReceived", function (message) {
@@ -2123,49 +2145,7 @@
                 : "btn-ghost text-xs py-1.5 px-2.5 text-slate-500 opacity-60";
         }
 
-        var hubConnection = null;
-        var buildProgressActive = false;
-
-        function initSignalR() {
-            if (typeof signalR === "undefined") return;
-            if (hubConnection) {
-                try { hubConnection.stop(); } catch (e) {}
-            }
-            const hubUrl = API_BASE ? (API_BASE + "/logHub") : "/logHub";
-            hubConnection = new signalR.HubConnectionBuilder()
-                .withUrl(hubUrl)
-                .withAutomaticReconnect()
-                .build();
-
-            hubConnection.on("BuildStatusUpdated", function (record) {
-                if (typeof loadApps === "function") loadApps();
-                if (record && record.status === "Running" && record.id) {
-                    var isActive = typeof buildProgressActive !== "undefined" && buildProgressActive;
-                    if (!isActive && typeof showBuildProgress === "function") {
-                        showBuildProgress(record.deviceName || "Desconhecido", record.platform || "Auto", record.configuration || "Release", record.id, record.version || "--", record.buildNumber || "--");
-                    } else {
-                        var vEl = document.getElementById("bpVersion");
-                        var bEl = document.getElementById("bpBuild");
-                        if (vEl && record.version && record.version !== "--") vEl.textContent = record.version;
-                        if (bEl && record.buildNumber && record.buildNumber !== "--") bEl.textContent = record.buildNumber;
-                    }
-                }
-            });
-
-            hubConnection.on("PlaySfx", function (type) {
-                playAudioSfx(type);
-            });
-
-            hubConnection.on("SfxStateChanged", function (enabled) {
-                sfxEnabled = enabled;
-                localStorage.setItem("maui_forge_sfx", enabled ? "true" : "false");
-                updateSfxBtnUI();
-            });
-
-            hubConnection.start().catch(function (err) {
-                console.warn("SignalR hub connection failed:", err);
-            });
-        }
+        // SignalR listeners handled by primary initSignalR()
 
         // Theme (data-theme is already set pre-paint by the inline script in <head>)
         function updateThemeToggle() {
