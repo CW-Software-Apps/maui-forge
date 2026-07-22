@@ -2123,7 +2123,8 @@
                 : "btn-ghost text-xs py-1.5 px-2.5 text-slate-500 opacity-60";
         }
 
-        let hubConnection = null;
+        var hubConnection = null;
+        var buildProgressActive = false;
 
         function initSignalR() {
             if (typeof signalR === "undefined") return;
@@ -2139,7 +2140,8 @@
             hubConnection.on("BuildStatusUpdated", function (record) {
                 if (typeof loadApps === "function") loadApps();
                 if (record && record.status === "Running" && record.id) {
-                    if (!buildProgressActive) {
+                    var isActive = typeof buildProgressActive !== "undefined" && buildProgressActive;
+                    if (!isActive && typeof showBuildProgress === "function") {
                         showBuildProgress(record.deviceName || "Desconhecido", record.platform || "Auto", record.configuration || "Release", record.id, record.version || "--", record.buildNumber || "--");
                     } else {
                         var vEl = document.getElementById("bpVersion");
