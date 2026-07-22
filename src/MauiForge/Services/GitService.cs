@@ -36,7 +36,40 @@ public class GitService
             lastCommit = parsed;
         }
 
-        return new GitStatus(Ahead: ahead, Behind: behind, Dirty: dirty, LastCommit: lastCommit);
+        var remoteUrl = RunGit(dir, "remote", "get-url", "origin").Trim();
+        var gitHubUrl = ToGitHubUrl(remoteUrl);
+
+        return new GitStatus(Ahead: ahead, Behind: behind, Dirty: dirty, LastCommit: lastCommit, GitHubUrl: gitHubUrl);
+    }
+
+    // Normalizes SSH (git@github.com:owner/repo.git) and HTTPS
+    // (https://github.com/owner/repo.git) remotes to a browsable https URL.
+    // Returns null for non-GitHub remotes so the "Open on GitHub" button only
+    // shows up where it actually applies.
+    private static string? ToGitHubUrl(string remoteUrl)
+    {
+        if (string.IsNullOrWhiteSpace(remoteUrl)) return null;
+
+        string? ownerRepo = null;
+        if (remoteUrl.StartsWith("git@github.com:", StringComparison.OrdinalIgnoreCase))
+        {
+            ownerRepo = remoteUrl["git@github.com:".Length..];
+        }
+        else if (remoteUrl.Contains("github.com/", StringComparison.OrdinalIgnoreCase))
+        {
+            var idx = remoteUrl.IndexOf("github.com/", StringComparison.OrdinalIgnoreCase);
+            ownerRepo = remoteUrl[(idx + "github.com/".Length)..];
+        }
+
+        if (ownerRepo is null) return null;
+
+        ownerRepo = ownerRepo.Trim().TrimEnd('/');
+        if (ownerRepo.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+        {
+            ownerRepo = ownerRepo[..^".git".Length];
+        }
+
+        return string.IsNullOrWhiteSpace(ownerRepo) ? null : $"https://github.com/{ownerRepo}";
     }
 
     public GitStatus FetchAndGetStatus(string dir)
