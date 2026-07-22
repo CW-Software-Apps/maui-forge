@@ -848,7 +848,8 @@
          subtly broken (buttons doing nothing) with no explanation. -->
     <div id="localHealthBanner" class="hidden" style="position:fixed; top:64px; left:50%; transform:translateX(-50%); z-index:71; display:flex; align-items:center; gap:10px; padding:10px 16px; border-radius:10px; background:var(--red-subtle); border:1px solid color-mix(in oklch, var(--red) 40%, transparent); box-shadow:0 10px 25px rgba(0,0,0,0.35); max-width:90vw;">
         <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:var(--red);"></span>
-        <span class="text-xs font-medium" style="color:var(--red);">This machine's MAUI Forge isn't responding — it may have crashed or been closed. Reopen it (desktop shortcut, or run <code class="font-mono">maui-forge</code> in a terminal) to restart, then retry.</span>
+        <span class="text-xs font-medium" style="color:var(--red);">MAUI Forge offline.</span>
+        <button onclick="relaunchMauiForge()" class="text-xs font-semibold flex-shrink-0 px-2.5 py-1 rounded-lg" style="background:var(--accent); color:var(--ink-inverse);">Relançar</button>
         <button onclick="retryLocalHealthCheck()" class="text-xs font-semibold flex-shrink-0" style="color:var(--accent);">Retry</button>
     </div>
 
@@ -2541,6 +2542,12 @@ function toggleTheme() {
                     showToast("Still not responding", "error");
                 }
             }).catch(function () { showToast("Still not responding", "error"); });
+        }
+
+        function relaunchMauiForge() {
+            var cmd = "maui-forge";
+            try { navigator.clipboard.writeText(cmd); } catch(e) {}
+            showToast("Comando \"" + cmd + "\" copiado! Cole no terminal para relançar.", "info");
         }
 
         var remoteHealthInterval = null;
