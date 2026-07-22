@@ -703,6 +703,7 @@ public static class WebStartup
                     await SendLog($"Device: {req.DeviceName} ({req.DeviceId})");
                     await SendLog($"Config: {req.Configuration} | Framework: {req.Framework}");
                     await SendLog("=========================================");
+                    await SendLog("===STEP:INIT===");
 
                     var outputLines = new List<string>();
                     void OnLine(string line) { _ = SendLog(line); lock (outputLines) { outputLines.Add(line); } }
