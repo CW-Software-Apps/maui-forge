@@ -829,7 +829,30 @@ public static class WebStartup
                     await SendLog("===STEP:INIT===");
 
                     var outputLines = new List<string>();
-                    void OnLine(string line) { _ = SendLog(line); lock (outputLines) { outputLines.Add(line); } }
+                    var androidDeployLaunchSignaled = false;
+                    void OnLine(string line)
+                    {
+                        _ = SendLog(line);
+                        lock (outputLines) { outputLines.Add(line); }
+
+                        // For Android, `dotnet build -t:Run` builds, deploys, and launches the app
+                        // inside one blocking process — after a successful launch it keeps attaching
+                        // to the device's logcat and never returns on its own, so waiting for the
+                        // process to exit before marking Deploy/Launch done would leave the progress
+                        // UI stuck indefinitely even though the app is already running. MSBuild's
+                        // "Build succeeded." summary only prints once every requested target (Build
+                        // and the chained Run target) has completed, so it's a reliable signal that
+                        // deploy + launch already happened.
+                        if (!androidDeployLaunchSignaled
+                            && req.Platform.Equals("android", StringComparison.OrdinalIgnoreCase)
+                            && line.Trim() == "Build succeeded.")
+                        {
+                            androidDeployLaunchSignaled = true;
+                            _ = SendLog("===STEP:DEPLOY===");
+                            _ = SendLog("===STEP:LAUNCH===");
+                            _ = SendLog("===STEP:DONE===");
+                        }
+                    }
 
                     int exit = 0;
                     if (req.Platform.Equals("ios", StringComparison.OrdinalIgnoreCase))
