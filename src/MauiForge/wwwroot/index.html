@@ -392,62 +392,62 @@
         /* Stage 1: Cyan */
         .bp-stage-cyan.bp-stage-active {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(15, 23, 42, 0.95));
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), var(--surface-raised));
             border-color: rgba(6, 182, 212, 0.85);
             box-shadow: 0 8px 24px -4px rgba(6, 182, 212, 0.35);
             transform: translateY(-2px);
         }
         .bp-stage-cyan.bp-stage-done {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(15, 23, 42, 0.7));
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), var(--surface-raised));
             border-color: rgba(6, 182, 212, 0.45);
         }
 
         /* Stage 2: Indigo */
         .bp-stage-indigo.bp-stage-active {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(99, 102, 241, 0.28), rgba(15, 23, 42, 0.95));
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.28), var(--surface-raised));
             border-color: rgba(99, 102, 241, 0.85);
             box-shadow: 0 8px 24px -4px rgba(99, 102, 241, 0.35);
             transform: translateY(-2px);
         }
         .bp-stage-indigo.bp-stage-done {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(15, 23, 42, 0.7));
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), var(--surface-raised));
             border-color: rgba(99, 102, 241, 0.45);
         }
 
         /* Stage 3: Amber */
         .bp-stage-amber.bp-stage-active {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.28), rgba(15, 23, 42, 0.95));
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.28), var(--surface-raised));
             border-color: rgba(245, 158, 11, 0.85);
             box-shadow: 0 8px 24px -4px rgba(245, 158, 11, 0.35);
             transform: translateY(-2px);
         }
         .bp-stage-amber.bp-stage-done {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(15, 23, 42, 0.7));
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), var(--surface-raised));
             border-color: rgba(245, 158, 11, 0.45);
         }
 
         /* Stage 4: Emerald */
         .bp-stage-emerald.bp-stage-active {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.28), rgba(15, 23, 42, 0.95));
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.28), var(--surface-raised));
             border-color: rgba(16, 185, 129, 0.85);
             box-shadow: 0 8px 24px -4px rgba(16, 185, 129, 0.35);
             transform: translateY(-2px);
         }
         .bp-stage-emerald.bp-stage-done {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(15, 23, 42, 0.7));
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), var(--surface-raised));
             border-color: rgba(16, 185, 129, 0.45);
         }
 
         .bp-stage-failed {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(127, 29, 29, 0.35), rgba(15, 23, 42, 0.9));
+            background: linear-gradient(135deg, rgba(127, 29, 29, 0.35), var(--surface-raised));
             border-color: rgba(239, 68, 68, 0.65);
             box-shadow: 0 8px 24px -4px rgba(239, 68, 68, 0.3);
         }
@@ -462,15 +462,15 @@
             width: 6px;
         }
         #bpLogContainer::-webkit-scrollbar-track {
-            background: rgba(2, 6, 23, 0.8);
+            background: color-mix(in oklch, var(--bg) 80%, transparent);
             border-radius: 4px;
         }
         #bpLogContainer::-webkit-scrollbar-thumb {
-            background: rgba(51, 65, 85, 0.7);
+            background: color-mix(in oklch, var(--ink-muted) 45%, transparent);
             border-radius: 4px;
         }
         #bpLogContainer::-webkit-scrollbar-thumb:hover {
-            background: rgba(100, 116, 139, 0.9);
+            background: color-mix(in oklch, var(--ink-muted) 65%, transparent);
         }
 
         /* Equalizer Wave Animation for Processing Widget */
@@ -1316,19 +1316,19 @@
         @keyframes bpSpin { to { transform: rotate(360deg); } }
         .bp-spinner {
             width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%;
-            border: 2px solid rgba(148,163,184,.25);
+            border: 2px solid color-mix(in oklch, var(--ink-muted) 25%, transparent);
             border-top-color: var(--accent);
             animation: bpSpin 0.8s linear infinite;
         }
         #bpLogContainer::-webkit-scrollbar { width: 4px; }
-        #bpLogContainer::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 2px; }
+        #bpLogContainer::-webkit-scrollbar-thumb { background: color-mix(in oklch, var(--ink-muted) 30%, transparent); border-radius: 2px; }
         .bp-log-error { color: var(--red); }
         .bp-log-warn { color: var(--amber); }
         .bp-log-ok { color: var(--green); }
         .bp-log-step { color: var(--accent); font-weight: 600; }
-        .bp-log-info { color: rgb(148 163 184); }
+        .bp-log-info { color: var(--ink-muted); }
         .bp-ind { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-        .bp-ind-pending { background: rgb(71 85 105); }
+        .bp-ind-pending { background: var(--border-hover); }
         .bp-ind-active { background: var(--accent); animation: pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite; }
         .bp-ind-done { background: var(--green); }
         .bp-ind-failed { background: var(--red); }
@@ -3931,10 +3931,14 @@ function toggleTheme() {
                     durEl.textContent = "--:--";
                 }
 
-                // Stage progress indicator fill: 100% when active, done, or failed; 0% when pending
+                // Stage progress indicator fill: only reaches 100% once the stage has actually
+                // finished (done/failed). While active it's still in progress, so hold it partway
+                // instead of jumping to full — otherwise the bar looks complete before the step is.
                 if (barEl) {
-                    if (state.status === "active" || state.status === "done" || state.status === "failed") {
+                    if (state.status === "done" || state.status === "failed") {
                         barEl.style.width = "100%";
+                    } else if (state.status === "active") {
+                        barEl.style.width = "40%";
                     } else {
                         barEl.style.width = "0%";
                     }
