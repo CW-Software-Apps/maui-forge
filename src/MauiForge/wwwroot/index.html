@@ -377,68 +377,100 @@
         .bp-stage-card {
             background: var(--surface);
             border-color: var(--border);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        .bp-stage-card:hover {
+            transform: translateY(-2px);
         }
         .bp-stage-pending {
-            opacity: 0.55;
+            opacity: 0.5;
             border-color: var(--border);
         }
 
         /* Stage 1: Cyan */
         .bp-stage-cyan.bp-stage-active {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(6, 182, 212, 0.22), var(--surface));
-            border-color: rgba(6, 182, 212, 0.65);
-            box-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(15, 23, 42, 0.95));
+            border-color: rgba(6, 182, 212, 0.85);
+            box-shadow: 0 8px 24px -4px rgba(6, 182, 212, 0.35);
+            transform: translateY(-2px);
         }
         .bp-stage-cyan.bp-stage-done {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), var(--surface));
-            border-color: rgba(6, 182, 212, 0.4);
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(15, 23, 42, 0.7));
+            border-color: rgba(6, 182, 212, 0.45);
         }
 
         /* Stage 2: Indigo */
         .bp-stage-indigo.bp-stage-active {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), var(--surface));
-            border-color: rgba(99, 102, 241, 0.65);
-            box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.28), rgba(15, 23, 42, 0.95));
+            border-color: rgba(99, 102, 241, 0.85);
+            box-shadow: 0 8px 24px -4px rgba(99, 102, 241, 0.35);
+            transform: translateY(-2px);
         }
         .bp-stage-indigo.bp-stage-done {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), var(--surface));
-            border-color: rgba(99, 102, 241, 0.4);
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(15, 23, 42, 0.7));
+            border-color: rgba(99, 102, 241, 0.45);
         }
 
         /* Stage 3: Amber */
         .bp-stage-amber.bp-stage-active {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), var(--surface));
-            border-color: rgba(245, 158, 11, 0.65);
-            box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.28), rgba(15, 23, 42, 0.95));
+            border-color: rgba(245, 158, 11, 0.85);
+            box-shadow: 0 8px 24px -4px rgba(245, 158, 11, 0.35);
+            transform: translateY(-2px);
         }
         .bp-stage-amber.bp-stage-done {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), var(--surface));
-            border-color: rgba(245, 158, 11, 0.4);
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(15, 23, 42, 0.7));
+            border-color: rgba(245, 158, 11, 0.45);
         }
 
         /* Stage 4: Emerald */
         .bp-stage-emerald.bp-stage-active {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), var(--surface));
-            border-color: rgba(16, 185, 129, 0.65);
-            box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.28), rgba(15, 23, 42, 0.95));
+            border-color: rgba(16, 185, 129, 0.85);
+            box-shadow: 0 8px 24px -4px rgba(16, 185, 129, 0.35);
+            transform: translateY(-2px);
         }
         .bp-stage-emerald.bp-stage-done {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), var(--surface));
-            border-color: rgba(16, 185, 129, 0.4);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(15, 23, 42, 0.7));
+            border-color: rgba(16, 185, 129, 0.45);
         }
 
         .bp-stage-failed {
             opacity: 1;
-            background: linear-gradient(135deg, rgba(127, 29, 29, 0.3), var(--surface));
-            border-color: rgba(239, 68, 68, 0.55);
+            background: linear-gradient(135deg, rgba(127, 29, 29, 0.35), rgba(15, 23, 42, 0.9));
+            border-color: rgba(239, 68, 68, 0.65);
+            box-shadow: 0 8px 24px -4px rgba(239, 68, 68, 0.3);
+        }
+
+        /* Progress Fill Shimmer & Glow */
+        #bpProgressFill {
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.5), 0 0 20px rgba(6, 182, 212, 0.3);
+        }
+
+        /* Custom Scrollbar for Build Terminal Output */
+        #bpLogContainer::-webkit-scrollbar {
+            width: 6px;
+        }
+        #bpLogContainer::-webkit-scrollbar-track {
+            background: rgba(2, 6, 23, 0.8);
+            border-radius: 4px;
+        }
+        #bpLogContainer::-webkit-scrollbar-thumb {
+            background: rgba(51, 65, 85, 0.7);
+            border-radius: 4px;
+        }
+        #bpLogContainer::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 116, 139, 0.9);
         }
 
         /* Equalizer Wave Animation for Processing Widget */
@@ -450,11 +482,12 @@
             width: 3px;
             background: #38bdf8;
             border-radius: 2px;
+            box-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
             animation: bpEqualizerWave 1.1s ease-in-out infinite;
         }
-        .bp-eq-bar:nth-child(2) { animation-delay: 0.2s; background: #818cf8; }
-        .bp-eq-bar:nth-child(3) { animation-delay: 0.4s; background: #fbbf24; }
-        .bp-eq-bar:nth-child(4) { animation-delay: 0.6s; background: #34d399; }
+        .bp-eq-bar:nth-child(2) { animation-delay: 0.2s; background: #818cf8; box-shadow: 0 0 6px rgba(129, 140, 248, 0.6); }
+        .bp-eq-bar:nth-child(3) { animation-delay: 0.4s; background: #fbbf24; box-shadow: 0 0 6px rgba(251, 191, 36, 0.6); }
+        .bp-eq-bar:nth-child(4) { animation-delay: 0.6s; background: #34d399; box-shadow: 0 0 6px rgba(52, 211, 153, 0.6); }
     </style>
 </head>
 <body class="h-full flex flex-col overflow-hidden">
@@ -1027,56 +1060,56 @@
 
     <!-- Build Progress Modal -->
     <div id="buildProgressModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="buildProgressTitle">
-        <div class="modal-panel" style="max-width:54rem; width:94vw;">
+        <div class="modal-panel shadow-2xl border border-slate-700/60" style="max-width:56rem; width:94vw; border-radius: 1.25rem; overflow: hidden;">
             <!-- Header -->
-            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 backdrop-blur">
-                <div class="flex items-center gap-3">
-                    <div id="bpHeaderBadge" class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+            <div class="px-6 py-4 border-b border-slate-800/90 flex items-center justify-between bg-gradient-to-r from-slate-900/95 via-slate-900/90 to-slate-950/95 backdrop-blur-md">
+                <div class="flex items-center gap-3.5">
+                    <div id="bpHeaderBadge" class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-sm">
                         <span id="bpHeaderIcon" class="w-3.5 h-3.5 rounded-full bg-blue-400 animate-ping"></span>
                     </div>
                     <div>
-                        <div class="flex items-center gap-2">
-                            <h3 id="buildProgressTitle" class="font-bold text-white text-base">Pipeline de Compilação & Execução</h3>
-                            <span id="bpStatusBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30">Em Execução</span>
+                        <div class="flex items-center gap-2.5">
+                            <h3 id="buildProgressTitle" class="font-extrabold text-white text-base tracking-tight">Pipeline de Compilação & Execução</h3>
+                            <span id="bpStatusBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-sm">Em Execução</span>
                         </div>
-                        <p class="text-xs text-slate-400">Monitoramento dinâmico em tempo real do Build & Deploy</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Monitoramento dinâmico em tempo real do Build & Deploy</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-3">
-                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 shadow-inner">
-                        <span class="text-slate-500">Tempo Total:</span>
+                    <div class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-950/90 border border-slate-800/90 font-mono text-xs text-slate-300 shadow-inner">
+                        <span class="text-slate-500 text-[11px]">⏱️ Tempo:</span>
                         <span id="bpTimer" class="text-blue-400 font-bold text-sm">0:00</span>
                     </div>
-                    <button onclick="closeBuildProgress()" class="w-8 h-8 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white transition flex items-center justify-center text-sm border border-slate-800" aria-label="Close build modal" title="Close">✕</button>
+                    <button onclick="closeBuildProgress()" class="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white transition flex items-center justify-center text-sm border border-slate-800/80 shadow-sm" aria-label="Close build modal" title="Fechar">✕</button>
                 </div>
             </div>
 
-            <div class="p-6 space-y-5" id="buildProgressBody">
-                <!-- Target Device Specs Card -->
-                <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 grid grid-cols-2 md:grid-cols-6 gap-3 text-xs shadow-sm">
-                    <div class="space-y-0.5">
-                        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">📱 Dispositivo Alvo</span>
-                        <div id="bpDeviceName" class="text-white font-semibold truncate">--</div>
+            <div class="p-6 space-y-5 bg-slate-950/40" id="buildProgressBody">
+                <!-- Target Device Specs Card Grid -->
+                <div class="bg-gradient-to-r from-slate-950/90 via-slate-900/70 to-slate-950/90 border border-slate-800/80 rounded-2xl p-3.5 grid grid-cols-2 md:grid-cols-6 gap-2.5 text-xs shadow-md backdrop-blur-sm">
+                    <div class="bg-slate-900/50 border border-slate-800/60 rounded-xl p-2 flex flex-col justify-between hover:border-slate-700/60 transition-colors">
+                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">📱 Dispositivo</span>
+                        <div id="bpDeviceName" class="text-white font-semibold truncate text-xs mt-0.5">--</div>
                     </div>
-                    <div class="space-y-0.5">
-                        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">💻 Plataforma</span>
-                        <div id="bpPlatform" class="text-cyan-400 font-medium capitalize">--</div>
+                    <div class="bg-slate-900/50 border border-slate-800/60 rounded-xl p-2 flex flex-col justify-between hover:border-slate-700/60 transition-colors">
+                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">💻 Plataforma</span>
+                        <div id="bpPlatform" class="text-cyan-400 font-medium capitalize text-xs mt-0.5">--</div>
                     </div>
-                    <div class="space-y-0.5">
-                        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">⚙️ Configuração</span>
-                        <div id="bpConfig" class="text-amber-400 font-medium">--</div>
+                    <div class="bg-slate-900/50 border border-slate-800/60 rounded-xl p-2 flex flex-col justify-between hover:border-slate-700/60 transition-colors">
+                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">⚙️ Config</span>
+                        <div id="bpConfig" class="text-amber-400 font-medium text-xs mt-0.5">--</div>
                     </div>
-                    <div class="space-y-0.5">
-                        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">📦 Versão</span>
-                        <div id="bpVersion" class="text-indigo-400 font-mono font-semibold text-[11px]">--</div>
+                    <div class="bg-slate-900/50 border border-slate-800/60 rounded-xl p-2 flex flex-col justify-between hover:border-slate-700/60 transition-colors">
+                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">📦 Versão</span>
+                        <div id="bpVersion" class="text-indigo-400 font-mono font-semibold text-[11px] mt-0.5">--</div>
                     </div>
-                    <div class="space-y-0.5">
-                        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">🔢 Build</span>
-                        <div id="bpBuild" class="text-emerald-400 font-mono font-semibold text-[11px]">--</div>
+                    <div class="bg-slate-900/50 border border-slate-800/60 rounded-xl p-2 flex flex-col justify-between hover:border-slate-700/60 transition-colors">
+                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">🔢 Build</span>
+                        <div id="bpBuild" class="text-emerald-400 font-mono font-semibold text-[11px] mt-0.5">--</div>
                     </div>
-                    <div class="space-y-0.5">
-                        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">⚡ ID da Build</span>
-                        <div id="bpBuildId" class="text-slate-400 font-mono text-[11px] truncate">#--</div>
+                    <div class="bg-slate-900/50 border border-slate-800/60 rounded-xl p-2 flex flex-col justify-between hover:border-slate-700/60 transition-colors">
+                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">⚡ ID Build</span>
+                        <div id="bpBuildId" class="text-slate-400 font-mono text-[11px] truncate mt-0.5">#--</div>
                     </div>
                 </div>
 
@@ -1088,12 +1121,12 @@
                         </span>
                         <div class="flex items-center gap-2">
                             <span id="bpStepsSummary" class="text-[11px] text-slate-400 font-medium">Etapa 1 de 4</span>
-                            <span id="bpProgressPct" class="font-mono text-xs text-blue-400 font-bold bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full">0%</span>
+                            <span id="bpProgressPct" class="font-mono text-xs text-blue-400 font-bold bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 rounded-full shadow-sm">0%</span>
                         </div>
                     </div>
 
                     <!-- Main Progress Bar -->
-                    <div class="h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800/80 shadow-inner">
+                    <div class="h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800/80 shadow-inner">
                         <div id="bpProgressFill" class="h-full bg-gradient-to-r from-cyan-500 via-indigo-500 to-emerald-400 rounded-full transition-all duration-700 ease-out" style="width: 0%"></div>
                     </div>
 
@@ -1183,10 +1216,11 @@
 
                 <!-- LIVE ANIMATED PROCESSING CARD (Painel de processamento em tempo real) -->
                 <div class="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-slate-800/90 rounded-2xl p-4 space-y-3 shadow-xl relative overflow-hidden">
+                    <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-cyan-500 via-indigo-500 to-emerald-400 opacity-85 animate-pulse"></div>
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
                             <!-- Equalizer Animation Widget -->
-                            <div class="h-6 flex items-end gap-1 px-2 py-1 bg-slate-950 rounded-lg border border-slate-800 flex-shrink-0">
+                            <div class="h-6 flex items-end gap-1 px-2 py-1 bg-slate-950 rounded-lg border border-slate-800 flex-shrink-0 shadow-inner">
                                 <span class="bp-eq-bar"></span>
                                 <span class="bp-eq-bar"></span>
                                 <span class="bp-eq-bar"></span>
@@ -1209,16 +1243,16 @@
                     </div>
 
                     <!-- Live Command Line Box -->
-                    <div class="bg-slate-950 rounded-xl p-2.5 border border-slate-800/80 font-mono text-[11px] text-slate-300 flex items-center justify-between gap-3 overflow-hidden">
+                    <div class="bg-slate-950/90 rounded-xl p-3 border border-slate-800/80 font-mono text-[11px] text-slate-300 flex items-center justify-between gap-3 overflow-hidden shadow-inner">
                         <div class="flex items-center gap-2 overflow-hidden">
-                            <span class="text-cyan-500 select-none">$</span>
+                            <span class="text-cyan-400 font-bold select-none">$</span>
                             <span id="bpLiveCmdText" class="truncate text-slate-300">Aguardando comando...</span>
                         </div>
                         <span id="bpLiveCmdStatus" class="text-[10px] px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 font-sans flex-shrink-0">Em execução</span>
                     </div>
 
                     <!-- Inactivity / Stall Banner -->
-                    <div id="bpStallBanner" class="hidden flex items-center justify-between text-xs text-amber-300 bg-amber-950/30 border border-amber-500/30 rounded-xl px-3 py-1.5">
+                    <div id="bpStallBanner" class="hidden flex items-center justify-between text-xs text-amber-300 bg-amber-950/40 border border-amber-500/40 rounded-xl px-3.5 py-2 shadow-sm">
                         <span id="bpStallText" class="truncate font-mono text-[11px]">Ainda processando (sem saída)</span>
                         <span class="text-[10px] uppercase font-bold text-amber-400 flex-shrink-0">Status: Ativo</span>
                     </div>
@@ -1232,31 +1266,31 @@
                                 <span id="bpLogCollapseIcon" class="text-blue-400 text-xs">▼</span>
                                 <span>Console de Saída Detalhado</span>
                             </button>
-                            <span id="bpLogCount" class="text-[10px] bg-slate-900 border border-slate-800 text-slate-500 px-1.5 py-0.2 rounded font-mono">0 linhas</span>
+                            <span id="bpLogCount" class="text-[10px] bg-slate-900/90 border border-slate-800/90 text-slate-400 px-2 py-0.5 rounded-md font-mono">0 linhas</span>
                         </div>
                         <div class="flex items-center gap-2">
-                            <input type="text" id="bpLogSearch" oninput="filterBpLogs()" placeholder="Filtrar saída..." class="bg-slate-950 border border-slate-800 rounded px-2 py-0.5 text-[11px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 w-32 md:w-44" />
-                            <button onclick="toggleBpLogAutoScroll()" id="bpAutoScrollBtn" class="text-[11px] text-blue-400 border border-blue-500/50 bg-slate-900 px-2 py-0.5 rounded transition hover:text-white flex items-center gap-1" title="Alternar rolagem automática">
+                            <input type="text" id="bpLogSearch" oninput="filterBpLogs()" placeholder="Filtrar saída..." class="bg-slate-950 border border-slate-800/90 rounded-lg px-2.5 py-1 text-[11px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/30 w-32 md:w-44 transition-all" />
+                            <button onclick="toggleBpLogAutoScroll()" id="bpAutoScrollBtn" class="text-[11px] text-blue-400 border border-blue-500/50 bg-slate-900 px-2.5 py-1 rounded-lg transition hover:text-white flex items-center gap-1 shadow-sm" title="Alternar rolagem automática">
                                 <span>↓ Auto-scroll</span>
                             </button>
-                            <button onclick="copyBpLogs()" class="text-[11px] text-slate-300 hover:text-white transition flex items-center gap-1 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded" title="Copiar logs">
+                            <button onclick="copyBpLogs()" class="text-[11px] text-slate-300 hover:text-white transition flex items-center gap-1 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg shadow-sm" title="Copiar logs">
                                 <span>📋 Copiar Log</span>
                             </button>
                         </div>
                     </div>
-                    <div id="bpLogContainer" class="bg-slate-950 rounded-xl p-3.5 h-44 overflow-y-auto font-mono text-xs space-y-0.5 select-text border border-slate-800/80 shadow-inner transition-all duration-300">
+                    <div id="bpLogContainer" class="bg-slate-950/95 rounded-xl p-3.5 h-44 overflow-y-auto font-mono text-[11px] leading-relaxed space-y-0.5 select-text border border-slate-800/90 shadow-inner transition-all duration-300">
                         <div class="text-slate-600 italic">Aguardando saída de log...</div>
                     </div>
                 </div>
 
                 <!-- Result Card (hidden until done) -->
-                <div id="bpResult" class="hidden border border-slate-800 bg-slate-950/90 rounded-xl p-4 flex flex-col items-center text-center gap-2">
+                <div id="bpResult" class="hidden border border-slate-800/90 bg-slate-950/95 rounded-2xl p-5 flex flex-col items-center text-center gap-2 shadow-2xl backdrop-blur-md">
                     <div id="bpResultIcon" class="text-4xl"></div>
                     <div id="bpResultText" class="text-base font-bold"></div>
                     <div id="bpResultDetail" class="text-xs text-slate-400 font-mono"></div>
-                    <div class="flex items-center gap-2 mt-2">
-                        <button onclick="copyBpLogs()" class="btn-ghost px-4 py-2 text-xs font-semibold flex items-center gap-1.5" title="Copiar log de saída">📋 Copiar Logs</button>
-                        <button onclick="closeBuildProgress()" class="btn-primary px-6 py-2 text-xs font-semibold" title="Fechar modal">Fechar</button>
+                    <div class="flex items-center gap-2.5 mt-2">
+                        <button onclick="copyBpLogs()" class="btn-ghost px-4 py-2 text-xs font-semibold flex items-center gap-1.5 rounded-xl" title="Copiar log de saída">📋 Copiar Logs</button>
+                        <button onclick="closeBuildProgress()" class="btn-primary px-6 py-2 text-xs font-semibold rounded-xl" title="Fechar modal">Fechar</button>
                     </div>
                 </div>
             </div>
@@ -3806,11 +3840,14 @@ function toggleTheme() {
             { id: "init",   name: "1. Inicialização", icon: "⚙️", theme: "cyan", colorHex: "#06b6d4", pct: 15, label: "Ambiente & Target" },
             { id: "build",  name: "2. Compilação", icon: "🔨", theme: "indigo", colorHex: "#6366f1", pct: 55, label: "C#, XAML & Native Assets" },
             { id: "deploy", name: "3. Deploy & Instalação", icon: "📦", theme: "amber", colorHex: "#f59e0b", pct: 85, label: "Transferência & Pacote APK/IPA" },
-            { id: "launch", name: "4. Execução", icon: "🚀", theme: "emerald", colorHex: "#10b981", pct: 100, label: "Launch & Verificação" }
+            { id: "launch", name: "4. Execução", icon: "🚀", theme: "emerald", colorHex: "#10b981", pct: 95, label: "Launch & Verificação" }
         ];
+
+        const STEP_ORDER = { init: 1, build: 2, deploy: 3, launch: 4 };
 
         var bpStepStates = {};
         var currentBpStepId = "init";
+        var maxBpPct = 0;
         var liveActionStartTime = Date.now();
         var bpLogCollapsed = false;
 
@@ -3822,6 +3859,7 @@ function toggleTheme() {
                 launch: { status: "pending", startTime: null, durationSec: null }
             };
             currentBpStepId = "init";
+            maxBpPct = 0;
             liveActionStartTime = Date.now();
         }
 
@@ -3835,11 +3873,14 @@ function toggleTheme() {
 
         function renderBpStepsUI() {
             var activeIdx = BP_STEPS.findIndex(function(s) { return s.id === currentBpStepId; });
-            var pct = activeIdx >= 0 ? BP_STEPS[activeIdx].pct : 0;
+            var targetPct = activeIdx >= 0 ? BP_STEPS[activeIdx].pct : 0;
             if (!buildProgressActive) {
                 var allDone = Object.values(bpStepStates).every(function(s) { return s.status === "done"; });
-                pct = allDone ? 100 : (activeIdx >= 0 ? BP_STEPS[activeIdx].pct : 0);
+                targetPct = allDone ? 100 : targetPct;
             }
+            maxBpPct = Math.max(maxBpPct, targetPct);
+            var pct = maxBpPct;
+            
             var bar = document.getElementById("bpProgressFill");
             if (bar) bar.style.width = pct + "%";
             
@@ -3852,8 +3893,6 @@ function toggleTheme() {
                     ? ("Etapa " + (activeIdx >= 0 ? activeIdx + 1 : 1) + " de 4") 
                     : (pct === 100 ? "4 de 4 Concluídas" : "Finalizado");
             }
-
-            var totalElapsedSec = buildProgressStartTime ? Math.max(1, Math.floor((Date.now() - buildProgressStartTime) / 1000)) : 1;
 
             BP_STEPS.forEach(function(step) {
                 var state = bpStepStates[step.id];
@@ -3892,11 +3931,10 @@ function toggleTheme() {
                     durEl.textContent = "--:--";
                 }
 
-                // Mini duration bar chart calculation
+                // Stage progress indicator fill: 100% when active, done, or failed; 0% when pending
                 if (barEl) {
                     if (state.status === "active" || state.status === "done" || state.status === "failed") {
-                        var ratio = Math.min(100, Math.max(10, Math.round((stepDurSec / totalElapsedSec) * 100)));
-                        barEl.style.width = ratio + "%";
+                        barEl.style.width = "100%";
                     } else {
                         barEl.style.width = "0%";
                     }
@@ -3913,15 +3951,29 @@ function toggleTheme() {
 
         function updateBuildStep(stepId) {
             if (!bpStepStates[stepId]) return;
+
+            // Prevent regressing to an earlier step
+            if (STEP_ORDER[stepId] < STEP_ORDER[currentBpStepId]) {
+                return;
+            }
+
             if (currentBpStepId === stepId && bpStepStates[stepId].status === "active") return;
 
             var now = Date.now();
-            // Close out previous step
+            // Close out previous step as done
             if (currentBpStepId && bpStepStates[currentBpStepId] && bpStepStates[currentBpStepId].status === "active") {
                 bpStepStates[currentBpStepId].status = "done";
                 var start = bpStepStates[currentBpStepId].startTime || buildProgressStartTime;
                 bpStepStates[currentBpStepId].durationSec = Math.max(1, Math.round((now - start) / 1000));
             }
+
+            // Mark any earlier skipped steps as done
+            Object.keys(STEP_ORDER).forEach(function(sid) {
+                if (STEP_ORDER[sid] < STEP_ORDER[stepId] && bpStepStates[sid].status === "pending") {
+                    bpStepStates[sid].status = "done";
+                    bpStepStates[sid].durationSec = bpStepStates[sid].durationSec || 1;
+                }
+            });
 
             // Activate target step
             currentBpStepId = stepId;
@@ -3947,6 +3999,7 @@ function toggleTheme() {
         function showBuildProgress(deviceName, platform, config, buildId, version, buildNum) {
             buildProgressActive = true;
             buildProgressStartTime = Date.now();
+            maxBpPct = 0;
             activeBuildId = buildId || null;
             lastPolledLogLength = 0;
             seenLogLines.clear();
