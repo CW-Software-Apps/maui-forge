@@ -667,6 +667,7 @@ public static class WebStartup
                     await SendLog("=========================================");
                     await SendLog($"Starting Build for platform {req.Platform}...");
                     await SendLog("=========================================");
+                    await SendLog("===STEP:INIT===");
 
                     var buildArgs = new List<string> { "build" };
                     if (req.Platform.Equals("Android", StringComparison.OrdinalIgnoreCase))
@@ -684,6 +685,7 @@ public static class WebStartup
                         buildArgs.Add("Release");
                     }
 
+                    await SendLog("===STEP:BUILD===");
                     await SendLog("===CMD:dotnet " + string.Join(' ', buildArgs) + "===");
                     int exitCode = builder.Run(dir, buildArgs.ToArray(), line =>
                     {
@@ -696,10 +698,15 @@ public static class WebStartup
                         await SendLog("=========================================");
                         await SendLog($"Build process completed with exit code: {exitCode}");
                         await SendLog("=========================================");
+                        if (exitCode == 0)
+                            await SendLog("===STEP:DONE===");
+                        else
+                            await SendLog("===STEP:FAILED===");
                         RecordBuildEnd(record, exitCode == 0 ? "Success" : "Failed", exitCode);
                     }
                     else
                     {
+                        await SendLog("===STEP:FAILED===");
                         RecordBuildEnd(record, "Cancelled", -1, "Cancelled by user");
                     }
                 }
@@ -707,6 +714,7 @@ public static class WebStartup
                 {
                     _runningBuilds.TryRemove(req.Dir, out _);
                     await SendLog($"[Error] Build failed to start: {ex.Message}");
+                    await SendLog("===STEP:FAILED===");
                     RecordBuildEnd(record, "Failed", -1, ex.Message);
                 }
             });

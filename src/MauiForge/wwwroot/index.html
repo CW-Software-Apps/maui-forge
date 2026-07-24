@@ -4108,15 +4108,6 @@ function toggleTheme() {
                 return;
             }
 
-            // Auto step transition detection from standard MSBuild / Android logs
-            if (/Compilando|Building project|dotnet build/i.test(msg) && currentBpStepId === "init") {
-                updateBuildStep("build");
-            } else if (/Installing|Instalando|Deploying|adb install/i.test(msg) && (currentBpStepId === "init" || currentBpStepId === "build")) {
-                updateBuildStep("deploy");
-            } else if (/Starting Activity|Launching|Iniciando|Launched application/i.test(msg) && currentBpStepId !== "launch") {
-                updateBuildStep("launch");
-            }
-
             // Update live action text from informative log messages
             if (msg.length > 5 && !msg.startsWith("[") && !msg.startsWith("✔") && !msg.startsWith("===")) {
                 var liveActionName = document.getElementById("bpLiveActionName");
