@@ -1114,6 +1114,12 @@ public static class WebStartup
                     {
                         _ = SendLog(line);
 
+                        // Detecta auto-answer de restart do dotnet watch
+                        if (line.Contains("[auto-answered:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _ = SendLog("===STEP:RESTARTING===");
+                        }
+
                         if (line.Contains("Build succeeded", StringComparison.OrdinalIgnoreCase))
                         {
                             if (!initialBuildDone)

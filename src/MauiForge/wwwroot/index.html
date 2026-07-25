@@ -4344,6 +4344,22 @@ function toggleTheme() {
             if (msg === "===STEP:LAUNCH===") { updateBuildStep("launch"); return; }
             if (msg === "===STEP:DONE===") { updateBuildStep("launch"); finalizeBuildProgress(true); return; }
             if (msg === "===STEP:FAILED===") { finalizeBuildProgress(false); return; }
+            if (msg === "===STEP:RESTARTING===") {
+                // HotReload está reiniciando o app — mostra aviso no modal
+                var restartText = document.getElementById("bpResultText");
+                var restartIcon = document.getElementById("bpResultIcon");
+                if (restartText) {
+                    restartText.textContent = "🔄 Reiniciando aplicativo...";
+                    restartText.className = "text-base font-bold text-amber-400";
+                }
+                if (restartIcon) restartIcon.textContent = "🔄";
+                var restartDetail = document.getElementById("bpResultDetail");
+                if (restartDetail) restartDetail.textContent = "Hot Reload reiniciou o app após alteração estrutural";
+                // Re-abre o result se tiver sido fechado
+                var bpResult = document.getElementById("bpResult");
+                if (bpResult) bpResult.classList.remove("hidden");
+                return;
+            }
             if (msg.startsWith("===CMD:") && msg.endsWith("===")) {
                 currentHeavyCommand = msg.slice(7, -3);
                 var liveCmdText = document.getElementById("bpLiveCmdText");
