@@ -2184,6 +2184,28 @@
             loadVersionInfo();
             updateSfxBtnUI();
             initSignalR();
+
+            // Heartbeat — sync HotReload status with backend (prevents stale badge)
+            setInterval(async function() {
+                try {
+                    var res = await origFetch(API_BASE + "/api/status");
+                    if (res.ok) {
+                        var data = await res.json();
+                        if (data.hotReloadActive && data.hotReloadActive.length === 0) {
+                            // Backend says no active HotReload — clean up stale frontend state
+                            if (hotReloadActive) {
+                                hotReloadActive = false;
+                                hotReloadDir = null;
+                                var hb = document.getElementById("hotReloadBadge");
+                                var hhb = document.getElementById("hotReloadHeaderBadge");
+                                if (hb) hb.classList.add("hidden");
+                                if (hhb) hhb.classList.add("hidden");
+                                document.getElementById("cancelBuildBtn").classList.add("hidden");
+                            }
+                        }
+                    }
+                } catch(e) {}
+            }, 10000);
         });
 
         // ── SFX Web Audio Synthesizer ───────────────────────────────────────────

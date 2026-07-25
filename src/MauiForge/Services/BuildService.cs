@@ -9,6 +9,12 @@ public class BuildService
     public bool IsHotReloadActive(string dir) =>
         _hotReloadProcesses.TryGetValue(dir, out var proc) && proc is not null && !proc.HasExited;
 
+    public List<string> GetActiveHotReloadDirs() =>
+        _hotReloadProcesses
+            .Where(kvp => kvp.Value is not null && !kvp.Value.HasExited)
+            .Select(kvp => kvp.Key)
+            .ToList();
+
     public System.Diagnostics.Process? StartHotReload(string dir, string[] args, Action<string> onLine, Dictionary<string, string>? envVars = null)
     {
         try

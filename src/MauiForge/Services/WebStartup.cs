@@ -229,7 +229,7 @@ public static class WebStartup
         _hubContext = app.Services.GetRequiredService<IHubContext<LogHub>>();
 
         // Status endpoint for Mac Tray / Agent Status
-        app.MapGet("/api/status", () =>
+        app.MapGet("/api/status", (BuildService builder) =>
         {
             var activeCount = _runningBuilds.Count;
             var isIdle = activeCount == 0;
@@ -257,7 +257,8 @@ public static class WebStartup
                 buildsSuccess = success,
                 buildsFailed = failed,
                 version = typeof(WebStartup).Assembly.GetName().Version?.ToString(3) ?? "1.6.35",
-                port
+                port,
+                hotReloadActive = builder.GetActiveHotReloadDirs(),
             });
         });
 
