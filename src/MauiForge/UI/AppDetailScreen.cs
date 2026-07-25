@@ -1345,9 +1345,11 @@ public class AppDetailScreen(
 
         if (cfg.BuildConfiguration is not null && !cfg.BuildConfiguration.Equals("Debug", StringComparison.OrdinalIgnoreCase))
         {
-            AnsiConsole.MarkupLine("  [red]x  Hot Reload requires [bold]Debug[/] build configuration.[/]");
-            AnsiConsole.MarkupLine("  [dim]Switch to Debug before starting Hot Reload.[/]");
-            Pause(); return;
+            AnsiConsole.MarkupLine($"  [yellow]⚠  Current configuration is [bold]{Markup.Escape(cfg.BuildConfiguration)}[/], but Hot Reload requires [bold]Debug[/].[/]");
+            if (!AnsiConsole.Confirm("  Switch to Debug and continue?"))
+            {
+                Pause(); return;
+            }
         }
         cfg.BuildConfiguration = "Debug";
         cfg.AndroidFramework   = PickFramework(csproj, "android", cfg.AndroidFramework ?? "net10.0-android");

@@ -1078,9 +1078,9 @@ public static class WebStartup
                 return Results.Ok(new { Success = false, Error = "No .csproj found." });
 
             var cfg = st.AppBuildConfigs.TryGetValue(dir, out var c) ? c : new AppBuildConfig();
-            var config = cfg.BuildConfiguration ?? "Debug";
-            if (!config.Equals("Debug", StringComparison.OrdinalIgnoreCase))
-                return Results.Ok(new { Success = false, Error = "Hot Reload requires Debug build configuration." });
+            cfg.BuildConfiguration = "Debug";
+            st.AppBuildConfigs[dir] = cfg;
+            state.Save(st);
 
             // If deviceId was passed in the request, save it to the config
             if (req.DeviceId is not null)
@@ -1091,7 +1091,7 @@ public static class WebStartup
             }
 
             var framework = cfg.AndroidFramework ?? "net10.0-android";
-            var args = new List<string> { "watch", "run", "-f", framework, "-c", config, "--no-launch-profile" };
+            var args = new List<string> { "watch", "run", "-f", framework, "-c", "Debug", "--no-launch-profile" };
             var envVars = new Dictionary<string, string>();
             if (cfg.AndroidDeviceSerial is not null && !cfg.AndroidDeviceSerial.StartsWith("avd:", StringComparison.OrdinalIgnoreCase))
                 envVars["AdbTarget"] = $"-s {cfg.AndroidDeviceSerial}";
@@ -1102,7 +1102,7 @@ public static class WebStartup
                 {
                     await SendLog("=========================================");
                     await SendLog($"Starting Hot Reload for Android...");
-                    await SendLog($"Framework: {framework} | Config: {config}");
+                    await SendLog($"Framework: {framework} | Config: Debug");
                     await SendLog("=========================================");
                     await SendLog("===STEP:INIT===");
                     await SendLog("===CMD:dotnet " + string.Join(' ', args) + "===");
@@ -1120,14 +1120,14 @@ public static class WebStartup
                                 initialBuildDone = true;
                                 _ = SendLog("===STEP:DEPLOY===");
                                 _ = SendLog("===STEP:LAUNCH===");
-                                _ = SendLog("[green]✓ Hot Reload is active and watching for file changes.[/]");
+                                _ = SendLog("✓ Hot Reload is active and watching for file changes.");
                                 _ = SendLog("===STEP:DONE===");
                             }
                             else
                             {
                                 _ = SendLog("===STEP:DEPLOY===");
                                 _ = SendLog("===STEP:LAUNCH===");
-                                _ = SendLog("[green]✓ Hot Reload applied successfully.[/]");
+                                _ = SendLog("✓ Hot Reload applied successfully.");
                             }
                         }
                     }, envVars);
@@ -1307,7 +1307,7 @@ public static class WebStartup
         app.MapGet("/api/prefs", (StateService state) =>
         {
             var st = state.Load();
-            return Results.Ok(new { theme = st.Theme ?? "dark", prefs = st.Preferences });
+            return Results.Ok(new { theme = st.Theme, prefs = st.Preferences });
         });
         app.MapPost("/api/prefs", (StateService state, PrefsRequest req) =>
         {

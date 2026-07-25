@@ -529,6 +529,10 @@
                 <div class="flex items-center gap-2">
                     <h1 class="text-xl font-bold tracking-tight text-white">MAUI Forge</h1>
                     <span id="versionBadge" class="badge badge-slate mono" title="Checking installed version...">…</span>
+                    <span id="hotReloadHeaderBadge" class="hidden text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-semibold animate-pulse flex items-center gap-1.5 ml-1">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                        Hot Reload
+                    </span>
                 </div>
                 <p class="text-xs text-slate-500">Version & Build Manager</p>
             </div>
@@ -1319,8 +1323,16 @@
                     <div id="bpResultIcon" class="text-4xl"></div>
                     <div id="bpResultText" class="text-base font-bold"></div>
                     <div id="bpResultDetail" class="text-xs text-slate-400 font-mono"></div>
+                    <div id="bpHotReloadWarning" class="hidden mt-1 w-full bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 flex items-start gap-2.5">
+                        <span class="text-emerald-400 text-lg leading-none mt-0.5 animate-pulse">&#9679;</span>
+                        <div class="text-left">
+                            <div class="text-xs font-bold text-emerald-400">Hot Reload ativo</div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">Fechar este modal irá <span class="text-amber-400 font-semibold">cancelar</span> o Hot Reload e finalizar o processo em background.</div>
+                        </div>
+                    </div>
                     <div class="flex items-center gap-2.5 mt-2">
                         <button onclick="copyBpLogs()" class="btn-ghost px-4 py-2 text-xs font-semibold flex items-center gap-1.5 rounded-xl" title="Copiar log de saída">📋 Copiar Logs</button>
+                        <button id="bpStopHrBtn" onclick="stopHotReloadFromModal()" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 text-xs rounded-xl transition" title="Parar Hot Reload">■ Parar Hot Reload</button>
                         <button onclick="closeBuildProgress()" class="btn-primary px-6 py-2 text-xs font-semibold rounded-xl" title="Fechar modal">Fechar</button>
                     </div>
                 </div>
@@ -1389,7 +1401,8 @@
         function savePrefs() {
             if (_prefsTimer) clearTimeout(_prefsTimer);
             _prefsTimer = setTimeout(function() {
-                var theme = document.documentElement.dataset.theme || "dark";
+                var theme = document.documentElement.dataset.theme;
+                if (!theme) theme = "dark";
                 var prefs = {};
                 var keys = ["sidebarCollapsed", "layout", "mauiForgeViewMode"];
                 for (var i = 0; i < keys.length; i++) {
@@ -1527,16 +1540,20 @@
 
                 // ---- Hot Reload badge management ----
                 var hrBadge = document.getElementById("hotReloadBadge");
+                var hrHeaderBadge = document.getElementById("hotReloadHeaderBadge");
                 if (hotReloadActive && hrBadge) {
                     hrBadge.classList.remove("hidden");
+                    if (hrHeaderBadge) hrHeaderBadge.classList.remove("hidden");
                     document.getElementById("cancelBuildBtn").textContent = "Stop Hot Reload";
                 } else if (hrBadge) {
                     hrBadge.classList.add("hidden");
+                    if (hrHeaderBadge) hrHeaderBadge.classList.add("hidden");
                 }
                 if (message.indexOf("Hot Reload stopped") >= 0) {
                     hotReloadActive = false;
                     hotReloadDir = null;
                     if (hrBadge) hrBadge.classList.add("hidden");
+                    if (hrHeaderBadge) hrHeaderBadge.classList.add("hidden");
                     document.getElementById("cancelBuildBtn").classList.add("hidden");
                 }
 
@@ -2108,8 +2125,9 @@
                 if (prefsRes.ok) {
                     var prefsData = await prefsRes.json();
                     if (prefsData) {
-                        if (prefsData.theme) {
+                        if (prefsData.theme && prefsData.theme !== "null") {
                             localStorage.setItem("theme", prefsData.theme);
+                            document.documentElement.dataset.theme = prefsData.theme;
                         }
                         if (prefsData.prefs) {
                             for (var k in prefsData.prefs) {
@@ -3624,6 +3642,16 @@ function toggleTheme() {
             renderApps();
         }
 
+        async function stopHotReloadFromModal() {
+            await stopHotReload();
+            var hrWarn = document.getElementById("bpHotReloadWarning");
+            var hrStopBtn = document.getElementById("bpStopHrBtn");
+            if (hrWarn) hrWarn.classList.add("hidden");
+            if (hrStopBtn) hrStopBtn.classList.add("hidden");
+            document.getElementById("buildProgressModal").classList.add("hidden");
+            showToast("Hot Reload finalizado.", "info");
+        }
+
         async function loadDiagnostics() {
             try {
                 const res = await fetch(`${API_BASE}/api/diagnostics`);
@@ -4471,6 +4499,17 @@ function toggleTheme() {
                 document.getElementById("bpResultIcon").textContent = "✅";
                 document.getElementById("bpResultText").textContent = "Aplicativo Iniciado com Sucesso!";
                 document.getElementById("bpResultText").className = "text-base font-bold text-emerald-400";
+
+                // Hot Reload warning
+                var hrWarn = document.getElementById("bpHotReloadWarning");
+                var hrStopBtn = document.getElementById("bpStopHrBtn");
+                if (hotReloadActive) {
+                    if (hrWarn) hrWarn.classList.remove("hidden");
+                    if (hrStopBtn) hrStopBtn.classList.remove("hidden");
+                } else {
+                    if (hrWarn) hrWarn.classList.add("hidden");
+                    if (hrStopBtn) hrStopBtn.classList.add("hidden");
+                }
             } else {
                 if (headerIcon) headerIcon.className = "w-3 h-3 rounded-full bg-red-400";
                 if (badge) {
@@ -4569,6 +4608,18 @@ function toggleTheme() {
             seenLogLines.clear();
             buildProgressActive = false;
             currentBuildDir = null;
+
+            // If Hot Reload is active, warn and stop it
+            if (hotReloadActive) {
+                if (confirm("⚠ Hot Reload está ativo.\n\nFechar este modal irá CANCELAR o Hot Reload e finalizar o processo em background.\n\nDeseja continuar?")) {
+                    stopHotReload();
+                } else {
+                    // Re-show the modal if user cancelled
+                    document.getElementById("bpResult").classList.remove("hidden");
+                    return;
+                }
+            }
+
             document.getElementById("buildProgressModal").classList.add("hidden");
         }
 
