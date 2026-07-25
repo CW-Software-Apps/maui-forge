@@ -1943,18 +1943,6 @@
             e.stopPropagation();
             const encDir = encodeURIComponent(dir);
             const isHrActive = (hotReloadActive && hotReloadDir === dir);
-            var hrSection = '';
-            if (isHrActive) {
-                hrSection = `
-                <div class="border-t border-amber-500/40 my-1"></div>
-                <div class="text-[9px] uppercase tracking-wider text-amber-400 font-semibold px-3 pt-0 pb-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>Hot Reload ● Active</div>
-                <button onclick="stopHotReload(); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-amber-400 hover:text-amber-300 transition flex items-center gap-2 rounded-b-lg" title="Stop Hot Reload session">■ Stop Hot Reload</button>`;
-            } else {
-                hrSection = `
-                <div class="border-t border-slate-800 my-1"></div>
-                <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Hot Reload <span class="text-[var(--accent)] font-normal">(Debug)</span></div>
-                <button onclick="startHotReload(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2 rounded-b-lg" title="Start Hot Reload for Android (Debug only)">${ICON_BUILD}Android</button>`;
-            }
             showGlobalMenu(e.currentTarget, "build:" + dir, `
                 <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-2 pb-1">Build Only</div>
                 <button onclick="buildApp(decodeURIComponent('${encDir}'), 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build Android (Debug)">${ICON_BUILD}Android</button>
@@ -1963,7 +1951,9 @@
                 <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Build & Run</div>
                 <button onclick="openBuildRun(decodeURIComponent('${encDir}'), 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build & run on Android device/emulator">▶ Android</button>
                 <button onclick="openBuildRun(decodeURIComponent('${encDir}'), 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build & run on iOS device/simulator">▶ iOS</button>
-                ${hrSection}
+                ${isHrActive ? `
+                <div class="border-t border-amber-500/40 my-1"></div>
+                <button onclick="stopHotReload(); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-amber-400 hover:text-amber-300 transition flex items-center gap-2 rounded-b-lg" title="Stop Hot Reload session"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block mr-1.5"></span>■ Stop Hot Reload</button>` : ''}
             `, 200);
         }
 
@@ -3559,7 +3549,7 @@ function toggleTheme() {
             }
         }
 
-        async function startHotReload(dir) {
+        async function startHotReload(dir, deviceId) {
             clearConsole();
             openTerminal();
             hotReloadDir = dir;
@@ -3574,7 +3564,7 @@ function toggleTheme() {
                 const res = await fetch(`${API_BASE}/api/apps/hotreload/start`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ dir })
+                    body: JSON.stringify({ dir: dir, deviceId: deviceId || null })
                 });
                 const data = await res.json();
                 if (!data.success) {
@@ -3879,7 +3869,10 @@ function toggleTheme() {
                 frameworksHtml += '<option value="' + f + '">' + f + "</option>";
             });
 
+            var isAndroid = platform.toLowerCase() === "android";
+
             body.innerHTML =
+                '<input type="hidden" id="brPlatform" value="' + platform + '">' +
                 '<div>' +
                     '<label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Device</label>' +
                     '<div class="bg-slate-900/50 border border-slate-800 rounded-lg max-h-48 overflow-y-auto space-y-0.5 p-1">' +
@@ -3898,9 +3891,19 @@ function toggleTheme() {
                         frameworksHtml +
                     "</select>" +
                 "</div>" +
-                '<div class="flex gap-3 pt-2">' +
+                (isAndroid ? `
+                <div class="pt-1">
+                    <label class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all duration-200 cursor-pointer" id="hrToggleLabel" style="border-color:var(--border);">
+                        <input type="checkbox" id="hrToggle" onchange="toggleHrMode()" class="accent-emerald-500 w-4 h-4">
+                        <div>
+                            <div class="text-sm text-white font-medium">Hot Reload</div>
+                            <div class="text-[10px] text-slate-500">Auto-rebuild on file changes (Debug only)</div>
+                        </div>
+                    </label>
+                </div>` : '') +
+                '<div class="flex gap-3 pt-3">' +
                     '<button onclick="closeBuildRunModal()" class="btn-ghost flex-1 py-2.5 text-sm font-semibold">Cancel</button>' +
-                    '<button onclick="executeBuildRun()" class="btn-primary flex-1 py-2.5 text-sm font-semibold" style="background:var(--accent);" title="Build and deploy">\u{1F680} Build & Run</button>' +
+                    '<button id="brActionBtn" onclick="executeBuildRun()" class="btn-primary flex-1 py-2.5 text-sm font-semibold" style="background:var(--accent);" title="Build and deploy">\u{1F680} Build & Run</button>' +
                 "</div>";
         }
 
@@ -3913,7 +3916,26 @@ function toggleTheme() {
         var lastBuildActivityAt = 0;
         var BP_STALL_THRESHOLD_MS = 4000;
 
+        function toggleHrMode() {
+            var hrOn = document.getElementById("hrToggle").checked;
+            var btn = document.getElementById("brActionBtn");
+            var labels = document.querySelectorAll('input[name="brConfig"]');
+            if (hrOn) {
+                btn.innerHTML = '\u{1F525} Hot Reload';
+                btn.title = 'Start Hot Reload for Android (auto-rebuild on changes)';
+                labels.forEach(function(l) {
+                    if (l.value !== "Debug") l.disabled = true;
+                    else l.checked = true;
+                });
+            } else {
+                btn.innerHTML = '\u{1F680} Build & Run';
+                btn.title = 'Build and deploy';
+                labels.forEach(function(l) { l.disabled = false; });
+            }
+        }
+
         async function executeBuildRun() {
+            var hrOn = document.getElementById("hrToggle") ? document.getElementById("hrToggle").checked : false;
             var selectedDevice = document.querySelector('input[name="brDevice"]:checked');
             if (!selectedDevice) { showToast("Please select a device", "error"); return; }
 
@@ -3924,6 +3946,13 @@ function toggleTheme() {
             var deviceType = selectedDevice.getAttribute("data-type");
 
             closeBuildRunModal();
+
+            if (hrOn) {
+                // Hot Reload path: start directly, no progress modal
+                await startHotReload(buildRunDir, deviceId);
+                return;
+            }
+
             showBuildProgress(deviceName, buildRunPlatform, config, null, buildRunVersion, buildRunBuild);
             currentBuildDir = buildRunDir;
 

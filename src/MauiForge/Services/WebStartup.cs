@@ -1082,6 +1082,14 @@ public static class WebStartup
             if (!config.Equals("Debug", StringComparison.OrdinalIgnoreCase))
                 return Results.Ok(new { Success = false, Error = "Hot Reload requires Debug build configuration." });
 
+            // If deviceId was passed in the request, save it to the config
+            if (req.DeviceId is not null)
+            {
+                cfg.AndroidDeviceSerial = req.DeviceId;
+                st.AppBuildConfigs[dir] = cfg;
+                state.Save(st);
+            }
+
             var framework = cfg.AndroidFramework ?? "net10.0-android";
             var args = new List<string> { "watch", "run", "-f", framework, "-c", config, "--no-launch-profile" };
             var envVars = new Dictionary<string, string>();
@@ -1553,5 +1561,5 @@ public record DevicesResponse(List<DeviceItem> Devices);
 public record ConfigRequest(string Dir, string Platform);
 public record ConfigResponse(List<string> Configurations, List<string> Frameworks);
 public record RunRequest(string Dir, string Platform, string DeviceId, string DeviceName, string DeviceType, string Configuration, string Framework);
-public record HotReloadRequest(string Dir);
+public record HotReloadRequest(string Dir, string? DeviceId);
 public record PrefsRequest(string? Theme, Dictionary<string, string>? Prefs);
