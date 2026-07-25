@@ -4361,15 +4361,6 @@ function toggleTheme() {
                 if (bpResult) bpResult.classList.remove("hidden");
                 return;
             }
-            if (msg === "===STEP:XAML_ONLY_CHANGE===") {
-                appendBuildLog("⚠ Mudança apenas em XAML — HotReload não pode aplicar cores/textos sem reiniciar.", "text-amber-400 font-semibold");
-                appendBuildLog("💡 Solução: edite um arquivo .cs (adicione um espaço) junto com o XAML para forçar restart.", "text-slate-400 text-[11px]");
-                return;
-            }
-            if (msg === "===STEP:NO_CODE_CHANGE===") {
-                appendBuildLog("⚠ Nenhuma mudança de código detectada. O HotReload aguarda alterações em .cs ou XAML com bindings.", "text-slate-400");
-                return;
-            }
             if (msg.startsWith("===CMD:") && msg.endsWith("===")) {
                 currentHeavyCommand = msg.slice(7, -3);
                 var liveCmdText = document.getElementById("bpLiveCmdText");
