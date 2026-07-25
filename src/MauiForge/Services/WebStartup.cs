@@ -855,12 +855,12 @@ public static class WebStartup
                         // to the device's logcat and never returns on its own, so waiting for the
                         // process to exit before marking Deploy/Launch done would leave the progress
                         // UI stuck indefinitely even though the app is already running. MSBuild's
-                        // "Build succeeded." summary only prints once every requested target (Build
+                        // "Build succeeded" summary only prints once every requested target (Build
                         // and the chained Run target) has completed, so it's a reliable signal that
                         // deploy + launch already happened.
                         if (!androidDeployLaunchSignaled
                             && req.Platform.Equals("android", StringComparison.OrdinalIgnoreCase)
-                            && line.Trim() == "Build succeeded.")
+                            && line.Contains("Build succeeded", StringComparison.OrdinalIgnoreCase))
                         {
                             androidDeployLaunchSignaled = true;
                             _ = SendLog("===STEP:DEPLOY===");
