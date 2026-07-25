@@ -3639,6 +3639,16 @@ function toggleTheme() {
             cancelBtn.textContent = "Cancel Build";
             var badge = document.getElementById("hotReloadBadge");
             if (badge) badge.classList.add("hidden");
+            // Close build progress modal if open
+            var bpModal = document.getElementById("buildProgressModal");
+            if (bpModal && !bpModal.classList.contains("hidden")) {
+                if (bpTimerInterval) { clearInterval(bpTimerInterval); bpTimerInterval = null; }
+                if (bpLogPollInterval) { clearInterval(bpLogPollInterval); bpLogPollInterval = null; }
+                if (bpStallInterval) { clearInterval(bpStallInterval); bpStallInterval = null; }
+                seenLogLines.clear();
+                buildProgressActive = false;
+                bpModal.classList.add("hidden");
+            }
             renderApps();
         }
 
