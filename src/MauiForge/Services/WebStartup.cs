@@ -1112,6 +1112,12 @@ public static class WebStartup
                     {
                         _ = SendLog(line);
 
+                        if (line.Contains("Build succeeded", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _ = SendLog("===STEP:DEPLOY===");
+                            _ = SendLog("===STEP:LAUNCH===");
+                        }
+
                         if (line.Contains("Hot reload of changes succeeded", StringComparison.OrdinalIgnoreCase))
                         {
                             _ = SendLog("[green]✓ Hot Reload applied successfully.[/]");

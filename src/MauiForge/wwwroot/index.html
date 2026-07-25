@@ -3554,12 +3554,19 @@ function toggleTheme() {
             openTerminal();
             hotReloadDir = dir;
             hotReloadActive = true;
+            currentBuildDir = dir;
             var cancelBtn = document.getElementById("cancelBuildBtn");
             cancelBtn.classList.remove("hidden");
             cancelBtn.textContent = "Stop Hot Reload";
             cancelBtn.onclick = stopHotReload;
             var badge = document.getElementById("hotReloadBadge");
             if (badge) badge.classList.remove("hidden");
+
+            // Show build progress modal with HotReload info
+            showBuildProgress("Hot Reload", "Android", "Debug", null, buildRunVersion, buildRunBuild);
+            document.getElementById("bpPlatform").textContent = "Hot Reload";
+            document.getElementById("bpDeviceName").textContent = "Watching for changes...";
+
             try {
                 const res = await fetch(`${API_BASE}/api/apps/hotreload/start`, {
                     method: "POST",
@@ -3570,15 +3577,18 @@ function toggleTheme() {
                 if (!data.success) {
                     hotReloadActive = false;
                     hotReloadDir = null;
+                    currentBuildDir = null;
                     cancelBtn.classList.add("hidden");
                     cancelBtn.onclick = cancelBuild;
                     if (badge) badge.classList.add("hidden");
                     showToast(data.error || "Failed to start Hot Reload", "error");
+                    finalizeBuildProgress(false);
                 }
             } catch (err) {
                 hotReloadActive = false;
                 hotReloadDir = null;
                 showToast("Hot Reload error: " + err.message, "error");
+                finalizeBuildProgress(false);
             }
             renderApps();
         }
