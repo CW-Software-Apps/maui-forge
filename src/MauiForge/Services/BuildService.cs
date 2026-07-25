@@ -24,6 +24,7 @@ public class BuildService
                 WorkingDirectory = dir,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                RedirectStandardInput = true,
                 UseShellExecute = false,
             };
             psi.EnvironmentVariables["DOTNET_WATCH_SUPPRESS_PROMPTS"] = "1";
@@ -44,15 +45,52 @@ public class BuildService
             {
                 try
                 {
+                    // Auto-responder para perguntas do dotnet watch
+                    var inputWriter = proc.StandardInput;
+                    var restartCount = 0;
+
+                    void HandleLineWithAutoAnswer(string? line)
+                    {
+                        if (line is null) return;
+                        onLine(line);
+
+                        // dotnet watch pergunta "Do you want to restart your app?"
+                        // ou "Do you want to restart?" — responde "y" (yes)
+                        if (line.Contains("Do you want to restart", StringComparison.OrdinalIgnoreCase))
+                        {
+                            try
+                            {
+                                inputWriter.WriteLine("y");
+                                onLine("[auto-answered: y]");
+                            }
+                            catch { }
+                        }
+                        // "Always (a) / Never (v)" — responde "a" após 3 restart requests
+                        else if (line.Contains("Always", StringComparison.OrdinalIgnoreCase) &&
+                                 line.Contains("Never", StringComparison.OrdinalIgnoreCase))
+                        {
+                            restartCount++;
+                            var answer = restartCount >= 3 ? "a" : "y";
+                            try
+                            {
+                                inputWriter.WriteLine(answer);
+                                onLine($"[auto-answered: {answer}]");
+                            }
+                            catch { }
+                        }
+                        // ENC0033: exclusão de campo requer reinício — já respondemos "y" acima
+                        // "Warning|error ENC" também aciona restart automático via env var
+                    }
+
                     var readOut = Task.Run(async () =>
                     {
                         while (await proc.StandardOutput.ReadLineAsync() is { } line)
-                            HandleLine(line, onLine, null);
+                            HandleLineWithAutoAnswer(line);
                     });
                     var readErr = Task.Run(async () =>
                     {
                         while (await proc.StandardError.ReadLineAsync() is { } line)
-                            HandleLine(line, onLine, null);
+                            HandleLineWithAutoAnswer(line);
                     });
                     await Task.WhenAll(readOut, readErr, proc.WaitForExitAsync());
                 }

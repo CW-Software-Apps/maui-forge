@@ -4482,8 +4482,12 @@ function toggleTheme() {
 
         function finalizeBuildProgress(success) {
             playAudioSfx(success ? "success" : "failure");
-            buildProgressActive = false;
-            currentBuildDir = null;
+            // Se HotReload estiver ativo, mantém buildProgressActive true para
+            // que logs de erros subsequentes continuem aparecendo no modal
+            if (!hotReloadActive) {
+                buildProgressActive = false;
+                currentBuildDir = null;
+            }
             if (bpTimerInterval) { clearInterval(bpTimerInterval); bpTimerInterval = null; }
             if (bpLogPollInterval) { clearInterval(bpLogPollInterval); bpLogPollInterval = null; }
             if (bpStallInterval) { clearInterval(bpStallInterval); bpStallInterval = null; }
