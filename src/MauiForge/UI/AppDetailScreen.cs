@@ -216,10 +216,10 @@ public class AppDetailScreen(
             Add(Act.StopHotReload,
                 $"[bold yellow]■[/]  [bold yellow]Stop Hot Reload[/]  " +
                 WA("active on Android"));
-        else
+        else if (cfg.BuildConfiguration is null || cfg.BuildConfiguration.Equals("Debug", StringComparison.OrdinalIgnoreCase))
             Add(Act.HotReloadAndroid,
                 $"[green3]hr[/]  [white]Hot Reload Android[/]  " +
-                H($"{androidRunDevice} • {androidRunCfg}"));
+                H($"{androidRunDevice} • Debug"));
 
         // ── Release
         Group("Release Center");
@@ -1343,8 +1343,13 @@ public class AppDetailScreen(
         var csproj = FindCsproj(app.Dir);
         if (csproj is null) { NoCsproj(); return; }
 
-        cfg.BuildConfiguration = PickBuildConfig(csproj, "", cfg.BuildConfiguration ?? "Debug");
-        if (cfg.BuildConfiguration is null) return;
+        if (cfg.BuildConfiguration is not null && !cfg.BuildConfiguration.Equals("Debug", StringComparison.OrdinalIgnoreCase))
+        {
+            AnsiConsole.MarkupLine("  [red]x  Hot Reload requires [bold]Debug[/] build configuration.[/]");
+            AnsiConsole.MarkupLine("  [dim]Switch to Debug before starting Hot Reload.[/]");
+            Pause(); return;
+        }
+        cfg.BuildConfiguration = "Debug";
         cfg.AndroidFramework   = PickFramework(csproj, "android", cfg.AndroidFramework ?? "net10.0-android");
         if (cfg.AndroidFramework is null) return;
         state.Save(st);

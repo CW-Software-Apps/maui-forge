@@ -1078,9 +1078,11 @@ public static class WebStartup
                 return Results.Ok(new { Success = false, Error = "No .csproj found." });
 
             var cfg = st.AppBuildConfigs.TryGetValue(dir, out var c) ? c : new AppBuildConfig();
-            var framework = cfg.AndroidFramework ?? "net10.0-android";
             var config = cfg.BuildConfiguration ?? "Debug";
+            if (!config.Equals("Debug", StringComparison.OrdinalIgnoreCase))
+                return Results.Ok(new { Success = false, Error = "Hot Reload requires Debug build configuration." });
 
+            var framework = cfg.AndroidFramework ?? "net10.0-android";
             var args = new List<string> { "watch", "run", "--project", csproj, "-f", framework, "-c", config, "--no-launch-profile" };
             if (cfg.AndroidDeviceSerial is not null && !cfg.AndroidDeviceSerial.StartsWith("avd:", StringComparison.OrdinalIgnoreCase))
                 args.Add($"-p:AdbTarget=-s {cfg.AndroidDeviceSerial}");
