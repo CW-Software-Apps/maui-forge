@@ -1354,9 +1354,10 @@ public class AppDetailScreen(
         if (cfg.AndroidFramework is null) return;
         state.Save(st);
 
-        var args = new List<string> { "watch", "run", "--project", csproj, "-f", cfg.AndroidFramework, "-c", cfg.BuildConfiguration, "--no-launch-profile" };
-        if (cfg.AndroidDeviceSerial is not null)
-            args.Add($"-p:AdbTarget=-s {cfg.AndroidDeviceSerial}");
+        var args = new List<string> { "watch", "run", "-f", cfg.AndroidFramework, "-c", cfg.BuildConfiguration, "--no-launch-profile" };
+        var envVars = new Dictionary<string, string>();
+        if (cfg.AndroidDeviceSerial is not null && !cfg.AndroidDeviceSerial.StartsWith("avd:", StringComparison.OrdinalIgnoreCase))
+            envVars["AdbTarget"] = $"-s {cfg.AndroidDeviceSerial}";
 
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("  [green3]Starting Hot Reload for Android...[/]");
@@ -1372,7 +1373,7 @@ public class AppDetailScreen(
                     ? "yellow"
                     : "grey70";
             AnsiConsole.MarkupLine($"  [{style}]{Markup.Escape(line)}[/]");
-        });
+        }, envVars);
 
         if (hr is not null)
         {

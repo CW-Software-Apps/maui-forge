@@ -1083,9 +1083,10 @@ public static class WebStartup
                 return Results.Ok(new { Success = false, Error = "Hot Reload requires Debug build configuration." });
 
             var framework = cfg.AndroidFramework ?? "net10.0-android";
-            var args = new List<string> { "watch", "run", "--project", csproj, "-f", framework, "-c", config, "--no-launch-profile" };
+            var args = new List<string> { "watch", "run", "-f", framework, "-c", config, "--no-launch-profile" };
+            var envVars = new Dictionary<string, string>();
             if (cfg.AndroidDeviceSerial is not null && !cfg.AndroidDeviceSerial.StartsWith("avd:", StringComparison.OrdinalIgnoreCase))
-                args.Add($"-p:AdbTarget=-s {cfg.AndroidDeviceSerial}");
+                envVars["AdbTarget"] = $"-s {cfg.AndroidDeviceSerial}";
 
             _ = Task.Run(async () =>
             {
@@ -1108,7 +1109,7 @@ public static class WebStartup
                         {
                             _ = SendLog("[green]✓ Hot Reload applied successfully.[/]");
                         }
-                    });
+                    }, envVars);
 
                     // dotnet watch runs until cancelled — mark done once it exits
                     await SendLog("===STEP:DONE===");

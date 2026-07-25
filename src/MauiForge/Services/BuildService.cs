@@ -9,7 +9,7 @@ public class BuildService
     public bool IsHotReloadActive(string dir) =>
         _hotReloadProcesses.TryGetValue(dir, out var proc) && proc is not null && !proc.HasExited;
 
-    public System.Diagnostics.Process? StartHotReload(string dir, string[] args, Action<string> onLine)
+    public System.Diagnostics.Process? StartHotReload(string dir, string[] args, Action<string> onLine, Dictionary<string, string>? envVars = null)
     {
         try
         {
@@ -24,6 +24,9 @@ public class BuildService
             psi.EnvironmentVariables["DOTNET_WATCH_SUPPRESS_EMOJIS"] = "1";
             psi.EnvironmentVariables["DOTNET_WATCH_RESTART_ON_BUILD_ERROR"] = "1";
             ProcessEnvironment.UseEnglishCliOutput(psi);
+            if (envVars is not null)
+                foreach (var kv in envVars)
+                    psi.EnvironmentVariables[kv.Key] = kv.Value;
             foreach (var a in args) psi.ArgumentList.Add(a);
 
             var proc = System.Diagnostics.Process.Start(psi);

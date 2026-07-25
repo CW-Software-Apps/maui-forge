@@ -3116,9 +3116,14 @@ function toggleTheme() {
             const build = app.versions.csproj?.build || '';
 
             let buildButtons = '';
+            const isHrActiveThis = (hotReloadActive && hotReloadDir === dir);
             if (app.projectType === 'MAUI') {
+                const hrBtn = isHrActiveThis
+                    ? `<button onclick="stopHotReload()" class="btn-ghost ${sizeClass} gap-1.5 text-amber-400 border border-amber-500/30" title="Stop Hot Reload for Android">■ Stop HR</button>`
+                    : `<button onclick="startHotReload('${dir}')" class="btn-ghost ${sizeClass} gap-1.5 text-emerald-400 border border-emerald-500/20" title="Start Hot Reload for Android (Debug only)">${ICON_BUILD}Hot Reload</button>`;
                 buildButtons = `
                     <button onclick="openBuildMenu(event, '${dir}')" class="btn-ghost ${sizeClass} gap-1.5" aria-haspopup="true" aria-expanded="false" title="Build for Android or iOS (Debug)">${ICON_BUILD}Build${ICON_CHEVRON_SM}</button>
+                    ${hrBtn}
                 `;
             } else if (app.projectType === 'WPF') {
                 buildButtons = `<button onclick="buildApp('${dir}', 'Windows')" class="btn-ghost ${sizeClass} gap-1.5" title="Build Windows (Debug)">${ICON_BUILD}Windows</button>`;
