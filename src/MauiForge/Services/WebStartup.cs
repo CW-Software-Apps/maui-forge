@@ -1104,15 +1104,13 @@ public static class WebStartup
                     {
                         _ = SendLog(line);
 
-                        if (line.Contains("Hot reload of changes succeeded", StringComparison.OrdinalIgnoreCase) ||
-                            line.Contains("watch", StringComparison.OrdinalIgnoreCase) && line.Contains("app is up-to-date", StringComparison.OrdinalIgnoreCase))
+                        if (line.Contains("Hot reload of changes succeeded", StringComparison.OrdinalIgnoreCase))
                         {
                             _ = SendLog("[green]✓ Hot Reload applied successfully.[/]");
                         }
                     }, envVars);
 
-                    // dotnet watch runs until cancelled — mark done once it exits
-                    await SendLog("===STEP:DONE===");
+                    await SendLog("[green]✓ Hot Reload is active and watching for file changes.[/]");
                 }
                 catch (Exception ex)
                 {
@@ -1134,6 +1132,7 @@ public static class WebStartup
                 _ = SendLog("=========================================");
                 _ = SendLog("Hot Reload stopped by user.");
                 _ = SendLog("=========================================");
+                _ = SendLog("===STEP:DONE===");
             }
             return Results.Ok(new { Success = stopped });
         });

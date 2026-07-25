@@ -1916,17 +1916,17 @@
             e.stopPropagation();
             const encDir = encodeURIComponent(dir);
             const isHrActive = (hotReloadActive && hotReloadDir === dir);
-            var hrHtml = '';
+            var hrSection = '';
             if (isHrActive) {
-                hrHtml = `
-                <div class="border-t border-slate-800 my-1"></div>
-                <div class="text-[9px] uppercase tracking-wider text-amber-500 font-semibold px-3 pt-0 pb-1">Hot Reload ● Active</div>
-                <button onclick="stopHotReload(); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-amber-400 hover:text-amber-300 transition flex items-center gap-2 rounded-b-lg" title="Stop Hot Reload">■ Stop Hot Reload</button>`;
+                hrSection = `
+                <div class="border-t border-amber-500/40 my-1"></div>
+                <div class="text-[9px] uppercase tracking-wider text-amber-400 font-semibold px-3 pt-0 pb-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>Hot Reload ● Active</div>
+                <button onclick="stopHotReload(); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-amber-400 hover:text-amber-300 transition flex items-center gap-2 rounded-b-lg" title="Stop Hot Reload session">■ Stop Hot Reload</button>`;
             } else {
-                hrHtml = `
+                hrSection = `
                 <div class="border-t border-slate-800 my-1"></div>
-                <div class="text-[9px] uppercase tracking-wider text-emerald-600 font-semibold px-3 pt-0 pb-1">Hot Reload</div>
-                <button onclick="startHotReload(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2 rounded-b-lg" title="Start Hot Reload for Android">${ICON_BUILD}Android</button>`;
+                <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Hot Reload <span class="text-[var(--accent)] font-normal">(Debug)</span></div>
+                <button onclick="startHotReload(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2 rounded-b-lg" title="Start Hot Reload for Android (Debug only)">${ICON_BUILD}Android</button>`;
             }
             showGlobalMenu(e.currentTarget, "build:" + dir, `
                 <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-2 pb-1">Build Only</div>
@@ -1936,7 +1936,7 @@
                 <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Build & Run</div>
                 <button onclick="openBuildRun(decodeURIComponent('${encDir}'), 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build & run on Android device/emulator">▶ Android</button>
                 <button onclick="openBuildRun(decodeURIComponent('${encDir}'), 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build & run on iOS device/simulator">▶ iOS</button>
-                ${hrHtml}
+                ${hrSection}
             `, 200);
         }
 
@@ -3116,14 +3116,9 @@ function toggleTheme() {
             const build = app.versions.csproj?.build || '';
 
             let buildButtons = '';
-            const isHrActiveThis = (hotReloadActive && hotReloadDir === dir);
             if (app.projectType === 'MAUI') {
-                const hrBtn = isHrActiveThis
-                    ? `<button onclick="stopHotReload()" class="btn-ghost ${sizeClass} gap-1.5 text-amber-400 border border-amber-500/30" title="Stop Hot Reload for Android">■ Stop HR</button>`
-                    : `<button onclick="startHotReload('${dir}')" class="btn-ghost ${sizeClass} gap-1.5 text-emerald-400 border border-emerald-500/20" title="Start Hot Reload for Android (Debug only)">${ICON_BUILD}Hot Reload</button>`;
                 buildButtons = `
                     <button onclick="openBuildMenu(event, '${dir}')" class="btn-ghost ${sizeClass} gap-1.5" aria-haspopup="true" aria-expanded="false" title="Build for Android or iOS (Debug)">${ICON_BUILD}Build${ICON_CHEVRON_SM}</button>
-                    ${hrBtn}
                 `;
             } else if (app.projectType === 'WPF') {
                 buildButtons = `<button onclick="buildApp('${dir}', 'Windows')" class="btn-ghost ${sizeClass} gap-1.5" title="Build Windows (Debug)">${ICON_BUILD}Windows</button>`;
@@ -3543,8 +3538,12 @@ function toggleTheme() {
             openTerminal();
             hotReloadDir = dir;
             hotReloadActive = true;
-            document.getElementById("cancelBuildBtn").classList.remove("hidden");
-            document.getElementById("cancelBuildBtn").textContent = "Stop Hot Reload";
+            var cancelBtn = document.getElementById("cancelBuildBtn");
+            cancelBtn.classList.remove("hidden");
+            cancelBtn.textContent = "Stop Hot Reload";
+            cancelBtn.onclick = stopHotReload;
+            var badge = document.getElementById("hotReloadBadge");
+            if (badge) badge.classList.remove("hidden");
             try {
                 const res = await fetch(`${API_BASE}/api/apps/hotreload/start`, {
                     method: "POST",
@@ -3552,9 +3551,17 @@ function toggleTheme() {
                     body: JSON.stringify({ dir })
                 });
                 const data = await res.json();
-                if (!data.success) showToast(data.error || "Failed to start Hot Reload", "error");
+                if (!data.success) {
+                    hotReloadActive = false;
+                    hotReloadDir = null;
+                    cancelBtn.classList.add("hidden");
+                    cancelBtn.onclick = cancelBuild;
+                    if (badge) badge.classList.add("hidden");
+                    showToast(data.error || "Failed to start Hot Reload", "error");
+                }
             } catch (err) {
                 hotReloadActive = false;
+                hotReloadDir = null;
                 showToast("Hot Reload error: " + err.message, "error");
             }
             renderApps();
@@ -3578,7 +3585,12 @@ function toggleTheme() {
             }
             hotReloadDir = null;
             currentBuildDir = null;
-            document.getElementById("cancelBuildBtn").classList.add("hidden");
+            var cancelBtn = document.getElementById("cancelBuildBtn");
+            cancelBtn.classList.add("hidden");
+            cancelBtn.onclick = cancelBuild;
+            cancelBtn.textContent = "Cancel Build";
+            var badge = document.getElementById("hotReloadBadge");
+            if (badge) badge.classList.add("hidden");
             renderApps();
         }
 
