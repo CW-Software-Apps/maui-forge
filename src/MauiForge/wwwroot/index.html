@@ -3549,7 +3549,7 @@ function toggleTheme() {
             }
         }
 
-        async function startHotReload(dir, deviceId) {
+        async function startHotReload(dir, deviceId, deviceName, deviceType, config) {
             clearConsole();
             openTerminal();
             hotReloadDir = dir;
@@ -3562,10 +3562,14 @@ function toggleTheme() {
             var badge = document.getElementById("hotReloadBadge");
             if (badge) badge.classList.remove("hidden");
 
-            // Show build progress modal with HotReload info
-            showBuildProgress("Hot Reload", "Android", "Debug", null, buildRunVersion, buildRunBuild);
-            document.getElementById("bpPlatform").textContent = "Hot Reload";
-            document.getElementById("bpDeviceName").textContent = "Watching for changes...";
+            showBuildProgress(deviceName || "Hot Reload", "Android", config || "Debug", null, buildRunVersion, buildRunBuild);
+            document.getElementById("buildProgressTitle").textContent = "Hot Reload \u2014 Compila\u00E7\u00E3o & Deploy";
+            document.getElementById("bpPlatform").textContent = "Android";
+            var hrBadge = document.getElementById("bpStatusBadge");
+            if (hrBadge) {
+                hrBadge.textContent = "Hot Reload";
+                hrBadge.className = "px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+            }
 
             try {
                 const res = await fetch(`${API_BASE}/api/apps/hotreload/start`, {
@@ -3958,8 +3962,7 @@ function toggleTheme() {
             closeBuildRunModal();
 
             if (hrOn) {
-                // Hot Reload path: start directly, no progress modal
-                await startHotReload(buildRunDir, deviceId);
+                await startHotReload(buildRunDir, deviceId, deviceName, deviceType, config);
                 return;
             }
 

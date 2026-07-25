@@ -1108,23 +1108,29 @@ public static class WebStartup
                     await SendLog("===CMD:dotnet " + string.Join(' ', args) + "===");
                     await SendLog("===STEP:BUILD===");
 
+                    var initialBuildDone = false;
                     builder.StartHotReload(dir, args.ToArray(), line =>
                     {
                         _ = SendLog(line);
 
                         if (line.Contains("Build succeeded", StringComparison.OrdinalIgnoreCase))
                         {
-                            _ = SendLog("===STEP:DEPLOY===");
-                            _ = SendLog("===STEP:LAUNCH===");
-                        }
-
-                        if (line.Contains("Hot reload of changes succeeded", StringComparison.OrdinalIgnoreCase))
-                        {
-                            _ = SendLog("[green]✓ Hot Reload applied successfully.[/]");
+                            if (!initialBuildDone)
+                            {
+                                initialBuildDone = true;
+                                _ = SendLog("===STEP:DEPLOY===");
+                                _ = SendLog("===STEP:LAUNCH===");
+                                _ = SendLog("[green]✓ Hot Reload is active and watching for file changes.[/]");
+                                _ = SendLog("===STEP:DONE===");
+                            }
+                            else
+                            {
+                                _ = SendLog("===STEP:DEPLOY===");
+                                _ = SendLog("===STEP:LAUNCH===");
+                                _ = SendLog("[green]✓ Hot Reload applied successfully.[/]");
+                            }
                         }
                     }, envVars);
-
-                    await SendLog("[green]✓ Hot Reload is active and watching for file changes.[/]");
                 }
                 catch (Exception ex)
                 {
