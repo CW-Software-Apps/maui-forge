@@ -1528,7 +1528,8 @@
             });
 
             connection.on("LogReceived", function (message) {
-                if (buildProgressActive && message) {
+                // Processa logs no modal se o build está ativo OU HotReload está rodando
+                if (message && (buildProgressActive || hotReloadActive)) {
                     processBuildLogMessage(message);
                 }
 
