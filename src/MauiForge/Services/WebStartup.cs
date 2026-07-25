@@ -626,6 +626,13 @@ public static class WebStartup
             }
         });
 
+        app.MapGet("/api/builds/{id}", (string id) =>
+        {
+            if (_buildRecords.TryGetValue(id, out var rec))
+                return Results.Ok(rec);
+            return Results.NotFound(new { error = "Build record not found." });
+        });
+
         app.MapGet("/api/builds/log", (string? id, string? file) =>
         {
             string? path = null;
@@ -699,14 +706,21 @@ public static class WebStartup
                         await SendLog($"Build process completed with exit code: {exitCode}");
                         await SendLog("=========================================");
                         if (exitCode == 0)
+                        {
                             await SendLog("===STEP:DONE===");
+                            WriteStepToLog(record, "===STEP:DONE===");
+                        }
                         else
+                        {
                             await SendLog("===STEP:FAILED===");
+                            WriteStepToLog(record, "===STEP:FAILED===");
+                        }
                         RecordBuildEnd(record, exitCode == 0 ? "Success" : "Failed", exitCode);
                     }
                     else
                     {
                         await SendLog("===STEP:FAILED===");
+                        WriteStepToLog(record, "===STEP:FAILED===");
                         RecordBuildEnd(record, "Cancelled", -1, "Cancelled by user");
                     }
                 }
@@ -715,6 +729,7 @@ public static class WebStartup
                     _runningBuilds.TryRemove(req.Dir, out _);
                     await SendLog($"[Error] Build failed to start: {ex.Message}");
                     await SendLog("===STEP:FAILED===");
+                    WriteStepToLog(record, "===STEP:FAILED===");
                     RecordBuildEnd(record, "Failed", -1, ex.Message);
                 }
             });
@@ -887,6 +902,7 @@ public static class WebStartup
                         if (exit != 0)
                         {
                             await SendLog("===STEP:FAILED===");
+                            WriteStepToLog(record, "===STEP:FAILED===");
                             RecordBuildEnd(record, "Failed", exit, "iOS build step failed");
                             return;
                         }
@@ -938,8 +954,16 @@ public static class WebStartup
                         SaveRunConfig(st, req, csproj);
                         state.Save(st);
 
-                        if (exit == 0) await SendLog("===STEP:DONE===");
-                        else await SendLog("===STEP:FAILED===");
+                        if (exit == 0)
+                        {
+                            await SendLog("===STEP:DONE===");
+                            WriteStepToLog(record, "===STEP:DONE===");
+                        }
+                        else
+                        {
+                            await SendLog("===STEP:FAILED===");
+                            WriteStepToLog(record, "===STEP:FAILED===");
+                        }
                         await SendLog(exit == 0 ? "iOS app launched successfully." : $"iOS launch failed (exit {exit}).");
                         RecordBuildEnd(record, exit == 0 ? "Success" : "Failed", exit);
                     }
@@ -995,8 +1019,13 @@ public static class WebStartup
                         {
                             await SendLog("===STEP:DEPLOY===");
                             await SendLog("===STEP:DONE===");
+                            WriteStepToLog(record, "===STEP:DONE===");
                         }
-                        else await SendLog("===STEP:FAILED===");
+                        else
+                        {
+                            await SendLog("===STEP:FAILED===");
+                            WriteStepToLog(record, "===STEP:FAILED===");
+                        }
                         await SendLog(exit == 0 ? "Android app launched successfully." : $"Android launch failed (exit {exit}).");
                         RecordBuildEnd(record, exit == 0 ? "Success" : "Failed", exit);
                     }
@@ -1006,6 +1035,7 @@ public static class WebStartup
                     _runningBuilds.TryRemove(dir, out _);
                     await SendLog($"[Error] Build & Run failed: {ex.Message}");
                     await SendLog("===STEP:FAILED===");
+                    WriteStepToLog(record, "===STEP:FAILED===");
                     RecordBuildEnd(record, "Failed", -1, ex.Message);
                 }
             });
@@ -1032,6 +1062,77 @@ public static class WebStartup
                 }
             }
             return Results.Ok(new { Success = false, Error = "No running build found for this app." });
+        });
+
+        // Hot Reload — start
+        app.MapPost("/api/apps/hotreload/start", (BuildService builder, StateService state, HotReloadRequest req) =>
+        {
+            var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
+
+            if (builder.IsHotReloadActive(dir))
+                return Results.Ok(new { Success = false, Error = "Hot Reload already active for this app." });
+
+            var st = state.Load();
+            var csproj = Directory.EnumerateFiles(dir, "*.csproj").FirstOrDefault();
+            if (csproj is null)
+                return Results.Ok(new { Success = false, Error = "No .csproj found." });
+
+            var cfg = st.AppBuildConfigs.TryGetValue(dir, out var c) ? c : new AppBuildConfig();
+            var framework = cfg.AndroidFramework ?? "net10.0-android";
+            var config = cfg.BuildConfiguration ?? "Debug";
+
+            var args = new List<string> { "watch", "run", "--project", csproj, "-f", framework, "-c", config, "--no-launch-profile" };
+            if (cfg.AndroidDeviceSerial is not null && !cfg.AndroidDeviceSerial.StartsWith("avd:", StringComparison.OrdinalIgnoreCase))
+                args.Add($"-p:AdbTarget=-s {cfg.AndroidDeviceSerial}");
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await SendLog("=========================================");
+                    await SendLog($"Starting Hot Reload for Android...");
+                    await SendLog($"Framework: {framework} | Config: {config}");
+                    await SendLog("=========================================");
+                    await SendLog("===STEP:INIT===");
+                    await SendLog("===CMD:dotnet " + string.Join(' ', args) + "===");
+                    await SendLog("===STEP:BUILD===");
+
+                    builder.StartHotReload(dir, args.ToArray(), line =>
+                    {
+                        _ = SendLog(line);
+
+                        if (line.Contains("Hot reload of changes succeeded", StringComparison.OrdinalIgnoreCase) ||
+                            line.Contains("watch", StringComparison.OrdinalIgnoreCase) && line.Contains("app is up-to-date", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _ = SendLog("[green]✓ Hot Reload applied successfully.[/]");
+                        }
+                    });
+
+                    // dotnet watch runs until cancelled — mark done once it exits
+                    await SendLog("===STEP:DONE===");
+                }
+                catch (Exception ex)
+                {
+                    await SendLog($"[Error] Hot Reload failed: {ex.Message}");
+                    await SendLog("===STEP:FAILED===");
+                }
+            });
+
+            return Results.Accepted(null, new { Success = true });
+        });
+
+        // Hot Reload — stop
+        app.MapPost("/api/apps/hotreload/stop", (BuildService builder, StateService state, HotReloadRequest req) =>
+        {
+            var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
+            var stopped = builder.StopHotReload(dir);
+            if (stopped)
+            {
+                _ = SendLog("=========================================");
+                _ = SendLog("Hot Reload stopped by user.");
+                _ = SendLog("=========================================");
+            }
+            return Results.Ok(new { Success = stopped });
         });
 
         app.MapPost("/api/apps/open-folder", (StateService state, OpenFolderRequest req) =>
@@ -1339,6 +1440,13 @@ public static class WebStartup
         }
     }
 
+    private static void WriteStepToLog(BuildRecord? record, string step)
+    {
+        if (record?.LogFilePath is null) return;
+        try { File.AppendAllText(record.LogFilePath, step + "\n"); }
+        catch { /* best-effort */ }
+    }
+
     // Drops --serve and --token <value> from a previous launch's args so a relaunch
     // (either into or out of serve mode) doesn't inherit a stale flag or leave the
     // token's value behind as a stray positional argument.
@@ -1443,4 +1551,5 @@ public record DevicesResponse(List<DeviceItem> Devices);
 public record ConfigRequest(string Dir, string Platform);
 public record ConfigResponse(List<string> Configurations, List<string> Frameworks);
 public record RunRequest(string Dir, string Platform, string DeviceId, string DeviceName, string DeviceType, string Configuration, string Framework);
+public record HotReloadRequest(string Dir);
 public record PrefsRequest(string? Theme, Dictionary<string, string>? Prefs);

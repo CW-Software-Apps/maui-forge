@@ -18,6 +18,7 @@ public class AppDetailScreen(
         IncrementVersion, IncrementBuild, SetManual, Sync,
         ArchiveiOS, RuniOS,
         RunAndroid, PublishAndroid,
+        HotReloadAndroid, StopHotReload,
         GitPull, GitCommit, GitPush, Clean, Undo, SetVerbosity, RepeatLast, OpenInEditor, Back
     }
 
@@ -210,6 +211,15 @@ public class AppDetailScreen(
         Add(Act.RunAndroid,
             $"[green3]ra[/]  [white]Run on Android[/]  " +
             H($"{androidRunDevice} • {androidRunCfg}"));
+        var hrActive = build.IsHotReloadActive(app.Dir);
+        if (hrActive)
+            Add(Act.StopHotReload,
+                $"[bold yellow]■[/]  [bold yellow]Stop Hot Reload[/]  " +
+                WA("active on Android"));
+        else
+            Add(Act.HotReloadAndroid,
+                $"[green3]hr[/]  [white]Hot Reload Android[/]  " +
+                H($"{androidRunDevice} • {androidRunCfg}"));
 
         // ── Release
         Group("Release Center");
@@ -322,8 +332,10 @@ public class AppDetailScreen(
             case Act.Sync:             SyncAction(app, st);                                       break;
             case Act.ArchiveiOS:       ArchiveIOSAction(app, st, cfg);                            break;
             case Act.RuniOS:           RunIOSAction(app, st, cfg);                                break;
-            case Act.RunAndroid:       RunAndroidAction(app, st, cfg);                            break;
+            case Act.RunAndroid:       RunAndroidAction(app, st, cfg);                                break;
             case Act.PublishAndroid:   PublishAndroidAction(app, st, cfg);                        break;
+            case Act.HotReloadAndroid: HotReloadAndroidAction(app, st, cfg);                       break;
+            case Act.StopHotReload:    StopHotReloadAction(app);                                   break;
             case Act.GitPull:
                 AnsiConsole.WriteLine();
                 var (ok, output) = git.Pull(app.Dir);
@@ -1322,6 +1334,61 @@ public class AppDetailScreen(
         if (Directory.Exists(outDir))
             foreach (var f in Directory.EnumerateFiles(outDir, "*.apk").Concat(Directory.EnumerateFiles(outDir, "*.aab")))
                 AnsiConsole.MarkupLine($"  [green][[APK]] {Markup.Escape(f)}[/]");
+    }
+
+    // ── Hot Reload ────────────────────────────────────────────────────────────
+
+    private void HotReloadAndroidAction(AppEntry app, PersistentState st, AppBuildConfig cfg)
+    {
+        var csproj = FindCsproj(app.Dir);
+        if (csproj is null) { NoCsproj(); return; }
+
+        cfg.BuildConfiguration = PickBuildConfig(csproj, "", cfg.BuildConfiguration ?? "Debug");
+        if (cfg.BuildConfiguration is null) return;
+        cfg.AndroidFramework   = PickFramework(csproj, "android", cfg.AndroidFramework ?? "net10.0-android");
+        if (cfg.AndroidFramework is null) return;
+        state.Save(st);
+
+        var args = new List<string> { "watch", "run", "--project", csproj, "-f", cfg.AndroidFramework, "-c", cfg.BuildConfiguration, "--no-launch-profile" };
+        if (cfg.AndroidDeviceSerial is not null)
+            args.Add($"-p:AdbTarget=-s {cfg.AndroidDeviceSerial}");
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("  [green3]Starting Hot Reload for Android...[/]");
+        AnsiConsole.MarkupLine("  [dim]App will rebuild and redeploy on file changes.[/]");
+        AnsiConsole.MarkupLine("  [dim]Select [yellow]Stop Hot Reload[/] from the menu to end.[/]");
+        AnsiConsole.WriteLine();
+
+        var hr = build.StartHotReload(app.Dir, [.. args], line =>
+        {
+            var style = line.Contains("error", StringComparison.OrdinalIgnoreCase)
+                ? "red"
+                : line.Contains("warning", StringComparison.OrdinalIgnoreCase)
+                    ? "yellow"
+                    : "grey70";
+            AnsiConsole.MarkupLine($"  [{style}]{Markup.Escape(line)}[/]");
+        });
+
+        if (hr is not null)
+        {
+            st.LastAction = "Hot Reload Android";
+            state.Save(st);
+            AnsiConsole.MarkupLine("  [green]ok  Hot Reload started.[/]");
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("  [red]x  Failed to start Hot Reload.[/]");
+        }
+        Pause();
+    }
+
+    private void StopHotReloadAction(AppEntry app)
+    {
+        if (build.StopHotReload(app.Dir))
+            AnsiConsole.MarkupLine("  [green]ok  Hot Reload stopped.[/]");
+        else
+            AnsiConsole.MarkupLine("  [yellow](!) No active Hot Reload session found.[/]");
+        Pause();
     }
 
     // ── Repeat / Verbosity ───────────────────────────────────────────────────

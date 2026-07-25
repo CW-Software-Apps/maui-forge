@@ -1,7 +1,81 @@
+using System.Collections.Concurrent;
+
 namespace MauiForge.Services;
 
 public class BuildService
 {
+    private static readonly ConcurrentDictionary<string, System.Diagnostics.Process> _hotReloadProcesses = new();
+
+    public bool IsHotReloadActive(string dir) =>
+        _hotReloadProcesses.TryGetValue(dir, out var proc) && proc is not null && !proc.HasExited;
+
+    public System.Diagnostics.Process? StartHotReload(string dir, string[] args, Action<string> onLine)
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("dotnet")
+            {
+                WorkingDirectory = dir,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+            psi.EnvironmentVariables["DOTNET_WATCH_SUPPRESS_PROMPTS"] = "1";
+            psi.EnvironmentVariables["DOTNET_WATCH_SUPPRESS_EMOJIS"] = "1";
+            psi.EnvironmentVariables["DOTNET_WATCH_RESTART_ON_BUILD_ERROR"] = "1";
+            ProcessEnvironment.UseEnglishCliOutput(psi);
+            foreach (var a in args) psi.ArgumentList.Add(a);
+
+            var proc = System.Diagnostics.Process.Start(psi);
+            if (proc is null) return null;
+
+            _hotReloadProcesses[dir] = proc;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var readOut = Task.Run(async () =>
+                    {
+                        while (await proc.StandardOutput.ReadLineAsync() is { } line)
+                            HandleLine(line, onLine, null);
+                    });
+                    var readErr = Task.Run(async () =>
+                    {
+                        while (await proc.StandardError.ReadLineAsync() is { } line)
+                            HandleLine(line, onLine, null);
+                    });
+                    await Task.WhenAll(readOut, readErr, proc.WaitForExitAsync());
+                }
+                catch { }
+                finally
+                {
+                    _hotReloadProcesses.TryRemove(KeyValuePair.Create(dir, proc));
+                }
+            });
+
+            return proc;
+        }
+        catch (Exception ex)
+        {
+            onLine($"[HotReload Error] {ex.Message}");
+            return null;
+        }
+    }
+
+    public bool StopHotReload(string dir)
+    {
+        if (_hotReloadProcesses.TryRemove(dir, out var proc))
+        {
+            try
+            {
+                if (!proc.HasExited) proc.Kill(entireProcessTree: true);
+                return true;
+            }
+            catch { return false; }
+        }
+        return false;
+    }
     public int Run(string dir, string[] args, Action<string> onLine, string? logFile = null, Action<System.Diagnostics.Process>? onStart = null)
     {
         StreamWriter? log = null;

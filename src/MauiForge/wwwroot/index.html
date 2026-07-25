@@ -44,7 +44,7 @@
                         },
                         green: { 300: 'var(--green)', 400: 'var(--green)', 500: 'var(--green)', 800: 'var(--green-subtle)', 950: 'var(--green-subtle)' },
                         emerald: { 300: 'var(--green)', 400: 'var(--green)', 500: 'var(--green)', 800: 'var(--green-subtle)', 950: 'var(--green-subtle)' },
-                        red: { 400: 'var(--red)', 500: 'var(--red)' }
+                        red: { 300: 'var(--red)', 400: 'var(--red)', 500: 'var(--red)' }
                     }
                 }
             }
@@ -130,7 +130,7 @@
             --amber-subtle: oklch(0.26 0.08 85);
             --green: oklch(0.79 0.17 150);
             --green-subtle: oklch(0.22 0.07 150);
-            --red: oklch(0.70 0.19 22);
+            --red: oklch(0.77 0.17 14);
             --red-subtle: oklch(0.24 0.09 22);
             --indigo-maui: oklch(0.60 0.16 295);
             --indigo-maui-subtle: oklch(0.24 0.08 295);
@@ -862,6 +862,10 @@
                         <span class="text-xs font-semibold text-slate-400 tracking-wide uppercase">Build Output Terminal</span>
                     </button>
                     <div class="flex items-center gap-2">
+                        <span id="hotReloadBadge" class="hidden text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full font-semibold animate-pulse flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                            Hot Reload
+                        </span>
                         <button id="cancelBuildBtn" onclick="cancelBuild()" class="hidden text-red-400 hover:text-red-300 text-xs px-2 py-0.5 rounded hover:bg-slate-800 transition font-semibold" title="Stop the currently running build">
                             Cancel Build
                         </button>
@@ -1322,7 +1326,7 @@
         }
         #bpLogContainer::-webkit-scrollbar { width: 4px; }
         #bpLogContainer::-webkit-scrollbar-thumb { background: color-mix(in oklch, var(--ink-muted) 30%, transparent); border-radius: 2px; }
-        .bp-log-error { color: var(--red); }
+        .bp-log-error { color: var(--red); background: color-mix(in oklch, var(--red) 10%, transparent); padding: 1px 0; border-radius: 2px; }
         .bp-log-warn { color: var(--amber); }
         .bp-log-ok { color: var(--green); }
         .bp-log-step { color: var(--accent); font-weight: 600; }
@@ -1494,6 +1498,21 @@
                     document.getElementById("cancelBuildBtn").classList.add("hidden");
                 }
 
+                // ---- Hot Reload badge management ----
+                var hrBadge = document.getElementById("hotReloadBadge");
+                if (hotReloadActive && hrBadge) {
+                    hrBadge.classList.remove("hidden");
+                    document.getElementById("cancelBuildBtn").textContent = "Stop Hot Reload";
+                } else if (hrBadge) {
+                    hrBadge.classList.add("hidden");
+                }
+                if (message.indexOf("Hot Reload stopped") >= 0) {
+                    hotReloadActive = false;
+                    hotReloadDir = null;
+                    if (hrBadge) hrBadge.classList.add("hidden");
+                    document.getElementById("cancelBuildBtn").classList.add("hidden");
+                }
+
                 openTerminal();
                 const consoleEl = document.getElementById("terminalConsole");
                 const wasAtBottom = consoleEl.scrollHeight - consoleEl.clientHeight <= consoleEl.scrollTop + 10;
@@ -1507,6 +1526,8 @@
                     line.className = "text-amber-400";
                 } else if (message.startsWith("===") || message.includes("completed")) {
                     line.className = "text-blue-400 font-bold";
+                } else if (message.indexOf("Hot Reload") >= 0 || message.indexOf("hot reload") >= 0) {
+                    line.className = "text-emerald-400 font-semibold";
                 }
                 
                 consoleEl.appendChild(line);
@@ -1888,9 +1909,25 @@
         // Collapses the Android/iOS build buttons into one "Build" trigger — a MAUI
         // card previously showed 5 same-weight buttons (Bump+1, Build+1, Android,
         // iOS, overflow), past the ~4-choice cognitive load guideline.
+        var hotReloadDir = null;
+        var hotReloadActive = false;
+
         function openBuildMenu(e, dir) {
             e.stopPropagation();
             const encDir = encodeURIComponent(dir);
+            const isHrActive = (hotReloadActive && hotReloadDir === dir);
+            var hrHtml = '';
+            if (isHrActive) {
+                hrHtml = `
+                <div class="border-t border-slate-800 my-1"></div>
+                <div class="text-[9px] uppercase tracking-wider text-amber-500 font-semibold px-3 pt-0 pb-1">Hot Reload ● Active</div>
+                <button onclick="stopHotReload(); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-amber-400 hover:text-amber-300 transition flex items-center gap-2 rounded-b-lg" title="Stop Hot Reload">■ Stop Hot Reload</button>`;
+            } else {
+                hrHtml = `
+                <div class="border-t border-slate-800 my-1"></div>
+                <div class="text-[9px] uppercase tracking-wider text-emerald-600 font-semibold px-3 pt-0 pb-1">Hot Reload</div>
+                <button onclick="startHotReload(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2 rounded-b-lg" title="Start Hot Reload for Android">${ICON_BUILD}Android</button>`;
+            }
             showGlobalMenu(e.currentTarget, "build:" + dir, `
                 <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-2 pb-1">Build Only</div>
                 <button onclick="buildApp(decodeURIComponent('${encDir}'), 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build Android (Debug)">${ICON_BUILD}Android</button>
@@ -1898,7 +1935,8 @@
                 <div class="border-t border-slate-800 my-1"></div>
                 <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Build & Run</div>
                 <button onclick="openBuildRun(decodeURIComponent('${encDir}'), 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build & run on Android device/emulator">▶ Android</button>
-                <button onclick="openBuildRun(decodeURIComponent('${encDir}'), 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition flex items-center gap-2" title="Build & run on iOS device/simulator">▶ iOS</button>
+                <button onclick="openBuildRun(decodeURIComponent('${encDir}'), 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build & run on iOS device/simulator">▶ iOS</button>
+                ${hrHtml}
             `, 200);
         }
 
@@ -3495,6 +3533,50 @@ function toggleTheme() {
             }
         }
 
+        async function startHotReload(dir) {
+            clearConsole();
+            openTerminal();
+            hotReloadDir = dir;
+            hotReloadActive = true;
+            document.getElementById("cancelBuildBtn").classList.remove("hidden");
+            document.getElementById("cancelBuildBtn").textContent = "Stop Hot Reload";
+            try {
+                const res = await fetch(`${API_BASE}/api/apps/hotreload/start`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dir })
+                });
+                const data = await res.json();
+                if (!data.success) showToast(data.error || "Failed to start Hot Reload", "error");
+            } catch (err) {
+                hotReloadActive = false;
+                showToast("Hot Reload error: " + err.message, "error");
+            }
+            renderApps();
+        }
+
+        async function stopHotReload() {
+            if (!hotReloadDir) return;
+            hotReloadActive = false;
+            try {
+                const res = await fetch(`${API_BASE}/api/apps/hotreload/stop`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dir: hotReloadDir })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast("Hot Reload stopped.", "success");
+                }
+            } catch (err) {
+                showToast("Failed to stop Hot Reload: " + err.message, "error");
+            }
+            hotReloadDir = null;
+            currentBuildDir = null;
+            document.getElementById("cancelBuildBtn").classList.add("hidden");
+            renderApps();
+        }
+
         async function loadDiagnostics() {
             try {
                 const res = await fetch(`${API_BASE}/api/diagnostics`);
@@ -4078,6 +4160,19 @@ function toggleTheme() {
         async function pollActiveBuildLogs() {
             if (!buildProgressActive) return;
             try {
+                // Poll the build record status too — if SignalR dropped the final
+                // step marker, this catches it and finalizes the UI.
+                if (activeBuildId) {
+                    var statusRes = await fetch(API_BASE + "/api/builds/" + encodeURIComponent(activeBuildId));
+                    if (statusRes.ok) {
+                        var rec = await statusRes.json();
+                        if (rec && rec.status && rec.status !== "Running") {
+                            finalizeBuildProgress(rec.status === "Success");
+                            return;
+                        }
+                    }
+                }
+
                 var url = activeBuildId ? (API_BASE + "/api/builds/log?id=" + encodeURIComponent(activeBuildId)) : null;
                 if (!url) return;
                 var res = await fetch(url);
