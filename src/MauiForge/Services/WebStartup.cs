@@ -1110,6 +1110,7 @@ public static class WebStartup
                     await SendLog("===STEP:BUILD===");
 
                     var initialBuildDone = false;
+                    var lastUpdatedFile = "";
                     builder.StartHotReload(dir, args.ToArray(), line =>
                     {
                         _ = SendLog(line);
@@ -1118,6 +1119,21 @@ public static class WebStartup
                         if (line.Contains("[auto-answered:", StringComparison.OrdinalIgnoreCase))
                         {
                             _ = SendLog("===STEP:RESTARTING===");
+                        }
+
+                        // Detecta "File updated:" e guarda o nome do arquivo
+                        if (line.Contains("File updated:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            lastUpdatedFile = line;
+                        }
+
+                        // "No managed code changes" após XAML = XAML-only change
+                        if (line.Contains("No managed code changes to apply", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var isXaml = lastUpdatedFile.Contains(".xaml", StringComparison.OrdinalIgnoreCase);
+                            _ = SendLog(isXaml
+                                ? "===STEP:XAML_ONLY_CHANGE==="
+                                : "===STEP:NO_CODE_CHANGE===");
                         }
 
                         if (line.Contains("Build succeeded", StringComparison.OrdinalIgnoreCase))
