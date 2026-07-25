@@ -492,6 +492,33 @@
 </head>
 <body class="h-full flex flex-col overflow-hidden">
 
+    <!-- Preloader: covers the page until the app is fully ready -->
+    <div id="preloader" style="position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg,oklch(0.07 0 0));transition:opacity 0.45s ease,visibility 0.45s ease;">
+        <style>
+            #preloader { --bg: oklch(0.07 0 0); }
+            :root[data-theme="light"] #preloader { --bg: oklch(0.93 0.006 210); }
+            @keyframes preloadSpin { to { transform: rotate(360deg); } }
+            @keyframes preloadPulse { 0%,100% { opacity:0.35; } 50% { opacity:1; } }
+            #preloader.hide { opacity:0; visibility:hidden; pointer-events:none; }
+        </style>
+        <div style="width:40px;height:40px;border:3px solid var(--border,oklch(0.32 0 0));border-top-color:var(--accent,oklch(0.78 0.15 195));border-radius:50%;animation:preloadSpin 0.8s linear infinite;margin-bottom:20px;"></div>
+        <div style="font-family:'Inter',system-ui,sans-serif;font-size:13px;color:var(--ink-muted,oklch(0.52 0 0));letter-spacing:0.04em;animation:preloadPulse 1.6s ease-in-out infinite;">MAUI Forge</div>
+    </div>
+    <script>
+        window.addEventListener("DOMContentLoaded",function(){
+            setTimeout(function(){
+                var el=document.getElementById("preloader");
+                if(el)el.classList.add("hide");
+            },120);
+        });
+        window.addEventListener("load",function(){
+            setTimeout(function(){
+                var el=document.getElementById("preloader");
+                if(el)el.remove();
+            },600);
+        });
+    </script>
+
     <!-- Header -->
     <header class="border-b border-slate-800 bg-[var(--chrome)] backdrop-blur-md px-6 py-2.5 flex items-center justify-between flex-shrink-0">
         <div class="flex items-center gap-3">
@@ -2093,7 +2120,6 @@
                     if (prefsData) {
                         if (prefsData.theme) {
                             localStorage.setItem("theme", prefsData.theme);
-                            document.documentElement.dataset.theme = prefsData.theme;
                         }
                         if (prefsData.prefs) {
                             for (var k in prefsData.prefs) {
