@@ -2088,8 +2088,7 @@
             var dir = document.getElementById("modalAppDir").value;
             if (!dir) return;
 
-            var btn = document.querySelector("#modalSyncWarning .btn-primary");
-            if (btn) { btn.disabled = true; btn.textContent = "Syncing..."; }
+            showProcessing("Syncing platforms...", "Writing consistent versions across iOS, Android, and project files");
 
             try {
                 var res = await fetch(API_BASE + "/api/apps/version/sync", {
@@ -2098,6 +2097,7 @@
                     body: JSON.stringify({ dir: dir })
                 });
                 var data = await res.json();
+                hideProcessing();
                 if (data.success) {
                     document.getElementById("modalSyncWarning").classList.add("hidden");
                     refreshSingleApp(dir);
@@ -2106,9 +2106,8 @@
                     showToast("Sync failed", "error");
                 }
             } catch (err) {
+                hideProcessing();
                 showToast("Sync failed: " + err.message, "error");
-            } finally {
-                if (btn) { btn.disabled = false; btn.textContent = "Sync All Platforms"; }
             }
         }
 
@@ -2666,12 +2665,15 @@ function toggleTheme() {
             const path = input.value.trim();
             if (!path) return;
 
+            showProcessing("Adding folder...", "Registering " + path + " and scanning for apps");
+
             try {
                 const res = await fetch(`${API_BASE}/api/paths`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ path })
                 });
+                hideProcessing();
                 if (res.ok) {
                     input.value = "";
                     loadPaths();
@@ -2681,6 +2683,7 @@ function toggleTheme() {
                     showToast(await res.text(), "error");
                 }
             } catch (err) {
+                hideProcessing();
                 console.error("Failed to add path:", err);
                 showToast("Failed to add directory: " + err.message, "error");
             }
@@ -2688,12 +2691,14 @@ function toggleTheme() {
 
         async function removePath(path) {
             showConfirmModal("Are you sure you want to stop monitoring: " + path, async function () {
+                showProcessing("Removing folder...", "Unregistering path and rescanning apps");
                 try {
                     var res = await fetch(`${API_BASE}/api/paths/delete`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ path })
                     });
+                    hideProcessing();
                     if (res.ok) {
                         showToast("Directory removed", "success");
                     } else {
@@ -2702,6 +2707,7 @@ function toggleTheme() {
                     loadPaths();
                     loadApps();
                 } catch (err) {
+                    hideProcessing();
                     console.error("Failed to remove path:", err);
                     showToast("Failed to remove directory: " + err.message, "error");
                 }
@@ -2741,15 +2747,18 @@ function toggleTheme() {
         }
 
         async function enableServerMode() {
+            showProcessing("Enabling server mode...", "Generating access token for remote connections");
             try {
                 const res = await fetch(`${API_BASE}/api/remote/enable-server`, { method: "POST" });
                 const data = await res.json();
+                hideProcessing();
                 saveLocalServeToken(data.token);
                 document.getElementById("serverModeToken").value = data.token;
                 document.getElementById("serverModeCommand").textContent = "Restart: maui-forge --serve --token " + data.token;
                 document.getElementById("serverModeInfo").classList.remove("hidden");
                 showToast("Server token generated — edit it above if you want your own, then restart.", "success");
             } catch (err) {
+                hideProcessing();
                 showToast("Failed: " + err.message, "error");
             }
         }
@@ -2758,6 +2767,7 @@ function toggleTheme() {
             var input = document.getElementById("serverModeToken");
             var value = input.value.trim();
             if (!value) { showToast("Token can't be empty", "error"); return; }
+            showProcessing("Saving token...", "Updating server mode configuration");
             try {
                 const res = await fetch(`${API_BASE}/api/remote/enable-server`, {
                     method: "POST",
@@ -2765,11 +2775,13 @@ function toggleTheme() {
                     body: JSON.stringify({ token: value })
                 });
                 const data = await res.json();
+                hideProcessing();
                 saveLocalServeToken(data.token);
                 document.getElementById("serverModeCommand").textContent = "Restart: maui-forge --serve --token " + data.token;
                 showToast(data.message, "success");
                 if (data.appliedLive) refreshHostStatus();
             } catch (err) {
+                hideProcessing();
                 showToast("Failed to save token: " + err.message, "error");
             }
         }
@@ -2791,6 +2803,7 @@ function toggleTheme() {
             event.preventDefault();
             var value = document.getElementById("changeTokenInput").value.trim();
             if (!value) { showToast("Token can't be empty", "error"); return; }
+            showProcessing("Applying token...", "Updating server mode token");
             try {
                 const res = await fetch(`${API_BASE}/api/remote/enable-server`, {
                     method: "POST",
@@ -2798,11 +2811,13 @@ function toggleTheme() {
                     body: JSON.stringify({ token: value })
                 });
                 const data = await res.json();
+                hideProcessing();
                 saveLocalServeToken(data.token);
                 document.getElementById("changeTokenForm").classList.add("hidden");
                 showToast(data.message, "success");
                 refreshHostStatus();
             } catch (err) {
+                hideProcessing();
                 showToast("Failed to change token: " + err.message, "error");
             }
         }
@@ -2932,10 +2947,12 @@ function toggleTheme() {
                 showTokenErrorModal(host, port, 'This server requires a token to connect. Check the "Server Mode Active" panel on that machine for its token.');
                 return;
             }
+            showProcessing("Connecting...", "Reaching " + host + ":" + port + " and verifying access");
             try {
                 var test = await origFetch("http://" + host + ":" + port + "/api/remote/info");
-                if (!test.ok) { showToast("Server not reachable at " + host + ":" + port, "error"); return; }
+                if (!test.ok) { hideProcessing(); showToast("Server not reachable at " + host + ":" + port, "error"); return; }
             } catch (e) {
+                hideProcessing();
                 showToast("Server not reachable at " + host + ":" + port, "error");
                 return;
             }
@@ -2946,15 +2963,18 @@ function toggleTheme() {
                     headers: token ? { "X-MauiForge-Token": token } : {}
                 });
                 if (authTest.status === 401) {
+                    hideProcessing();
                     showTokenErrorModal(host, port, token
                         ? 'The token was rejected by ' + host + ':' + port + '. Check the token on that machine\'s "Server Mode Active" panel and try again.'
                         : 'This server requires a token to connect. Check the "Server Mode Active" panel on that machine for its token.');
                     return;
                 }
             } catch (e) {
+                hideProcessing();
                 showToast("Server not reachable at " + host + ":" + port, "error");
                 return;
             }
+            hideProcessing();
             remoteInfo = { host: host, port: port, token: token };
             localStorage.setItem("mauiForgeRemote", JSON.stringify(remoteInfo));
             document.getElementById("remoteNotConnected").classList.add("hidden");
@@ -3838,12 +3858,15 @@ function toggleTheme() {
             const version = document.getElementById("modalVersionInput").value;
             const build = document.getElementById("modalBuildInput").value;
 
+            showProcessing("Updating version...", "Version " + version + " #" + build + " — writing to project files");
+
             try {
                 const res = await fetch(`${API_BASE}/api/apps/version`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ dir, version, build })
                 });
+                hideProcessing();
                 if (res.ok) {
                     closeVersionModal();
                     refreshSingleApp(dir);
@@ -3852,6 +3875,7 @@ function toggleTheme() {
                     showToast(await res.text(), "error");
                 }
             } catch (err) {
+                hideProcessing();
                 console.error("Failed to update version:", err);
                 showToast("Failed to update version: " + err.message, "error");
             }
@@ -3867,9 +3891,8 @@ function toggleTheme() {
         }
 
         async function pullGit(dir) {
-            openTerminal();
-            const terminal = document.getElementById("terminalConsole");
-            terminal.innerHTML = '<div class="text-slate-400">[Git] Running git pull...</div>';
+            showProcessing("Pulling from git...", "Running git pull — fetching latest commits from remote");
+
             try {
                 const res = await fetch(`${API_BASE}/api/apps/git/pull`, {
                     method: "POST",
@@ -3877,12 +3900,15 @@ function toggleTheme() {
                     body: JSON.stringify({ dir })
                 });
                 const data = await res.json();
-                const line = document.createElement("div");
-                line.className = data.success ? "text-green-400" : "text-red-400";
-                line.textContent = data.output || "Git pull executed.";
-                terminal.appendChild(line);
+                hideProcessing();
+                if (data.success) {
+                    showToast("Git pull complete", "success");
+                } else {
+                    showToast("Pull failed: " + (data.output || "unknown error"), "error");
+                }
                 refreshSingleApp(dir);
             } catch (err) {
+                hideProcessing();
                 console.error(err);
                 showToast("Pull failed: " + err.message, "error");
             }
