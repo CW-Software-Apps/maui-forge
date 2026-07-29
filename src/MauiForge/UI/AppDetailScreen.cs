@@ -373,6 +373,33 @@ public class AppDetailScreen(
 
     private void IncrementVersionAction(AppEntry app, bool incrementVersion, PersistentState st)
     {
+        // ── Sync enforcement ────────────────────────────────────────────────
+        // If the app is out of sync, offer to align all platforms to the Master
+        // version before bumping. This prevents bumping from a stale or mismatched
+        // baseline and ensures all platform files stay consistent.
+        if (!app.Versions.InSync)
+        {
+            var v = app.Versions;
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("  [yellow bold]!! Platforms out of sync[/]");
+            if (v.iOS is not null)
+                AnsiConsole.MarkupLine($"    [skyblue1]iOS:[/]     {Markup.Escape(v.iOS.Version)} [dim]#{v.iOS.Build}[/]");
+            if (v.Android is not null)
+                AnsiConsole.MarkupLine($"    [green3]Android:[/]  {Markup.Escape(v.Android.Version)} [dim]#{v.Android.Build}[/]");
+            if (v.Csproj is not null)
+                AnsiConsole.MarkupLine($"    [cyan1]Csproj:[/]   {Markup.Escape(v.Csproj.Version)} [dim]#{v.Csproj.Build}[/]");
+
+            if (AnsiConsole.Confirm("  Sync all platforms to the Master version first?", defaultValue: true))
+            {
+                var syncMaster = v.Master!;
+                SaveSnapshot(app, syncMaster, st);
+                ApplyVersion(app, syncMaster.Version, syncMaster.Build);
+                AnsiConsole.MarkupLine("  [green]ok  Platforms synchronized.[/]");
+                // Re-read versions after sync
+                app = RefreshApp(app);
+            }
+        }
+
         var master = app.Versions.Master;
         if (master is null) return;
 
@@ -1720,6 +1747,7 @@ public class AppDetailScreen(
         if (app.Versions.iOS     is not null) versions.WriteiOS(app.Dir, version, bld);
         if (app.Versions.Android is not null) versions.WriteAndroid(app.Dir, version, bld);
         if (csproj               is not null) versions.WriteCsproj(csproj, version, bld);
+        versions.WriteAssemblyInfo(app.Dir, version, bld);
     }
 
     private string _verbosity = "quiet";

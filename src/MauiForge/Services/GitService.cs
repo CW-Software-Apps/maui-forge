@@ -81,6 +81,31 @@ public class GitService
     public string GetBranch(string dir) =>
         RunGit(dir, "rev-parse", "--abbrev-ref", "HEAD").Trim();
 
+    /// <summary>Returns all local branch names.</summary>
+    public List<string> ListBranches(string dir)
+    {
+        var output = RunGit(dir, "branch", "--format=%(refname:short)");
+        if (string.IsNullOrWhiteSpace(output)) return [];
+        return output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                     .Select(l => l.Trim())
+                     .Where(l => l.Length > 0)
+                     .ToList();
+    }
+
+    /// <summary>Switch to an existing local branch. Returns (success, output).</summary>
+    public (bool Success, string Output) Checkout(string dir, string branch)
+    {
+        var (ok, output) = RunGitWithResult(dir, "checkout", branch);
+        return (ok, output);
+    }
+
+    /// <summary>Create a new branch from HEAD and switch to it. Returns (success, output).</summary>
+    public (bool Success, string Output) CheckoutNew(string dir, string branch)
+    {
+        var (ok, output) = RunGitWithResult(dir, "checkout", "-b", branch);
+        return (ok, output);
+    }
+
     public (bool Success, string Output) Pull(string dir) =>
         RunGitWithResult(dir, "pull");
 

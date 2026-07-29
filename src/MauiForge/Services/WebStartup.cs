@@ -526,6 +526,40 @@ public static class WebStartup
             return Results.Ok(new { Success = true, Version = newVersion, Build = newBuild });
         });
 
+        // Sync endpoint — aligns all platform version files to the csproj version
+        // without changing the version number itself. Useful when platforms drifted
+        // apart (e.g. iOS was bumped manually but Android wasn't).
+        app.MapPost("/api/apps/version/sync", (VersionService versions, AppDiscoveryService discovery, StateService state, SyncRequest req) =>
+        {
+            var csproj = Directory.EnumerateFiles(req.Dir, "*.csproj").FirstOrDefault();
+            if (csproj == null) return Results.BadRequest("No .csproj found.");
+
+            var currentCsproj = versions.ReadCsproj(csproj) ?? versions.ReadAssemblyInfo(req.Dir);
+            if (currentCsproj is null) return Results.BadRequest("Could not read version from .csproj.");
+
+            var currentIos = versions.ReadiOS(req.Dir);
+            var currentAndroid = versions.ReadAndroid(req.Dir);
+
+            // Snapshot before syncing
+            var st = state.Load();
+            st.LastVersion = new VersionSnapshot
+            {
+                AppDir = req.Dir,
+                Version = currentCsproj.Version,
+                Build = currentCsproj.Build
+            };
+            state.Save(st);
+
+            if (currentIos is not null) versions.WriteiOS(req.Dir, currentCsproj.Version, currentCsproj.Build);
+            if (currentAndroid is not null) versions.WriteAndroid(req.Dir, currentCsproj.Version, currentCsproj.Build);
+            versions.WriteCsproj(csproj, currentCsproj.Version, currentCsproj.Build);
+            versions.WriteAssemblyInfo(req.Dir, currentCsproj.Version, currentCsproj.Build);
+
+            TriggerBumpSfx();
+            RefreshCacheAndNotify(discovery, state, req.Dir);
+            return Results.Ok(new { Success = true, Version = currentCsproj.Version, Build = currentCsproj.Build });
+        });
+
         // Git Endpoints
         app.MapPost("/api/apps/git/pull", (GitService git, AppDiscoveryService discovery, StateService state, GitRequest req) =>
         {
@@ -539,6 +573,30 @@ public static class WebStartup
         {
             var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
             var res = git.Push(dir, req.Message);
+            RefreshCacheAndNotify(discovery, state, dir);
+            return Results.Ok(new { Success = res.Success, Output = res.Output });
+        });
+
+        // Branch endpoints
+        app.MapPost("/api/apps/git/branches", (GitService git, GitBranchListRequest req) =>
+        {
+            var branches = git.ListBranches(req.Dir);
+            var current = git.GetBranch(req.Dir);
+            return Results.Ok(new { branches, current });
+        });
+
+        app.MapPost("/api/apps/git/checkout", (GitService git, AppDiscoveryService discovery, StateService state, GitCheckoutRequest req) =>
+        {
+            var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
+            var res = git.Checkout(dir, req.Branch);
+            RefreshCacheAndNotify(discovery, state, dir);
+            return Results.Ok(new { Success = res.Success, Output = res.Output });
+        });
+
+        app.MapPost("/api/apps/git/checkout-new", (GitService git, AppDiscoveryService discovery, StateService state, GitCheckoutNewRequest req) =>
+        {
+            var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
+            var res = git.CheckoutNew(dir, req.Branch);
             RefreshCacheAndNotify(discovery, state, dir);
             return Results.Ok(new { Success = res.Success, Output = res.Output });
         });
@@ -1582,3 +1640,7 @@ public record ConfigResponse(List<string> Configurations, List<string> Framework
 public record RunRequest(string Dir, string Platform, string DeviceId, string DeviceName, string DeviceType, string Configuration, string Framework);
 public record HotReloadRequest(string Dir, string? DeviceId);
 public record PrefsRequest(string? Theme, Dictionary<string, string>? Prefs);
+public record GitBranchListRequest(string Dir);
+public record GitCheckoutRequest(string Dir, string Branch);
+public record GitCheckoutNewRequest(string Dir, string Branch);
+public record SyncRequest(string Dir);
