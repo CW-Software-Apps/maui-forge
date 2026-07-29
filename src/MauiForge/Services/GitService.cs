@@ -92,6 +92,19 @@ public class GitService
                      .ToList();
     }
 
+    /// <summary>Returns all remote branch names (origin/ prefix stripped).</summary>
+    public List<string> ListRemoteBranches(string dir)
+    {
+        var output = RunGit(dir, "branch", "-r", "--format=%(refname:short)");
+        if (string.IsNullOrWhiteSpace(output)) return [];
+        return output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                     .Select(l => l.Trim())
+                     .Where(l => l.Length > 0)
+                     // filter out HEAD pointer if present (origin/HEAD -> origin/main)
+                     .Where(l => !l.EndsWith("/HEAD", StringComparison.Ordinal))
+                     .ToList();
+    }
+
     /// <summary>Switch to an existing local branch. Returns (success, output).</summary>
     public (bool Success, string Output) Checkout(string dir, string branch)
     {

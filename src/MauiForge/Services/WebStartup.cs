@@ -591,8 +591,9 @@ public static class WebStartup
         app.MapPost("/api/apps/git/branches", (GitService git, GitBranchListRequest req) =>
         {
             var branches = git.ListBranches(req.Dir);
+            var remotes = git.ListRemoteBranches(req.Dir);
             var current = git.GetBranch(req.Dir);
-            return Results.Ok(new { branches, current });
+            return Results.Ok(new { branches, remotes, current });
         });
 
         app.MapPost("/api/apps/git/checkout", (GitService git, AppDiscoveryService discovery, StateService state, GitCheckoutRequest req) =>

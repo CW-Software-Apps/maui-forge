@@ -2230,20 +2230,49 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 currentEl.textContent = data.current || "—";
-                if (!data.branches || data.branches.length === 0) {
-                    list.innerHTML = '<div class="text-xs text-slate-500 p-3 text-center">No branches found.</div>';
-                    return;
+
+                var localHtml = "";
+                if (data.branches && data.branches.length > 0) {
+                    localHtml = '<div class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold px-1 mb-1">Local</div>' +
+                        data.branches.map(function (b) {
+                            var isCurrent = b === data.current;
+                            return '<button onclick="switchBranch(\'' + b.replace(/'/g, "\\'") + '\')" class="w-full text-left px-3 py-2 text-xs rounded-md transition flex items-center gap-2 ' +
+                                (isCurrent ? 'bg-skyblue-500/10 text-skyblue-400 font-semibold cursor-default' : 'hover:bg-slate-800 text-slate-300 hover:text-white') + '" ' +
+                                (isCurrent ? 'disabled' : '') + '>' +
+                                '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M6 8.5v7M8.5 6H14a4 4 0 0 1 4 4v0"/></svg>' +
+                                b +
+                                (isCurrent ? ' <span class="ml-auto text-[9px] uppercase tracking-wider text-skyblue-400/60">current</span>' : '') +
+                                '</button>';
+                        }).join("");
                 }
-                list.innerHTML = data.branches.map(function (b) {
-                    var isCurrent = b === data.current;
-                    return '<button onclick="switchBranch(\'' + b.replace(/'/g, "\\'") + '\')" class="w-full text-left px-3 py-2 text-xs rounded-md transition flex items-center gap-2 ' +
-                        (isCurrent ? 'bg-skyblue-500/10 text-skyblue-400 font-semibold cursor-default' : 'hover:bg-slate-800 text-slate-300 hover:text-white') + '" ' +
-                        (isCurrent ? 'disabled' : '') + '>' +
-                        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M6 8.5v7M8.5 6H14a4 4 0 0 1 4 4v0"/></svg>' +
-                        b +
-                        (isCurrent ? ' <span class="ml-auto text-[9px] uppercase tracking-wider text-skyblue-400/60">current</span>' : '') +
-                        '</button>';
-                }).join("");
+
+                var remoteHtml = "";
+                if (data.remotes && data.remotes.length > 0) {
+                    var localNames = new Set(data.branches || []);
+                    // Filter out remote branches that already have a local tracking branch
+                    var uniqueRemotes = data.remotes.filter(function (rb) {
+                        var shortName = rb.replace(/^origin\//, "");
+                        return !localNames.has(shortName) && !localNames.has(rb);
+                    });
+                    if (uniqueRemotes.length > 0) {
+                        remoteHtml = '<div class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold px-1 mb-1 mt-2 pt-2 border-t border-slate-800">Remote</div>' +
+                            uniqueRemotes.map(function (rb) {
+                                var shortName = rb.replace(/^origin\//, "");
+                                return '<button onclick="switchBranch(\'' + shortName.replace(/'/g, "\\'") + '\', \'' + rb.replace(/'/g, "\\'") + '\')" class="w-full text-left px-3 py-2 text-xs rounded-md transition flex items-center gap-2 hover:bg-slate-800 text-slate-400 hover:text-white">' +
+                                    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>' +
+                                    rb +
+                                    ' <span class="ml-auto text-[9px] text-slate-600">↓ checkout</span>' +
+                                    '</button>';
+                            }).join("");
+                    }
+                }
+
+                list.innerHTML = (localHtml || '<div class="text-xs text-slate-500 p-2 text-center">No local branches.</div>') +
+                    (remoteHtml || "");
+
+                if (!data.branches && !data.remotes) {
+                    list.innerHTML = '<div class="text-xs text-slate-500 p-3 text-center">No branches found.</div>';
+                }
                 setTimeout(function () { trapFocus("branchModal"); }, 50);
             })
             .catch(function () {
@@ -2251,12 +2280,14 @@
             });
         }
 
-        function switchBranch(branch) {
+        function switchBranch(branch, remoteRef) {
             var dir = _branchModalDir;
             if (!dir) return;
             var resultEl = document.getElementById("branchResult");
+            var displayName = remoteRef || branch;
+            var isRemote = !!remoteRef;
             resultEl.className = "text-xs rounded-lg p-3 bg-amber-500/10 border border-amber-500/20 text-amber-400";
-            resultEl.textContent = "Switching to " + branch + "...";
+            resultEl.textContent = isRemote ? ("Fetching " + displayName + " and switching to " + branch + "...") : ("Switching to " + branch + "...");
             resultEl.classList.remove("hidden");
 
             fetch(API_BASE + "/api/apps/git/checkout", {
