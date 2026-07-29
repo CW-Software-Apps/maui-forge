@@ -2015,6 +2015,7 @@
             const encDir = encodeURIComponent(dir);
             showGlobalMenu(e.currentTarget, "row:" + dir, `
                 <button onclick="openVersionUpdate(decodeURIComponent('${encDir}'), '${ver}', '${build}'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition flex items-center gap-2" title="Manually set version and build number">${ICON_HASH}Update Version</button>
+                <button onclick="quickBumpBuildOnly(decodeURIComponent('${encDir}'), '${ver}', '${build}'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Increment build number only, then push to remote">${ICON_HASH}Build # +1</button>
                 <button onclick="pullGit(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="git pull from remote">${ICON_PULL}Pull</button>
                 <button onclick="openBranchModal(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Switch to a different git branch">${ICON_BRANCH}Switch Branch</button>
                 <button onclick="openFolder(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project folder in File Explorer">${ICON_FOLDER}Open Folder</button>
@@ -2036,14 +2037,14 @@
             const encDir = encodeURIComponent(dir);
             const isHrActive = (hotReloadActive && hotReloadDir === dir);
             showGlobalMenu(e.currentTarget, "build:" + dir, `
-                <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-2 pb-1">Build Only</div>
-                <button onclick="buildApp(decodeURIComponent('${encDir}'), 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build Android (Debug)">${ICON_BUILD}Android</button>
-                <button onclick="buildApp(decodeURIComponent('${encDir}'), 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build iOS (Debug)">${ICON_BUILD}iOS</button>
+                <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-2 pb-1">Compile Only</div>
+                <button onclick="buildApp(decodeURIComponent('${encDir}'), 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Compile Android (Debug)">${ICON_BUILD}Android</button>
+                <button onclick="buildApp(decodeURIComponent('${encDir}'), 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Compile iOS (Debug)">${ICON_BUILD}iOS</button>
                 <div class="border-t border-slate-800 my-1"></div>
-                <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Build & Archive</div>
+                <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Archive</div>
                 <button onclick="archiveApp(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Create iOS Archive (Release)">${ICON_ARCHIVE}iOS</button>
                 <div class="border-t border-slate-800 my-1"></div>
-                <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Build & Run</div>
+                <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Compile & Run</div>
                 <button onclick="openBuildRun(decodeURIComponent('${encDir}'), 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build & run on Android device/emulator">▶ Android</button>
                 <button onclick="openBuildRun(decodeURIComponent('${encDir}'), 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build & run on iOS device/simulator">▶ iOS</button>
                 ${isHrActive ? `
@@ -3556,13 +3557,13 @@ function toggleTheme() {
                 const androidVer = app.versions.android ? `${app.versions.android.version} (${app.versions.android.build})` : "N/A";
                 const iosVer = app.versions.iOS ? `${app.versions.iOS.version} (${app.versions.iOS.build})` : "N/A";
                 return [
-                    { icon: ICON_PROJECT, label: "Project", value: csprojVer, title: "Project file (.csproj) version — used as the source of truth for Bump +1" },
+                    { icon: ICON_PROJECT, label: "Project", value: csprojVer, title: "Project file (.csproj) version — source of truth for Bump & Push" },
                     { icon: ICON_ANDROID, label: "Android", value: androidVer, title: "Android version, read from AndroidManifest.xml" },
                     { icon: ICON_IOS, label: "iOS", value: iosVer, title: "iOS version, read from Info.plist" },
                 ];
             }
             return [
-                { icon: ICON_PROJECT, label: "Project", value: csprojVer, title: "Project file (.csproj) version — used as the source of truth for Bump +1" },
+                { icon: ICON_PROJECT, label: "Project", value: csprojVer, title: "Project file (.csproj) version — source of truth for Bump & Push" },
             ];
         }
 
@@ -3573,7 +3574,7 @@ function toggleTheme() {
             const syncWarning = (!app.versions.inSync && entries.length === 3)
                 ? `<div class="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-amber-400 bg-amber-400/10 px-2 py-1 rounded-md">
                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                       Versions out of sync — Bump +1 will align all platforms
+                       Versions out of sync — Bump & Push will align all platforms
                    </div>`
                 : "";
 
@@ -3630,22 +3631,19 @@ function toggleTheme() {
             let buildButtons = '';
             if (app.projectType === 'MAUI') {
                 buildButtons = `
-                    <button onclick="openBuildMenu(event, '${dir}')" class="btn-ghost ${sizeClass} gap-1.5" aria-haspopup="true" aria-expanded="false" title="Build for Android or iOS (Debug)">${ICON_BUILD}Build${ICON_CHEVRON_SM}</button>
+                    <button onclick="openBuildMenu(event, '${dir}')" class="btn-ghost ${sizeClass} gap-1.5" aria-haspopup="true" aria-expanded="false" title="Compile or deploy for Android/iOS">${ICON_BUILD}Compile${ICON_CHEVRON_SM}</button>
                 `;
             } else if (app.projectType === 'WPF') {
-                buildButtons = `<button onclick="buildApp('${dir}', 'Windows')" class="btn-ghost ${sizeClass} gap-1.5" title="Build Windows (Debug)">${ICON_BUILD}Windows</button>`;
+                buildButtons = `<button onclick="buildApp('${dir}', 'Windows')" class="btn-ghost ${sizeClass} gap-1.5" title="Compile Windows (Debug)">${ICON_BUILD}Compile</button>`;
             } else if (app.projectType === 'Blazor') {
-                buildButtons = `<button onclick="buildApp('${dir}', 'Web')" class="btn-ghost ${sizeClass} gap-1.5" title="Build Web (Debug)">${ICON_BUILD}Web</button>`;
+                buildButtons = `<button onclick="buildApp('${dir}', 'Web')" class="btn-ghost ${sizeClass} gap-1.5" title="Compile Web (Debug)">${ICON_BUILD}Compile</button>`;
             } else {
                 buildButtons = `<button onclick="openFolder('${dir}')" class="btn-ghost ${sizeClass} gap-1.5" title="Open project folder in File Explorer">${ICON_FOLDER}Open Folder</button>`;
             }
 
             return `
                 <button onclick="quickBumpVersion('${dir}', '${ver}', '${build}')" class="btn-primary ${sizeClass} font-semibold gap-1.5" title="Bump version +1 and build +1, then push to remote">
-                    ${ICON_BUMP}Bump +1
-                </button>
-                <button onclick="quickBumpBuildOnly('${dir}', '${ver}', '${build}')" class="btn-ghost ${sizeClass} gap-1.5" title="Keep version ${ver || 'as-is'}, bump build number only, then push">
-                    ${ICON_HASH}Build +1
+                    ${ICON_BUMP}Bump & Push
                 </button>
                 ${buildButtons}
                 <button onclick="openRowMenu(event, '${dir}', '${ver}', '${build}')" class="btn-ghost ${sizeClass}" aria-haspopup="true" aria-expanded="false" aria-label="More actions for ${app.name}" title="More actions (version, pull, folder, IDEs)">&#x22EF;</button>
