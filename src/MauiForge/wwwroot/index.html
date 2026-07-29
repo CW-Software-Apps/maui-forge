@@ -1140,6 +1140,21 @@
         </div>
     </div>
 
+    <!-- Processing overlay (blocks interaction during bump/push) -->
+    <div id="processingOverlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-label="Processing">
+        <div class="modal-panel" style="max-width:20rem; text-align:center;">
+            <div class="p-6 space-y-4">
+                <div class="flex justify-center">
+                    <svg class="animate-spin" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                    </svg>
+                </div>
+                <p id="processingMessage" class="text-sm font-semibold" style="color: var(--ink);">Processing...</p>
+                <p id="processingDetail" class="text-xs" style="color: var(--ink-muted);">Please wait — do not close this window.</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Build Progress Modal -->
     <div id="buildProgressModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="buildProgressTitle">
         <div class="modal-panel shadow-2xl border border-slate-700/60" style="max-width:56rem; width:94vw; border-radius: 1.25rem; overflow: hidden;">
@@ -2347,15 +2362,15 @@
         var pendingBumpBuild = null;
 
         async function executeBumpPush() {
-            closeBumpConfirm();
-            openTerminal();
-            var terminal = document.getElementById("terminalConsole");
-            terminal.innerHTML = '<div class="text-slate-400">[Bump & Push] Writing version and pushing commits...</div>';
-
             var confirmBtn = document.getElementById("confirmBumpBtn");
             var dir = confirmBtn.dataset.dir;
             var version = confirmBtn.dataset.version;
             var build = confirmBtn.dataset.build;
+
+            closeBumpConfirm();
+
+            // Blocking processing overlay — prevents interaction during bump
+            showProcessing("Bumping version...", "Version " + version + " #" + build + " — writing files & pushing to git");
 
             try {
                 var res = await fetch(API_BASE + "/api/apps/bump-push", {
@@ -2364,18 +2379,27 @@
                     body: JSON.stringify({ dir: dir, version: version, build: build })
                 });
                 var data = await res.json();
-                var line = document.createElement("div");
-                line.className = data.success ? "text-green-400 font-bold" : "text-red-400";
-                line.textContent = data.success
-                    ? "[Bump & Push] Successfully updated to " + data.version + " #" + data.build + " and pushed to origin."
-                    : "[Bump & Push] Version written, but push failed: " + data.output;
-                terminal.appendChild(line);
-                if (data.success) showToast("Bumped to " + data.version + " #" + data.build + " and pushed", "success");
-                else showToast("Push failed: " + data.output, "error");
+                hideProcessing();
+                if (data.success) {
+                    showToast("Bumped to " + data.version + " #" + data.build + " and pushed", "success");
+                } else {
+                    showToast("Push failed: " + data.output, "error");
+                }
                 refreshSingleApp(dir);
             } catch (err) {
+                hideProcessing();
                 showToast("Bump & Push failed: " + err.message, "error");
             }
+        }
+
+        function showProcessing(message, detail) {
+            document.getElementById("processingMessage").textContent = message || "Processing...";
+            document.getElementById("processingDetail").textContent = detail || "Please wait — do not close this window.";
+            document.getElementById("processingOverlay").classList.remove("hidden");
+        }
+
+        function hideProcessing() {
+            document.getElementById("processingOverlay").classList.add("hidden");
         }
 
         // Load paths, apps, and version info on load
@@ -2607,6 +2631,10 @@ function toggleTheme() {
             try {
                 const res = await fetch(`${API_BASE}/api/paths`);
                 const paths = await res.json();
+                if (!Array.isArray(paths)) {
+                    monitoredPaths = [];
+                    return;
+                }
                 monitoredPaths = paths;
                 renderApps();
                 const container = document.getElementById("pathsList");

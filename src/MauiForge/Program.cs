@@ -123,8 +123,20 @@ if (!serveMode)
     var persisted = services.GetRequiredService<StateService>().Load();
     if (persisted.ServerModeEnabled && !string.IsNullOrEmpty(persisted.ServeToken))
     {
-        serveMode = true;
-        serveToken = persisted.ServeToken;
+        // Ask user instead of silently resuming server mode
+        AnsiConsole.MarkupLine("\n[yellow]⚡ Server Mode was previously enabled on this machine.[/]");
+        AnsiConsole.MarkupLine("[grey]Other devices can connect using the saved token.[/]");
+        if (AnsiConsole.Confirm("  Resume server mode?", defaultValue: true))
+        {
+            serveMode = true;
+            serveToken = persisted.ServeToken;
+        }
+        else
+        {
+            persisted.ServerModeEnabled = false;
+            services.GetRequiredService<StateService>().Save(persisted);
+            AnsiConsole.MarkupLine("[dim]Starting in local-only mode. Server Mode can be re-enabled from the dashboard.[/]\n");
+        }
     }
 }
 
