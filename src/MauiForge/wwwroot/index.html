@@ -1597,6 +1597,16 @@
 
                 // ---- Terminal routing (Build Only) ----
                 if (message.startsWith("Build process completed") || message.startsWith("Build cancelled by user") || message.indexOf("launched successfully") >= 0 || message.indexOf("launch failed") >= 0) {
+                    // Auto-open archive folder when iOS Archive completes successfully
+                    if (currentBuildIsArchive && message.startsWith("Build process completed") && message.indexOf("exit code: 0") >= 0 && archiveBuildDir) {
+                        var archiveDir = archiveBuildDir;
+                        setTimeout(function () {
+                            openFolder(archiveDir);
+                            showToast("Archive complete — opening project folder", "success");
+                        }, 500);
+                    }
+                    currentBuildIsArchive = false;
+                    archiveBuildDir = null;
                     currentBuildDir = null;
                     document.getElementById("cancelBuildBtn").classList.add("hidden");
                 }
@@ -2031,7 +2041,7 @@
                 <button onclick="buildApp(decodeURIComponent('${encDir}'), 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build iOS (Debug)">${ICON_BUILD}iOS</button>
                 <div class="border-t border-slate-800 my-1"></div>
                 <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Build & Archive</div>
-                <button onclick="archiveApp(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Create iOS Archive (Release)">📦 iOS</button>
+                <button onclick="archiveApp(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Create iOS Archive (Release)">${ICON_ARCHIVE}iOS</button>
                 <div class="border-t border-slate-800 my-1"></div>
                 <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Build & Run</div>
                 <button onclick="openBuildRun(decodeURIComponent('${encDir}'), 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build & run on Android device/emulator">▶ Android</button>
@@ -2858,28 +2868,84 @@ function toggleTheme() {
 
         // Poll the (unauthenticated) info endpoint until the server comes back up after a
         // self-restart, then reload so the page picks up the new serve-mode session cleanly.
+        // Uses a two-phase approach: first detects disconnect from old process, then detects
+        // new process. After the new process responds, waits 3s and poll-confirms before
+        // reloading, so the server has time to fully initialize instead of reloading into a
+        // blank page or a 503.
         function waitForServerAndReload(maxAttempts) {
             var attempts = 0;
-            // /api/remote/info never requires auth, so the OLD process answers it too, right up
-            // until it actually exits — a bare "did it respond" check can reload the page while
-            // the old process is still up (before the swap) or in the dead gap between the two,
-            // landing on a blank/failed page. Wait for a confirmed disconnect first, then a
-            // reconnect, so we know we're really talking to the new process.
             var sawDisconnect = false;
+            var confirmedReady = false;
+            var confirmCount = 0;
+            var startTime = Date.now();
+            var display = document.getElementById("updateModalBody");
+
+            var elapsedTimer = setInterval(function () {
+                var elapsed = Math.floor((Date.now() - startTime) / 1000);
+                if (display && !confirmedReady) {
+                    display.innerHTML = `
+                        <div class="flex flex-col items-center py-6 text-center gap-3">
+                            <div class="flex items-center gap-2">
+                                <span class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full spinning"></span>
+                                <span class="text-sm text-slate-400 font-medium">Waiting for server to restart</span>
+                            </div>
+                            <span class="text-xs text-slate-500">
+                                ${sawDisconnect
+                                    ? 'New server detected — confirming stability...'
+                                    : 'Waiting for old process to exit...'}
+                            </span>
+                            <span class="text-[10px] font-mono text-slate-600">${elapsed}s elapsed</span>
+                        </div>
+                    `;
+                }
+            }, 1000);
+
             var poll = setInterval(function () {
                 attempts++;
                 origFetch(API_BASE + "/api/remote/info").then(function (res) {
                     if (res.ok && sawDisconnect) {
-                        clearInterval(poll);
-                        location.reload();
+                        confirmedReady = true;
+                        confirmCount++;
+                        // Wait for 3 consecutive successful polls at 1s intervals
+                        // before considering the server truly ready to serve the full UI
+                        if (confirmCount >= 3) {
+                            clearInterval(poll);
+                            clearInterval(elapsedTimer);
+                            if (display) {
+                                display.innerHTML = `
+                                    <div class="flex flex-col items-center py-6 text-center gap-3">
+                                        <span class="text-2xl">&#x2705;</span>
+                                        <span class="text-sm text-white font-semibold">Server is ready</span>
+                                        <span class="text-xs text-slate-500">Reloading the dashboard now...</span>
+                                    </div>
+                                `;
+                            }
+                            setTimeout(function () { location.reload(); }, 800);
+                        }
                     } else if (!res.ok) {
                         sawDisconnect = true;
+                        confirmedReady = false;
+                        confirmCount = 0;
                     }
-                }).catch(function () { sawDisconnect = true; });
+                }).catch(function () {
+                    sawDisconnect = true;
+                    confirmedReady = false;
+                    confirmCount = 0;
+                });
                 if (attempts >= maxAttempts) {
                     clearInterval(poll);
+                    clearInterval(elapsedTimer);
                     if (sawDisconnect) {
-                        location.reload();
+                        if (display) {
+                            display.innerHTML = `
+                                <div class="flex flex-col items-center py-6 text-center gap-3">
+                                    <span class="text-2xl">&#x274C;</span>
+                                    <span class="text-sm text-amber-400 font-semibold">Server took too long to respond</span>
+                                    <span class="text-xs text-slate-500">Trying to reload anyway — if this fails, reopen MAUI Forge manually.</span>
+                                </div>
+                            `;
+                        }
+                        setTimeout(function () { location.reload(); }, 1500);
                     } else {
                         updateInProgress = false;
                         showToast("Server did not come back automatically. Please reopen MAUI Forge manually.", "error");
@@ -3552,6 +3618,7 @@ function toggleTheme() {
         const ICON_CHEVRON_SM = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`;
         const ICON_PULL = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>`;
         const ICON_IDE = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13 6l-2 12"/></svg>`;
+        const ICON_ARCHIVE = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="6" rx="1.5"/><path d="M4 10v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><line x1="10" y1="13" x2="14" y2="13"/></svg>`;
 
         // Single primary action (Bump & Push) + platform build button(s) + one overflow
         // menu for everything else, instead of 7 same-weight buttons per row.
@@ -3949,6 +4016,8 @@ function toggleTheme() {
         }
 
         var currentBuildDir = null;
+        var currentBuildIsArchive = false;
+        var archiveBuildDir = null;
 
         async function buildApp(dir, platform) {
             clearConsole();
@@ -3975,6 +4044,8 @@ function toggleTheme() {
         async function archiveApp(dir) {
             showProcessing("Creating iOS Archive...", "Running Release build with ArchiveOnBuild — this may take a while");
 
+            currentBuildIsArchive = true;
+            archiveBuildDir = dir;
             clearConsole();
             openTerminal();
             currentBuildDir = dir;
@@ -3989,10 +4060,11 @@ function toggleTheme() {
                 if (res.ok) {
                     const data = await res.json();
                     if (data && data.buildId) activeBuildId = data.buildId;
-                    refreshSingleApp(dir);
                 }
             } catch (err) {
                 hideProcessing();
+                currentBuildIsArchive = false;
+                archiveBuildDir = null;
                 console.error(err);
                 showToast("Failed to start archive: " + err.message, "error");
             }
@@ -4198,9 +4270,11 @@ function toggleTheme() {
             const body = document.getElementById("updateModalBody");
             body.innerHTML = `
                 <div class="flex flex-col items-center py-6 text-center gap-3">
-                    <span class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full spinning"></span>
-                    <span class="text-sm text-slate-400">Downloading and installing v${version}...</span>
-                    <span class="text-xs text-slate-600">MAUI Forge will close and relaunch automatically.</span>
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full spinning"></span>
+                        <span class="text-sm text-slate-400 font-medium">Downloading and installing...</span>
+                    </div>
+                    <span class="text-xs text-slate-500">MAUI Forge will close and relaunch with v${version}.</span>
                 </div>
             `;
             try {
@@ -4220,24 +4294,10 @@ function toggleTheme() {
                     return;
                 }
                 updateInProgress = true;
-                body.innerHTML = `
-                    <div class="flex flex-col items-center py-6 text-center gap-2">
-                        <span class="text-2xl">&#x1F527;</span>
-                        <span class="text-sm text-white font-semibold">Update in progress</span>
-                        <span class="text-xs text-slate-500">This server will restart shortly on the new version. The page will reload automatically.</span>
-                    </div>
-                `;
                 waitForServerAndReload(60);
             } catch (err) {
                 // A network error here is expected once the server process exits mid-update.
                 updateInProgress = true;
-                body.innerHTML = `
-                    <div class="flex flex-col items-center py-6 text-center gap-2">
-                        <span class="text-2xl">&#x1F527;</span>
-                        <span class="text-sm text-white font-semibold">Update in progress</span>
-                        <span class="text-xs text-slate-500">Connection dropped — that's expected while it restarts. The page will reload automatically.</span>
-                    </div>
-                `;
                 waitForServerAndReload(60);
             }
         }
