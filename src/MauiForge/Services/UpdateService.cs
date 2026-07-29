@@ -30,11 +30,16 @@ public class UpdateService
     {
         try
         {
-            var url      = $"https://api.nuget.org/v3-flatcontainer/{PackageId.ToLower()}/index.json";
-            var response = await HttpClient.GetAsync(url);
-            if (!response.IsSuccessStatusCode) return;
+            var url = $"https://api.nuget.org/v3-flatcontainer/{PackageId.ToLower()}/index.json";
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var response = await HttpClient.GetAsync(url, cts.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.Error.WriteLine($"[UpdateService] NuGet API returned {response.StatusCode} for {url}");
+                return;
+            }
 
-            var content = await response.Content.ReadAsStringAsync();
+            var content = await response.Content.ReadAsStringAsync(cts.Token);
             using var doc = JsonDocument.Parse(content);
             if (doc.RootElement.TryGetProperty("versions", out var prop) && prop.ValueKind == JsonValueKind.Array)
             {
@@ -46,7 +51,14 @@ public class UpdateService
                     _latestVersion = versions[^1];
             }
         }
-        catch { }
+        catch (TaskCanceledException)
+        {
+            Console.Error.WriteLine("[UpdateService] NuGet API request timed out.");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[UpdateService] Failed to fetch latest version: {ex.Message}");
+        }
     }
 
     public string? GetLatestVersion() => _latestVersion;
@@ -68,6 +80,13 @@ public class UpdateService
 
             try { if (File.Exists(script)) File.Delete(script); } catch { }
             try { if (File.Exists(log)) File.Delete(log); } catch { }
+
+            // In interactive mode (manual update) show a console window so the user
+            // can see progress / errors. In non-interactive (auto-update) keep it hidden.
+            var errorHandler = interactive
+                ? "echo  Press any key to exit...\r\npause > nul"
+                : "exit /b 1";
+
             var batchContent =
                 "@echo off\r\n" +
                 "chcp 65001 > nul\r\n" +
@@ -116,9 +135,11 @@ public class UpdateService
                 "echo  [ERROR] Update failed! Check log: !LOG_FILE!\r\n" +
                 "echo  ---------------------------------------------------------\r\n" +
                 "echo.\r\n" +
-                "echo  Press any key to exit...\r\n" +
-                "pause > nul\r\n" +
-                "exit /b 1\r\n" +
+                $"echo  Run manually: dotnet tool update CwSoftware.MauiForge -g --version !VERSION!\r\n" +
+                "echo.\r\n" +
+                $"echo  Log: !LOG_FILE! | findstr /v \"^$\" >nul && type \"!LOG_FILE!\"\r\n" +
+                "echo.\r\n" +
+                $"{errorHandler}\r\n" +
                 "\r\n" +
                 ":success\r\n" +
                 "echo.\r\n" +
@@ -128,18 +149,22 @@ public class UpdateService
                 "echo.\r\n" +
                 "echo  Relaunching MAUI Forge automatically...\r\n" +
                 "timeout /t 1 /nobreak >nul\r\n" +
-                $"start maui-forge --port !PORT!\r\n" +
+                $"start \"\" maui-forge --port !PORT!\r\n" +
                 "timeout /t 2 /nobreak >nul\r\n" +
                 $"start http://localhost:!PORT!\r\n" +
                 "del \"%~f0\"\r\n" +
                 "exit /b 0\r\n";
             File.WriteAllText(script, batchContent);
 
+            // Launch the batch script as a DETACHED independent process so it survives
+            // when this process calls Environment.Exit(0) immediately after.
+            // ShellExecuteEx creates a standalone process not tied to our job object.
+            // Using UseShellExecute=false would make it a child that gets killed.
             var updater = Process.Start(new ProcessStartInfo("cmd.exe")
             {
-                Arguments      = $"/c start \"\" \"{script}\"",
+                Arguments      = $"/c \"{script}\"",
                 UseShellExecute = true,
-                CreateNoWindow  = true
+                WindowStyle    = ProcessWindowStyle.Hidden
             });
 
             if (updater is null)
@@ -152,26 +177,51 @@ public class UpdateService
             var shPath = Path.Combine(Path.GetTempPath(), "maui-forge-update.sh");
             var shLog = Path.Combine(Path.GetTempPath(), "maui-forge-update.log");
 
+            // Build a comprehensive PATH that includes common dotnet tool locations,
+            // Homebrew, and the user's own PATH — the update script runs in a bare
+            // Process with no shell profile, so it won't find dotnet or maui-forge
+            // without explicit help.
+            var extraPaths = new[]
+            {
+                "$HOME/.dotnet/tools",
+                "/opt/homebrew/bin",
+                "/opt/homebrew/sbin",
+                "/usr/local/bin",
+                "/usr/local/share/dotnet",
+                "/usr/bin",
+                "/bin",
+                "/usr/sbin",
+                "/sbin"
+            };
+            var fullPath = string.Join(":", extraPaths.Concat(new[] { currentPath }));
+
             var shContent =
                 "#!/bin/bash\n" +
                 $"exec >> \"{shLog}\" 2>&1\n" +
                 "echo \"[$(date)] MAUI Forge self-update started\"\n" +
-                $"export PATH=\"$HOME/.dotnet/tools:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/share/dotnet:/usr/bin:/bin:/usr/sbin:/sbin:{currentPath}\"\n" +
+                $"export PATH=\"{fullPath}\"\n" +
+                "echo \"[$(date)] PATH=$PATH\"\n" +
                 "sleep 3\n" +
+                // Try the exact version first, fall back to latest
                 $"dotnet tool update CwSoftware.MauiForge -g --version {latestVer} || dotnet tool update CwSoftware.MauiForge -g || true\n" +
                 "echo \"[$(date)] Relaunching maui-forge...\"\n" +
                 $"nohup maui-forge --port {port} > /dev/null 2>&1 &\n" +
                 "sleep 2\n" +
-                $"open \"http://localhost:{port}\" 2>/dev/null || xdg-open \"http://localhost:{port}\" 2>/dev/null || true\n";
+                $"open \"http://localhost:{port}\" 2>/dev/null || xdg-open \"http://localhost:{port}\" 2>/dev/null || true\n" +
+                "echo \"[$(date)] Update script completed\"\n";
 
             File.WriteAllText(shPath, shContent);
-            try { Process.Start("chmod", $"+x \"{shPath}\"")?.WaitForExit(); } catch { }
+            try { Process.Start("chmod", $"+x \"{shPath}\"")?.WaitForExit(2000); } catch { }
 
+            // On macOS/Linux, UseShellExecute = false still creates a child that survives
+            // parent exit (orphaned → adopted by init). But to be extra safe we pass
+            // the current PATH via environment so the script can find dotnet + maui-forge.
             var psiMac = new ProcessStartInfo("bash")
             {
                 ArgumentList = { shPath },
                 CreateNoWindow = true,
-                UseShellExecute = false
+                UseShellExecute = false,
+                Environment = { ["PATH"] = fullPath }
             };
             Process.Start(psiMac);
             Environment.Exit(0);

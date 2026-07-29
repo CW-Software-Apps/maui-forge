@@ -1631,7 +1631,7 @@
 
             // Background scan finished notification handler
             connection.on("ScanCompleted", function (freshApps) {
-                appsList = freshApps;
+                appsList = Array.isArray(freshApps) ? freshApps : [];
                 renderApps();
                 showScanIndicator(false);
                 
@@ -1641,6 +1641,7 @@
 
             // Individual app update handler
             connection.on("AppUpdated", function (updatedApp) {
+                if (!Array.isArray(appsList)) appsList = [];
                 const index = appsList.findIndex(a => a.dir === updatedApp.dir);
                 if (index !== -1) {
                     appsList[index] = updatedApp;
@@ -3092,18 +3093,46 @@ function toggleTheme() {
 
         function onRemoteHealthFail() {
             remoteHealthFailCount++;
-            // Two consecutive misses (~30s) before surfacing it — avoids flapping on a
-            // single dropped packet.
-            if (remoteHealthFailCount < 2 || !remoteInfo) return;
+            // Two consecutive misses (~30s) before surfacing the banner.
+            // Four consecutive misses (~60s) triggers auto-fallback to local mode.
+            if (!remoteInfo) return;
+            if (remoteHealthFailCount < 2) return;
             document.getElementById("remoteHealthBannerText").textContent =
                 remoteInfo.host + ":" + remoteInfo.port + " isn't responding — it may have crashed or been closed.";
             document.getElementById("remoteHealthBanner").classList.remove("hidden");
+
+            if (remoteHealthFailCount >= 4) {
+                console.warn("Remote health check failed " + remoteHealthFailCount + " times — auto-fallback to local mode");
+                switchToLocal(true);
+                showToast("Remote server unreachable — switched to local mode", "warning");
+            }
         }
 
         function retryRemoteHealthCheck() {
             document.getElementById("remoteHealthBannerText").textContent =
                 (remoteInfo ? remoteInfo.host + ":" + remoteInfo.port : "Remote") + " — checking...";
             checkRemoteHealth();
+        }
+
+        // Called when a remote API call fails — tries to switch back to the local server
+        // so the dashboard doesn't stay stuck on a dead remote connection.
+        function tryFallbackToLocal() {
+            if (!viewingRemote) return;
+            var fallbackBanner = document.getElementById("remoteHealthBanner");
+            if (fallbackBanner) {
+                fallbackBanner.textContent = "Remote server unreachable — auto-fallback to local...";
+                fallbackBanner.classList.remove("hidden");
+            }
+            origFetch(localApiBase + "/api/remote/info").then(function (res) {
+                if (res.ok) {
+                    switchToLocal(true);
+                    showToast("Remote connection failed — fell back to local mode", "warning");
+                    if (fallbackBanner) fallbackBanner.classList.add("hidden");
+                }
+            }).catch(function () {
+                switchToLocal(true);
+                showToast("Remote unreachable and local unavailable — check your network", "error");
+            });
         }
 
         async function loadApps() {
@@ -3118,11 +3147,14 @@ function toggleTheme() {
             
             try {
                 const res = await fetch(`${API_BASE}/api/apps`);
-                appsList = await res.json();
+                appsList = (await res.json()) || [];
                 renderApps();
             } catch (err) {
                 console.error("Failed to load apps:", err);
+                appsList = [];
                 container.innerHTML = '<div class="text-center py-12 text-red-400 text-sm">Failed to connect to web server. Verify the service is running.</div>';
+                // Auto-fallback: if viewing remote and local is reachable, switch
+                if (viewingRemote) tryFallbackToLocal();
             }
         }
 
@@ -3138,6 +3170,7 @@ function toggleTheme() {
                 });
                 if (res.ok) {
                     const updatedApp = await res.json();
+                    if (!Array.isArray(appsList)) appsList = [];
                     const index = appsList.findIndex(a => a.dir === dir);
                     if (index !== -1) {
                         appsList[index] = updatedApp;
@@ -3477,6 +3510,9 @@ function toggleTheme() {
             const searchQuery = document.getElementById("searchInput").value.trim().toLowerCase();
             const techFilter = document.getElementById("techFilter").value;
             const gitFilter = document.getElementById("gitFilter").value;
+
+            // Guard against appsList being null/undefined (e.g. remote API returning unexpected data)
+            if (!Array.isArray(appsList)) appsList = [];
 
             // Filter logic
             const filteredApps = appsList.filter(app => {

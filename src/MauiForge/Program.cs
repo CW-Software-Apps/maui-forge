@@ -49,6 +49,36 @@ if (!OperatingSystem.IsWindows())
 
 UpdateService.Instance.StartCheck();
 
+// ── Auto-update on every start ─────────────────────────────────
+// Wait briefly for the background NuGet check to complete.
+// If a newer version is available, trigger the deferred updater
+// (which installs + relaunches) before any service is initialized.
+{
+    for (var i = 0; i < 30 && UpdateService.Instance.GetLatestVersion() is null; i++)
+        System.Threading.Thread.Sleep(100);
+
+    var latestStr = UpdateService.Instance.GetLatestVersion();
+    var currentVer = typeof(AppListScreen).Assembly.GetName().Version;
+
+    if (latestStr is not null && currentVer is not null)
+    {
+        var cleanLatest = latestStr.Split('-')[0];
+        if (Version.TryParse(cleanLatest, out var latestVer) && latestVer > currentVer)
+        {
+            try
+            {
+                Console.Error.WriteLine($"[maui-forge] Auto-update: {currentVer} → {latestStr}");
+                UpdateService.LaunchDeferredUpdate(latestStr, args, interactive: false);
+                // LaunchDeferredUpdate calls Environment.Exit(0) — we never reach here.
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[maui-forge] Auto-update failed: {ex.Message}");
+            }
+        }
+    }
+}
+
 var services = new ServiceCollection()
     .AddSingleton<GitService>()
     .AddSingleton<VersionService>()

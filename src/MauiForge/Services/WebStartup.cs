@@ -1227,11 +1227,30 @@ public static class WebStartup
             var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
             if (Directory.Exists(dir))
             {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe")
+                if (OperatingSystem.IsWindows())
                 {
-                    Arguments = $"\"{dir}\"",
-                    UseShellExecute = true
-                });
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe")
+                    {
+                        Arguments = $"\"{dir}\"",
+                        UseShellExecute = true
+                    });
+                }
+                else if (OperatingSystem.IsMacOS())
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("open")
+                    {
+                        Arguments = $"\"{dir}\"",
+                        UseShellExecute = true
+                    });
+                }
+                else
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("xdg-open")
+                    {
+                        Arguments = $"\"{dir}\"",
+                        UseShellExecute = true
+                    });
+                }
                 return Results.Ok();
             }
             return Results.BadRequest("Directory does not exist.");
@@ -1289,12 +1308,15 @@ public static class WebStartup
             var currentStr = current is not null ? $"{current.Major}.{current.Minor}.{current.Build}" : "0.0.0";
 
             UpdateService.Instance.ForceCheck();
-            for (var i = 0; i < 50; i++)
+            // Poll for up to 10s (100 × 100ms) — NuGet API can be slow on cold start
+            for (var i = 0; i < 100; i++)
             {
                 var latest = UpdateService.Instance.GetLatestVersion();
                 if (latest is not null)
                 {
-                    var updateAvailable = !string.Equals(latest, currentStr, StringComparison.OrdinalIgnoreCase);
+                    // Compare only the first 3 segments to handle build metadata
+                    var latestClean = latest.Split('-', '+')[0];
+                    var updateAvailable = !string.Equals(latestClean, currentStr, StringComparison.OrdinalIgnoreCase);
                     var updateCommand = UpdateService.GetManualUpdateCommand(latest);
                     return Results.Ok(new
                     {
