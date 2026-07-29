@@ -279,6 +279,41 @@ if (!runTerminal)
     var buildSvc   = services.GetRequiredService<BuildService>();
     var sfxSvc     = services.GetRequiredService<SfxService>();
 
+    var currentVer = typeof(AppListScreen).Assembly.GetName().Version;
+    var verStr = currentVer is not null ? currentVer.ToString(3) : "?.?.?";
+    var latestStr = UpdateService.Instance.GetLatestVersion();
+
+    // ── Startup banner ────────────────────────────────────────────
+    AnsiConsole.MarkupLine($"[bold cyan1]⚒️  MAUI Forge[/] [white]v{verStr}[/]");
+    AnsiConsole.MarkupLine($"[grey]{new string('─', Math.Min(Console.WindowWidth, 80))}[/]");
+
+    // Version check
+    if (latestStr is not null)
+    {
+        var cleanLatest = latestStr.Split('-')[0];
+        if (Version.TryParse(cleanLatest, out var lv) && lv > currentVer!)
+            AnsiConsole.MarkupLine($"[yellow]↑ Update available: [bold]{latestStr}[/][/]");
+        else
+            AnsiConsole.MarkupLine($"[green]✓[/] [grey]Version [white]{verStr}[/] — up to date[/]");
+    }
+    else
+    {
+        AnsiConsole.MarkupLine($"[dim]Checking version...[/]");
+    }
+
+    // Monitored paths
+    var stPaths = stateService.Load();
+    var paths = stPaths.MonitoredPaths.Count > 0
+        ? stPaths.MonitoredPaths
+        : (stPaths.ScanRootPath is not null ? [stPaths.ScanRootPath] : []);
+    if (paths.Count > 0)
+    {
+        AnsiConsole.MarkupLine($"[grey]Monitored folders:[/]");
+        foreach (var p in paths)
+            AnsiConsole.MarkupLine($"  [cyan1]📁[/] [white]{Markup.Escape(p)}[/]");
+    }
+
+    // Port
     var preferRandom = !args.Contains("--port");
     servePort = WebStartup.FindAvailablePort(servePort, preferRandom);
     WebStartup.ActualPort = servePort;
@@ -298,6 +333,12 @@ if (!runTerminal)
         var discoverySvc = new RemoteDiscoveryService();
         discoverySvc.StartResponder(webPort: servePort, token: serveToken);
     }
+    else
+    {
+        AnsiConsole.MarkupLine($"[grey]Web dashboard: [white]http://localhost:{servePort}[/][/]");
+    }
+
+    Console.WriteLine();
 
     // Mata instâncias anteriores automaticamente ao iniciar pelo CLI
     // (novo processo assume sem perguntar)
