@@ -1134,6 +1134,73 @@ public static class WebStartup
             return Results.Ok(new { Success = false, Error = "No running build found for this app." });
         });
 
+        // iOS Archive — builds with ArchiveOnBuild=true (Release config)
+        app.MapPost("/api/apps/archive", (BuildService builder, VersionService versions, StateService state, ArchiveRequest req) =>
+        {
+            var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
+            var record = RecordBuildStart(dir, req.Platform, "Release", versions: versions);
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await SendLog("=========================================");
+                    await SendLog($"Starting iOS Archive (Release + ArchiveOnBuild)...");
+                    await SendLog("=========================================");
+                    await SendLog("===STEP:INIT===");
+
+                    var buildArgs = new List<string> { "build", "-c", "Release" };
+                    buildArgs.AddRange(new[] { "-f", "net10.0-ios" });
+                    buildArgs.Add("-p:ArchiveOnBuild=true");
+
+                    if (!string.IsNullOrWhiteSpace(req.CodesignKey))
+                        buildArgs.Add($"-p:CodesignKey={req.CodesignKey}");
+
+                    await SendLog("===STEP:BUILD===");
+                    await SendLog("===CMD:dotnet " + string.Join(' ', buildArgs) + "===");
+                    int exitCode = builder.Run(dir, buildArgs.ToArray(), line =>
+                    {
+                        _ = SendLog(line);
+                    }, logFile: record.LogFilePath, onStart: proc => _runningBuilds[dir] = proc);
+
+                    bool completedNaturally = _runningBuilds.TryRemove(dir, out _);
+                    if (completedNaturally)
+                    {
+                        await SendLog("=========================================");
+                        await SendLog($"Archive process completed with exit code: {exitCode}");
+                        await SendLog("=========================================");
+                        if (exitCode == 0)
+                        {
+                            await SendLog("===STEP:DONE===");
+                            WriteStepToLog(record, "===STEP:DONE===");
+                        }
+                        else
+                        {
+                            await SendLog("===STEP:FAILED===");
+                            WriteStepToLog(record, "===STEP:FAILED===");
+                        }
+                        RecordBuildEnd(record, exitCode == 0 ? "Success" : "Failed", exitCode);
+                    }
+                    else
+                    {
+                        await SendLog("===STEP:FAILED===");
+                        WriteStepToLog(record, "===STEP:FAILED===");
+                        RecordBuildEnd(record, "Cancelled", -1, "Cancelled by user");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _runningBuilds.TryRemove(req.Dir, out _);
+                    await SendLog($"[Error] Archive failed to start: {ex.Message}");
+                    await SendLog("===STEP:FAILED===");
+                    WriteStepToLog(record, "===STEP:FAILED===");
+                    RecordBuildEnd(record, "Failed", -1, ex.Message);
+                }
+            });
+
+            return Results.Accepted(null, new { buildId = record.Id });
+        });
+
         // Hot Reload — start
         app.MapPost("/api/apps/hotreload/start", (BuildService builder, StateService state, HotReloadRequest req) =>
         {
@@ -1677,3 +1744,4 @@ public record GitBranchListRequest(string Dir);
 public record GitCheckoutRequest(string Dir, string Branch);
 public record GitCheckoutNewRequest(string Dir, string Branch);
 public record SyncRequest(string Dir);
+public record ArchiveRequest(string Dir, string Platform, string? CodesignKey);

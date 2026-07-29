@@ -2030,6 +2030,9 @@
                 <button onclick="buildApp(decodeURIComponent('${encDir}'), 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build Android (Debug)">${ICON_BUILD}Android</button>
                 <button onclick="buildApp(decodeURIComponent('${encDir}'), 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build iOS (Debug)">${ICON_BUILD}iOS</button>
                 <div class="border-t border-slate-800 my-1"></div>
+                <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Build & Archive</div>
+                <button onclick="archiveApp(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Create iOS Archive (Release)">📦 iOS</button>
+                <div class="border-t border-slate-800 my-1"></div>
                 <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Build & Run</div>
                 <button onclick="openBuildRun(decodeURIComponent('${encDir}'), 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build & run on Android device/emulator">▶ Android</button>
                 <button onclick="openBuildRun(decodeURIComponent('${encDir}'), 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build & run on iOS device/simulator">▶ iOS</button>
@@ -3968,6 +3971,32 @@ function toggleTheme() {
             }
         }
 
+        // iOS Archive — builds with Release config + ArchiveOnBuild=true
+        async function archiveApp(dir) {
+            showProcessing("Creating iOS Archive...", "Running Release build with ArchiveOnBuild — this may take a while");
+
+            clearConsole();
+            openTerminal();
+            currentBuildDir = dir;
+            document.getElementById("cancelBuildBtn").classList.remove("hidden");
+            try {
+                const res = await fetch(`${API_BASE}/api/apps/archive`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dir, platform: "iOS" })
+                });
+                hideProcessing();
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.buildId) activeBuildId = data.buildId;
+                    refreshSingleApp(dir);
+                }
+            } catch (err) {
+                hideProcessing();
+                console.error(err);
+                showToast("Failed to start archive: " + err.message, "error");
+            }
+        }
 
         async function cancelBuild() {
             if (!currentBuildDir) return;
