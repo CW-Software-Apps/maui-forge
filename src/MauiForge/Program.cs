@@ -241,11 +241,11 @@ var deviceSvc    = services.GetRequiredService<DeviceService>();
 var protoState = stateService.Load();
 if (protoState.ProtocolRegistered == null)
 {
-    AnsiConsole.MarkupLine("\n[bold cyan1]🔗 Protocolo maui-forge://[/]");
-    AnsiConsole.MarkupLine("Este recurso permite que o navegador [bold]relançe[/] o MAUI Forge automaticamente");
-    AnsiConsole.MarkupLine("quando o servidor local cair — um clique no botão \"Relançar\" do dashboard");
-    AnsiConsole.MarkupLine("vai abrir o terminal e executar o comando, sem precisar copiar/colar.\n");
-    if (AnsiConsole.Confirm("Deseja registrar o protocolo maui-forge://?", defaultValue: true))
+    AnsiConsole.MarkupLine("\n[bold cyan1]🔗 maui-forge:// Protocol[/]");
+    AnsiConsole.MarkupLine("This feature allows the browser to [bold]relaunch[/] MAUI Forge automatically");
+    AnsiConsole.MarkupLine("when the local server goes down — clicking the \"Relaunch\" button on the dashboard");
+    AnsiConsole.MarkupLine("will open the terminal and run the command, no copy/paste needed.\n");
+    if (AnsiConsole.Confirm("Register the maui-forge:// protocol?", defaultValue: true))
     {
         try
         {
@@ -261,19 +261,19 @@ if (protoState.ProtocolRegistered == null)
                     p?.WaitForExit();
                 }
                 protoState.ProtocolRegistered = true;
-                AnsiConsole.MarkupLine("[green]✓ Protocolo maui-forge:// registrado com sucesso![/]");
+                AnsiConsole.MarkupLine("[green]✓ maui-forge:// protocol registered successfully![/]");
             }
             else
             {
-                AnsiConsole.MarkupLine("[yellow]O registro automático do protocolo não está disponível neste sistema.[/]");
-                AnsiConsole.MarkupLine("[dim]No macOS, crie um .app bundle com CFBundleURLSchemes contendo \"maui-forge\".[/]");
-                AnsiConsole.MarkupLine("[dim]No Linux, adicione MimeType=x-scheme-handler/maui-forge ao seu .desktop file.[/]");
+                AnsiConsole.MarkupLine("[yellow]Auto protocol registration is not available on this system.[/]");
+                AnsiConsole.MarkupLine("[dim]On macOS, create a .app bundle with CFBundleURLSchemes containing \"maui-forge\".[/]");
+                AnsiConsole.MarkupLine("[dim]On Linux, add MimeType=x-scheme-handler/maui-forge to your .desktop file.[/]");
                 protoState.ProtocolRegistered = false;
             }
         }
         catch
         {
-            AnsiConsole.MarkupLine("[red]✗ Falha ao registrar protocolo.[/]");
+            AnsiConsole.MarkupLine("[red]✗ Failed to register protocol.[/]");
             protoState.ProtocolRegistered = false;
         }
     }

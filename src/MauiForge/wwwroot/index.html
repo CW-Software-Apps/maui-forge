@@ -694,14 +694,14 @@
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                     System Agent (Mac / PC)
                 </h4>
-                <span id="agentStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400">Verificando...</span>
+                <span id="agentStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400">Checking...</span>
             </div>
             <div id="agentDetailsText" class="text-[10px] text-slate-400 leading-tight"></div>
             <div class="flex items-center gap-2">
                 <button id="startTrayBtn" onclick="startSystemTray()" class="btn-ghost text-[10px] flex-1 py-1.5" title="Iniciar Status Bar na barra do sistema">
                     🚀 Iniciar Status Bar
                 </button>
-                <button id="toggleAutoStartBtn" onclick="toggleAutoStart()" class="btn-primary text-[10px] flex-1 py-1.5" title="Ativar ou desativar inicialização automática no login">
+                <button id="toggleAutoStartBtn" onclick="toggleAutoStart()" class="btn-primary text-[10px] flex-1 py-1.5" title="Enable or disable auto-start on login">
                     🔄 Auto-Start
                 </button>
             </div>
@@ -748,7 +748,7 @@
             </div>
 
             <div class="mt-auto pt-4 border-t border-[var(--border)] text-[11px] text-[var(--ink-muted)] text-center leading-relaxed">
-                <div>Developed by <span class="font-bold text-[var(--ink)]">CW SOFTWARE</span> &bull; <span class="text-[10px]">SOLUÇÕES DIGITAIS</span></div>
+                <div>Developed by <span class="font-bold text-[var(--ink)]">CW SOFTWARE</span> &bull; <span class="text-[10px]">Digital Solutions</span></div>
                 <div><a href="https://cwsoftware.com.br" target="_blank" rel="noopener" class="hover:underline font-mono" style="color: var(--accent);">cwsoftware.com.br</a></div>
             </div>
         </aside>
@@ -917,7 +917,7 @@
     <div class="flex-shrink-0 border-t border-slate-800/50 bg-slate-950 px-6 py-2.5 flex items-center justify-between text-[11px] text-slate-600">
         <span>
             Developed by
-            <a href="https://cwsoftware.com.br" target="_blank" rel="noopener noreferrer" class="text-slate-500 hover:text-[var(--accent)] transition-colors font-medium">CW SOFTWARE - SOLUÇÕES DIGITAIS</a>
+            <a href="https://cwsoftware.com.br" target="_blank" rel="noopener noreferrer" class="text-slate-500 hover:text-[var(--accent)] transition-colors font-medium">CW SOFTWARE — Digital Solutions</a>
         </span>
         <a href="https://cwsoftware.com.br" target="_blank" rel="noopener noreferrer" class="text-slate-600 hover:text-[var(--accent)] transition-colors">
             cwsoftware.com.br
@@ -934,7 +934,7 @@
     <div id="localHealthBanner" class="hidden" style="position:fixed; top:64px; left:50%; transform:translateX(-50%); z-index:71; display:flex; align-items:center; gap:10px; padding:10px 16px; border-radius:10px; background:var(--red-subtle); border:1px solid color-mix(in oklch, var(--red) 40%, transparent); box-shadow:0 10px 25px rgba(0,0,0,0.35); max-width:90vw;">
         <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:var(--red);"></span>
         <span class="text-xs font-medium" style="color:var(--red);">MAUI Forge offline.</span>
-        <button onclick="relaunchMauiForge()" class="text-xs font-semibold flex-shrink-0 px-2.5 py-1 rounded-lg" style="background:var(--accent); color:var(--ink-inverse);">Relançar</button>
+        <button onclick="relaunchMauiForge()" class="text-xs font-semibold flex-shrink-0 px-2.5 py-1 rounded-lg" style="background:var(--accent); color:var(--ink-inverse);">Relaunch</button>
         <button onclick="retryLocalHealthCheck()" class="text-xs font-semibold flex-shrink-0" style="color:var(--accent);">Retry</button>
     </div>
 
@@ -1166,18 +1166,18 @@
                     </div>
                     <div>
                         <div class="flex items-center gap-2.5">
-                            <h3 id="buildProgressTitle" class="font-extrabold text-white text-base tracking-tight">Pipeline de Compilação & Execução</h3>
-                            <span id="bpStatusBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-sm">Em Execução</span>
+                            <h3 id="buildProgressTitle" class="font-extrabold text-white text-base tracking-tight">Build & Deploy Pipeline</h3>
+                            <span id="bpStatusBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-sm">Running</span>
                         </div>
-                        <p class="text-xs text-slate-400 mt-0.5">Monitoramento dinâmico em tempo real do Build & Deploy</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Real-time Build & Deploy monitoring</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-3">
                     <div class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-950/90 border border-slate-800/90 font-mono text-xs text-slate-300 shadow-inner">
-                        <span class="text-slate-500 text-[11px]">⏱️ Tempo:</span>
+                        <span class="text-slate-500 text-[11px]">⏱️ Time:</span>
                         <span id="bpTimer" class="text-blue-400 font-bold text-sm">0:00</span>
                     </div>
-                    <button onclick="closeBuildProgress()" class="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white transition flex items-center justify-center text-sm border border-slate-800/80 shadow-sm" aria-label="Close build modal" title="Fechar">✕</button>
+                    <button onclick="closeBuildProgress()" class="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white transition flex items-center justify-center text-sm border border-slate-800/80 shadow-sm" aria-label="Close build modal" title="Close">✕</button>
                 </div>
             </div>
 
@@ -1185,11 +1185,11 @@
                 <!-- Target Device Specs Card Grid -->
                 <div class="bg-gradient-to-r from-slate-950/90 via-slate-900/70 to-slate-950/90 border border-slate-800/80 rounded-2xl p-3.5 grid grid-cols-2 md:grid-cols-6 gap-2.5 text-xs shadow-md backdrop-blur-sm">
                     <div class="bg-slate-900/50 border border-slate-800/60 rounded-xl p-2 flex flex-col justify-between hover:border-slate-700/60 transition-colors">
-                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">📱 Dispositivo</span>
+                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">📱 Device</span>
                         <div id="bpDeviceName" class="text-white font-semibold truncate text-xs mt-0.5">--</div>
                     </div>
                     <div class="bg-slate-900/50 border border-slate-800/60 rounded-xl p-2 flex flex-col justify-between hover:border-slate-700/60 transition-colors">
-                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">💻 Plataforma</span>
+                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">💻 Platform</span>
                         <div id="bpPlatform" class="text-cyan-400 font-medium capitalize text-xs mt-0.5">--</div>
                     </div>
                     <div class="bg-slate-900/50 border border-slate-800/60 rounded-xl p-2 flex flex-col justify-between hover:border-slate-700/60 transition-colors">
@@ -1197,7 +1197,7 @@
                         <div id="bpConfig" class="text-amber-400 font-medium text-xs mt-0.5">--</div>
                     </div>
                     <div class="bg-slate-900/50 border border-slate-800/60 rounded-xl p-2 flex flex-col justify-between hover:border-slate-700/60 transition-colors">
-                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">📦 Versão</span>
+                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">📦 Version</span>
                         <div id="bpVersion" class="text-indigo-400 font-mono font-semibold text-[11px] mt-0.5">--</div>
                     </div>
                     <div class="bg-slate-900/50 border border-slate-800/60 rounded-xl p-2 flex flex-col justify-between hover:border-slate-700/60 transition-colors">
@@ -1214,10 +1214,10 @@
                 <div class="space-y-2.5">
                     <div class="flex items-center justify-between text-xs px-0.5">
                         <span class="font-bold uppercase tracking-wider text-[10px] text-slate-400 flex items-center gap-1.5">
-                            📊 Progresso Visual das Etapas
+                            Visual Stage Progress
                         </span>
                         <div class="flex items-center gap-2">
-                            <span id="bpStepsSummary" class="text-[11px] text-slate-400 font-medium">Etapa 1 de 4</span>
+                            <span id="bpStepsSummary" class="text-[11px] text-slate-400 font-medium">Stage 1 of 4</span>
                             <span id="bpProgressPct" class="font-mono text-xs text-blue-400 font-bold bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 rounded-full shadow-sm">0%</span>
                         </div>
                     </div>
@@ -1235,7 +1235,7 @@
                                 <div class="flex items-center justify-between mb-2">
                                     <div class="flex items-center gap-1.5">
                                         <span id="bpStageIcon_init" class="text-base">⚙️</span>
-                                        <span class="font-bold text-xs text-cyan-300">1. Inicialização</span>
+                                        <span class="font-bold text-xs text-cyan-300">1. Initialization</span>
                                     </div>
                                     <span id="bpStageDur_init" class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-medium animate-pulse">0s</span>
                                 </div>
@@ -1255,7 +1255,7 @@
                                 <div class="flex items-center justify-between mb-2">
                                     <div class="flex items-center gap-1.5">
                                         <span id="bpStageIcon_build" class="text-base">🔨</span>
-                                        <span class="font-bold text-xs text-slate-300">2. Compilação</span>
+                                        <span class="font-bold text-xs text-slate-300">2. Compilation</span>
                                     </div>
                                     <span id="bpStageDur_build" class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-800/60 text-slate-500 font-medium">--:--</span>
                                 </div>
@@ -1295,7 +1295,7 @@
                                 <div class="flex items-center justify-between mb-2">
                                     <div class="flex items-center gap-1.5">
                                         <span id="bpStageIcon_launch" class="text-base">🚀</span>
-                                        <span class="font-bold text-xs text-slate-300">4. Execução</span>
+                                        <span class="font-bold text-xs text-slate-300">4. Execution</span>
                                     </div>
                                     <span id="bpStageDur_launch" class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-800/60 text-slate-500 font-medium">--:--</span>
                                 </div>
@@ -1311,7 +1311,7 @@
                     </div>
                 </div>
 
-                <!-- LIVE ANIMATED PROCESSING CARD (Painel de processamento em tempo real) -->
+                <!-- LIVE ANIMATED PROCESSING CARD -->
                 <div class="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-slate-800/90 rounded-2xl p-4 space-y-3 shadow-xl relative overflow-hidden">
                     <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-cyan-500 via-indigo-500 to-emerald-400 opacity-85 animate-pulse"></div>
                     <div class="flex items-center justify-between">
@@ -1325,15 +1325,15 @@
                             </div>
                             <div class="overflow-hidden">
                                 <div class="text-xs font-bold text-white flex items-center gap-2">
-                                    <span>Processamento Ativo</span>
-                                    <span id="bpTaskStepTag" class="px-2 py-0.2 rounded text-[10px] font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">Inicializando...</span>
+                                    <span>Active Processing</span>
+                                    <span id="bpTaskStepTag" class="px-2 py-0.2 rounded text-[10px] font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">Initializing...</span>
                                 </div>
-                                <div id="bpLiveActionName" class="text-[11px] text-slate-400 mt-0.5 font-medium truncate">Preparando ambiente e parâmetros de compilação</div>
+                                <div id="bpLiveActionName" class="text-[11px] text-slate-400 mt-0.5 font-medium truncate">Preparing build environment and parameters</div>
                             </div>
                         </div>
                         <div class="flex items-center gap-2 text-right flex-shrink-0">
                             <div class="text-right">
-                                <div class="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Duração Ação</div>
+                                <div class="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Action Duration</div>
                                 <div id="bpLiveActionTimer" class="font-mono text-xs text-cyan-400 font-bold">0s</div>
                             </div>
                         </div>
@@ -1343,15 +1343,15 @@
                     <div class="bg-slate-950/90 rounded-xl p-3 border border-slate-800/80 font-mono text-[11px] text-slate-300 flex items-center justify-between gap-3 overflow-hidden shadow-inner">
                         <div class="flex items-center gap-2 overflow-hidden">
                             <span class="text-cyan-400 font-bold select-none">$</span>
-                            <span id="bpLiveCmdText" class="truncate text-slate-300">Aguardando comando...</span>
+                            <span id="bpLiveCmdText" class="truncate text-slate-300">Waiting for command...</span>
                         </div>
-                        <span id="bpLiveCmdStatus" class="text-[10px] px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 font-sans flex-shrink-0">Em execução</span>
+                        <span id="bpLiveCmdStatus" class="text-[10px] px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 font-sans flex-shrink-0">Running</span>
                     </div>
 
                     <!-- Inactivity / Stall Banner -->
                     <div id="bpStallBanner" class="hidden flex items-center justify-between text-xs text-amber-300 bg-amber-950/40 border border-amber-500/40 rounded-xl px-3.5 py-2 shadow-sm">
-                        <span id="bpStallText" class="truncate font-mono text-[11px]">Ainda processando (sem saída)</span>
-                        <span class="text-[10px] uppercase font-bold text-amber-400 flex-shrink-0">Status: Ativo</span>
+                        <span id="bpStallText" class="truncate font-mono text-[11px]">Still processing (no output)</span>
+                        <span class="text-[10px] uppercase font-bold text-amber-400 flex-shrink-0">Status: Active</span>
                     </div>
                 </div>
 
@@ -1361,22 +1361,22 @@
                         <div class="flex items-center gap-2">
                             <button onclick="toggleBpLogCollapse()" class="flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-white transition">
                                 <span id="bpLogCollapseIcon" class="text-blue-400 text-xs">▼</span>
-                                <span>Console de Saída Detalhado</span>
+                                <span>Detailed Output Console</span>
                             </button>
-                            <span id="bpLogCount" class="text-[10px] bg-slate-900/90 border border-slate-800/90 text-slate-400 px-2 py-0.5 rounded-md font-mono">0 linhas</span>
+                            <span id="bpLogCount" class="text-[10px] bg-slate-900/90 border border-slate-800/90 text-slate-400 px-2 py-0.5 rounded-md font-mono">0 lines</span>
                         </div>
                         <div class="flex items-center gap-2">
-                            <input type="text" id="bpLogSearch" oninput="filterBpLogs()" placeholder="Filtrar saída..." class="bg-slate-950 border border-slate-800/90 rounded-lg px-2.5 py-1 text-[11px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/30 w-32 md:w-44 transition-all" />
-                            <button onclick="toggleBpLogAutoScroll()" id="bpAutoScrollBtn" class="text-[11px] text-blue-400 border border-blue-500/50 bg-slate-900 px-2.5 py-1 rounded-lg transition hover:text-white flex items-center gap-1 shadow-sm" title="Alternar rolagem automática">
+                            <input type="text" id="bpLogSearch" oninput="filterBpLogs()" placeholder="Filter output..." class="bg-slate-950 border border-slate-800/90 rounded-lg px-2.5 py-1 text-[11px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/30 w-32 md:w-44 transition-all" />
+                            <button onclick="toggleBpLogAutoScroll()" id="bpAutoScrollBtn" class="text-[11px] text-blue-400 border border-blue-500/50 bg-slate-900 px-2.5 py-1 rounded-lg transition hover:text-white flex items-center gap-1 shadow-sm" title="Toggle auto-scroll">
                                 <span>↓ Auto-scroll</span>
                             </button>
-                            <button onclick="copyBpLogs()" class="text-[11px] text-slate-300 hover:text-white transition flex items-center gap-1 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg shadow-sm" title="Copiar logs">
-                                <span>📋 Copiar Log</span>
+                            <button onclick="copyBpLogs()" class="text-[11px] text-slate-300 hover:text-white transition flex items-center gap-1 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg shadow-sm" title="Copy logs">
+                                <span>📋 Copy Log</span>
                             </button>
                         </div>
                     </div>
                     <div id="bpLogContainer" class="bg-slate-950/95 rounded-xl p-3.5 h-44 overflow-y-auto font-mono text-[11px] leading-relaxed space-y-0.5 select-text border border-slate-800/90 shadow-inner transition-all duration-300">
-                        <div class="text-slate-600 italic">Aguardando saída de log...</div>
+                        <div class="text-slate-600 italic">Waiting for log output...</div>
                     </div>
                 </div>
 
@@ -1388,14 +1388,14 @@
                     <div id="bpHotReloadWarning" class="hidden mt-1 w-full bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 flex items-start gap-2.5">
                         <span class="text-emerald-400 text-lg leading-none mt-0.5 animate-pulse">&#9679;</span>
                         <div class="text-left">
-                            <div class="text-xs font-bold text-emerald-400">Hot Reload ativo</div>
-                            <div class="text-[11px] text-slate-400 mt-0.5">Fechar este modal irá <span class="text-amber-400 font-semibold">cancelar</span> o Hot Reload e finalizar o processo em background.</div>
+                            <div class="text-xs font-bold text-emerald-400">Hot Reload active</div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">Closing this modal will <span class="text-amber-400 font-semibold">cancel</span> Hot Reload and terminate the background process.</div>
                         </div>
                     </div>
                     <div class="flex items-center gap-2.5 mt-2">
-                        <button onclick="copyBpLogs()" class="btn-ghost px-4 py-2 text-xs font-semibold flex items-center gap-1.5 rounded-xl" title="Copiar log de saída">📋 Copiar Logs</button>
-                        <button id="bpStopHrBtn" onclick="stopHotReloadFromModal()" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 text-xs rounded-xl transition" title="Parar Hot Reload">■ Parar Hot Reload</button>
-                        <button onclick="closeBuildProgress()" class="btn-primary px-6 py-2 text-xs font-semibold rounded-xl" title="Fechar modal">Fechar</button>
+                        <button onclick="copyBpLogs()" class="btn-ghost px-4 py-2 text-xs font-semibold flex items-center gap-1.5 rounded-xl" title="Copy output log">📋 Copy Logs</button>
+                        <button id="bpStopHrBtn" onclick="stopHotReloadFromModal()" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 text-xs rounded-xl transition" title="Stop Hot Reload">■ Stop Hot Reload</button>
+                        <button onclick="closeBuildProgress()" class="btn-primary px-6 py-2 text-xs font-semibold rounded-xl" title="Close modal">Close</button>
                     </div>
                 </div>
             </div>
@@ -1590,15 +1590,15 @@
             });
 
             connection.on("LogReceived", function (message) {
-                // Processa logs no modal se o build está ativo OU HotReload está rodando
+                // Route logs to build progress modal if active
                 if (message && (buildProgressActive || hotReloadActive)) {
                     processBuildLogMessage(message);
                 }
 
-                // ---- Terminal routing (Build Only) ----
-                if (message.startsWith("Build process completed") || message.startsWith("Build cancelled by user") || message.indexOf("launched successfully") >= 0 || message.indexOf("launch failed") >= 0) {
-                    // Auto-open archive folder when iOS Archive completes successfully
-                    if (currentBuildIsArchive && message.startsWith("Build process completed") && message.indexOf("exit code: 0") >= 0 && archiveBuildDir) {
+                // ---- Terminal routing (Build / Archive) ----
+                if (message.startsWith("Build process completed") || message.startsWith("Archive process completed") || message.startsWith("Build cancelled by user") || message.indexOf("launched successfully") >= 0 || message.indexOf("launch failed") >= 0) {
+                    // Auto-open project folder when iOS Archive completes successfully
+                    if (currentBuildIsArchive && message.startsWith("Archive process completed") && message.indexOf("exit code: 0") >= 0 && archiveBuildDir) {
                         var archiveDir = archiveBuildDir;
                         setTimeout(function () {
                             openFolder(archiveDir);
@@ -3197,7 +3197,7 @@ function toggleTheme() {
             origFetch(API_BASE + "/api/protocol").then(function (r) { return r.json(); }).then(function (data) {
                 if (data && data.registered) {
                     window.location.href = "maui-forge://relaunch";
-                    showToast("Relançando MAUI Forge...", "info");
+                    showToast("Relaunching MAUI Forge...", "info");
                 } else {
                     fallbackRelaunch();
                 }
@@ -3206,7 +3206,7 @@ function toggleTheme() {
         function fallbackRelaunch() {
             var cmd = "maui-forge";
             try { navigator.clipboard.writeText(cmd); } catch(e) {}
-            showToast("Comando \"" + cmd + "\" copiado! Cole no terminal para relançar.", "info");
+            showToast("Command \"" + cmd + "\" copied! Paste in terminal to relaunch.", "info");
         }
 
         var remoteHealthInterval = null;
@@ -4546,10 +4546,10 @@ function toggleTheme() {
         /* ── Build & Run Progress Modal (Enhanced Visual Graphs & Processing Widget) ── */
 
         const BP_STEPS = [
-            { id: "init",   name: "1. Inicialização", icon: "⚙️", theme: "cyan", colorHex: "#06b6d4", pct: 15, label: "Ambiente & Target" },
-            { id: "build",  name: "2. Compilação", icon: "🔨", theme: "indigo", colorHex: "#6366f1", pct: 55, label: "C#, XAML & Native Assets" },
-            { id: "deploy", name: "3. Deploy & Instalação", icon: "📦", theme: "amber", colorHex: "#f59e0b", pct: 85, label: "Transferência & Pacote APK/IPA" },
-            { id: "launch", name: "4. Execução", icon: "🚀", theme: "emerald", colorHex: "#10b981", pct: 95, label: "Launch & Verificação" }
+            { id: "init",   name: "1. Initialization", icon: "⚙️", theme: "cyan", colorHex: "#06b6d4", pct: 15, label: "Environment & Target" },
+            { id: "build",  name: "2. Compilation", icon: "🔨", theme: "indigo", colorHex: "#6366f1", pct: 55, label: "C#, XAML & Native Assets" },
+            { id: "deploy", name: "3. Deploy & Install", icon: "📦", theme: "amber", colorHex: "#f59e0b", pct: 85, label: "Transfer & APK/IPA Package" },
+            { id: "launch", name: "4. Execution", icon: "🚀", theme: "emerald", colorHex: "#10b981", pct: 95, label: "Launch & Verification" }
         ];
 
         const STEP_ORDER = { init: 1, build: 2, deploy: 3, launch: 4 };
@@ -4732,7 +4732,7 @@ function toggleTheme() {
 
             var badge = document.getElementById("bpStatusBadge");
             if (badge) {
-                badge.textContent = "Em Execução";
+                badge.textContent = "Running";
                 badge.className = "px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30";
             }
             var headerIcon = document.getElementById("bpHeaderIcon");
@@ -4761,7 +4761,7 @@ function toggleTheme() {
             if (countEl) countEl.textContent = "0 linhas";
 
             var liveCmdText = document.getElementById("bpLiveCmdText");
-            if (liveCmdText) liveCmdText.textContent = "Iniciando compilação do projeto...";
+            if (liveCmdText) liveCmdText.textContent = "Starting project compilation...";
 
             document.getElementById("bpResult").classList.add("hidden");
             document.getElementById("bpTimer").textContent = "0:00";
@@ -4971,7 +4971,7 @@ function toggleTheme() {
             }
 
             var idleSeconds = Math.floor(idleMs / 1000);
-            var label = "Ainda processando (" + idleSeconds + "s sem saída)";
+            var label = "Still processing (" + idleSeconds + "s no output)";
             if (currentHeavyCommand) label += " — " + currentHeavyCommand;
             text.textContent = label;
             text.title = currentHeavyCommand || "";
@@ -5110,7 +5110,7 @@ function toggleTheme() {
         function copyBpLogs() {
             var container = document.getElementById("bpLogContainer");
             var text = container ? container.innerText : "";
-            if (!text || text.trim() === "" || text.includes("Aguardando saída de log...")) {
+            if (!text || text.trim() === "" || text.includes("Waiting for log output...")) {
                 showToast("No log content to copy", "info");
                 return;
             }
@@ -5145,7 +5145,7 @@ function toggleTheme() {
 
             // If Hot Reload is active, warn and stop it
             if (hotReloadActive) {
-                if (confirm("⚠ Hot Reload está ativo.\n\nFechar este modal irá CANCELAR o Hot Reload e finalizar o processo em background.\n\nDeseja continuar?")) {
+                if (confirm("⚠ Hot Reload is active.\n\nClosing this modal will CANCEL Hot Reload and terminate the background process.\n\nDo you want to continue?")) {
                     stopHotReload();
                 } else {
                     // Re-show the modal if user cancelled
