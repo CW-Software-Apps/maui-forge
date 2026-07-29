@@ -285,13 +285,20 @@ if (!runTerminal)
 
     // ── Startup banner ────────────────────────────────────────────
     AnsiConsole.MarkupLine($"[bold cyan1]⚒️  MAUI Forge[/] [white]v{verStr}[/]");
-    AnsiConsole.MarkupLine($"[grey]{new string('─', Math.Min(Console.WindowWidth, 80))}[/]");
+    try
+    {
+        AnsiConsole.MarkupLine($"[grey]{new string('─', Math.Min(Console.WindowWidth, 80))}[/]");
+    }
+    catch
+    {
+        AnsiConsole.MarkupLine("[grey]────────────────────────────────────────────────────────────────────────────────[/]");
+    }
 
     // Version check
-    if (latestStr is not null)
+    if (latestStr is not null && currentVer is not null)
     {
         var cleanLatest = latestStr.Split('-')[0];
-        if (Version.TryParse(cleanLatest, out var lv) && lv > currentVer!)
+        if (Version.TryParse(cleanLatest, out var lv) && lv > currentVer)
             AnsiConsole.MarkupLine($"[yellow]↑ Update available: [bold]{latestStr}[/][/]");
         else
             AnsiConsole.MarkupLine($"[green]✓[/] [grey]Version [white]{verStr}[/] — up to date[/]");

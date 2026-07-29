@@ -350,6 +350,9 @@ public static class WebStartup
 
         // Disable server mode (auto-restart back to localhost-only). Clears
         // ServerModeEnabled so future plain launches no longer come back up serving.
+        // Schedules its own Environment.Exit after the response is sent so the relaunch
+        // script (started by RelaunchSelf) actually kicks in — the JS /api/shutdown call
+        // is kept as a safety net for the enable-server flow.
         app.MapPost("/api/remote/disable-server", (StateService state) =>
         {
             var st = state.Load();
@@ -357,6 +360,13 @@ public static class WebStartup
             state.Save(st);
 
             RelaunchSelf(string.Join(" ", StripServeArgs(OriginalArgs ?? [])));
+
+            // Schedule self-exit so the relaunch script fires even if JS fails to call /api/shutdown
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(1000);
+                Environment.Exit(0);
+            });
 
             return Results.Ok(new { message = "Server restarting in local-only mode...", willRestart = true });
         });
