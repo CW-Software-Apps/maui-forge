@@ -1134,7 +1134,7 @@ public static class WebStartup
             return Results.Ok(new { Success = false, Error = "No running build found for this app." });
         });
 
-        // iOS Archive — builds with ArchiveOnBuild=true (Release config)
+        // iOS Archive — cleans, then builds Release + ArchiveOnBuild to bin/Release/archive/
         app.MapPost("/api/apps/archive", (BuildService builder, VersionService versions, StateService state, ArchiveRequest req) =>
         {
             var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
@@ -1144,19 +1144,34 @@ public static class WebStartup
             {
                 try
                 {
+                    var outDir = Path.Combine(dir, "bin", "Release", "archive");
+
+                    // Step 1: Clean so the archive is always a full rebuild
                     await SendLog("=========================================");
-                    await SendLog($"Starting iOS Archive (Release + ArchiveOnBuild)...");
+                    await SendLog("Step 1/2 — Cleaning previous build output...");
                     await SendLog("=========================================");
                     await SendLog("===STEP:INIT===");
+
+                    var cleanArgs = new List<string> { "clean", "-c", "Release", "-f", "net10.0-ios" };
+                    await SendLog("===CMD:dotnet " + string.Join(' ', cleanArgs) + "===");
+                    builder.Run(dir, cleanArgs.ToArray(), line => { _ = SendLog(line); });
+
+                    // Step 2: Archive build
+                    await SendLog("=========================================");
+                    await SendLog("Step 2/2 — Creating iOS Archive (Release + ArchiveOnBuild)...");
+                    await SendLog("Output: " + outDir);
+                    await SendLog("=========================================");
+                    await SendLog("===STEP:BUILD===");
 
                     var buildArgs = new List<string> { "build", "-c", "Release" };
                     buildArgs.AddRange(new[] { "-f", "net10.0-ios" });
                     buildArgs.Add("-p:ArchiveOnBuild=true");
+                    buildArgs.Add("-o");
+                    buildArgs.Add(outDir);
 
                     if (!string.IsNullOrWhiteSpace(req.CodesignKey))
                         buildArgs.Add($"-p:CodesignKey={req.CodesignKey}");
 
-                    await SendLog("===STEP:BUILD===");
                     await SendLog("===CMD:dotnet " + string.Join(' ', buildArgs) + "===");
                     int exitCode = builder.Run(dir, buildArgs.ToArray(), line =>
                     {
@@ -1168,6 +1183,8 @@ public static class WebStartup
                     {
                         await SendLog("=========================================");
                         await SendLog($"Archive process completed with exit code: {exitCode}");
+                        if (exitCode == 0)
+                            await SendLog("Archive output: " + outDir);
                         await SendLog("=========================================");
                         if (exitCode == 0)
                         {

@@ -1597,16 +1597,17 @@
 
                 // ---- Terminal routing (Build / Archive) ----
                 if (message.startsWith("Build process completed") || message.startsWith("Archive process completed") || message.startsWith("Build cancelled by user") || message.indexOf("launched successfully") >= 0 || message.indexOf("launch failed") >= 0) {
-                    // Auto-open project folder when iOS Archive completes successfully
-                    if (currentBuildIsArchive && message.startsWith("Archive process completed") && message.indexOf("exit code: 0") >= 0 && archiveBuildDir) {
-                        var archiveDir = archiveBuildDir;
+                    // Auto-open archive output folder when iOS Archive completes successfully
+                    // Uses directory-based tracking so only the archive build triggers this
+                    if (archiveBuildDirs[currentBuildDir] && message.startsWith("Archive process completed") && message.indexOf("exit code: 0") >= 0) {
+                        var archiveOut = currentBuildDir + (currentBuildDir.endsWith("/") ? "" : "/") + "bin/Release/archive/";
+                        var _dir = currentBuildDir;
                         setTimeout(function () {
-                            openFolder(archiveDir);
-                            showToast("Archive complete — opening project folder", "success");
+                            openFolder(_dir);
+                            showToast("Archive complete — .xcarchive in bin/Release/archive/ (double-click to open in Xcode Organizer)", "success");
                         }, 500);
                     }
-                    currentBuildIsArchive = false;
-                    archiveBuildDir = null;
+                    delete archiveBuildDirs[currentBuildDir];
                     currentBuildDir = null;
                     document.getElementById("cancelBuildBtn").classList.add("hidden");
                 }
@@ -4014,8 +4015,7 @@ function toggleTheme() {
         }
 
         var currentBuildDir = null;
-        var currentBuildIsArchive = false;
-        var archiveBuildDir = null;
+        var archiveBuildDirs = {}; // { dir: true } tracks which builds are archives
 
         async function buildApp(dir, platform) {
             clearConsole();
@@ -4040,10 +4040,10 @@ function toggleTheme() {
 
         // iOS Archive — builds with Release config + ArchiveOnBuild=true
         async function archiveApp(dir) {
-            showProcessing("Creating iOS Archive...", "Running Release build with ArchiveOnBuild — this may take a while");
+            showProcessing("Creating iOS Archive...", "Step 1/2: Cleaning previous build, then compiling Release + ArchiveOnBuild");
 
-            currentBuildIsArchive = true;
-            archiveBuildDir = dir;
+            // Track this build as an archive so we auto-open the output folder
+            archiveBuildDirs[dir] = true;
             clearConsole();
             openTerminal();
             currentBuildDir = dir;
@@ -4058,11 +4058,12 @@ function toggleTheme() {
                 if (res.ok) {
                     const data = await res.json();
                     if (data && data.buildId) activeBuildId = data.buildId;
+                } else {
+                    delete archiveBuildDirs[dir];
                 }
             } catch (err) {
                 hideProcessing();
-                currentBuildIsArchive = false;
-                archiveBuildDir = null;
+                delete archiveBuildDirs[dir];
                 console.error(err);
                 showToast("Failed to start archive: " + err.message, "error");
             }
