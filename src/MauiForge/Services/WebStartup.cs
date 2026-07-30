@@ -1141,6 +1141,10 @@ public static class WebStartup
             var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
             var record = RecordBuildStart(dir, req.Platform, "Release", versions: versions);
 
+            // Find the .csproj so we can pass it explicitly (dotnet publish needs it)
+            var csprojPath = Directory.EnumerateFiles(dir, "*.csproj").FirstOrDefault();
+            var st = state.Load();
+
             _ = Task.Run(async () =>
             {
                 try
@@ -1151,23 +1155,51 @@ public static class WebStartup
                     await SendLog("=========================================");
                     await SendLog("===STEP:INIT===");
 
-                    var cleanArgs = new List<string> { "clean", "-c", "Release", "-f", "net10.0-ios" };
+                    var cleanArgs = new List<string> { "clean" };
+                    if (csprojPath is not null) cleanArgs.Add(csprojPath);
+                    cleanArgs.AddRange(new[] { "-c", "Release", "-f", "net10.0-ios" });
                     await SendLog("===CMD:dotnet " + string.Join(' ', cleanArgs) + "===");
                     builder.Run(dir, cleanArgs.ToArray(), line => { _ = SendLog(line); });
 
-                    // Step 2: Publish (not build) — dotnet publish triggers the full iOS
-                    // archive pipeline, producing a .xcarchive bundle ready for Xcode Organizer.
+                    // Step 2: Publish with ArchiveOnBuild=true — this triggers the iOS
+                    // _Archive MSBuild target which invokes xcodebuild archive, producing
+                    // the .xcarchive bundle. On Windows, a remote Mac build host is
+                    // required (ServerAddress / ServerUser from saved state).
                     await SendLog("=========================================");
-                    await SendLog("Step 2/2 — Publishing iOS Archive (dotnet publish + ArchiveOnBuild)...");
+                    await SendLog("Step 2/2 — Creating iOS Archive (dotnet publish + ArchiveOnBuild)...");
+                    if (!OperatingSystem.IsMacOS())
+                    {
+                        await SendLog("Detected non-macOS host — checking for remote Mac build host...");
+                        if (!string.IsNullOrWhiteSpace(st.MacHost))
+                            await SendLog("Remote Mac: " + st.MacHost + (st.MacUser is not null ? "@" + st.MacUser : ""));
+                        else
+                            await SendLog("WARNING: No remote Mac configured. iOS archive will likely fail.");
+                    }
                     await SendLog("=========================================");
                     await SendLog("===STEP:BUILD===");
 
-                    var publishArgs = new List<string> { "publish", "-c", "Release" };
-                    publishArgs.AddRange(new[] { "-f", "net10.0-ios" });
+                    var publishArgs = new List<string> { "publish" };
+                    if (csprojPath is not null) publishArgs.Add(csprojPath);
+                    publishArgs.AddRange(new[] { "-c", "Release", "-f", "net10.0-ios" });
                     publishArgs.Add("-p:ArchiveOnBuild=true");
 
+                    // Without a codesign key, use EnableCodeSigning=false so the
+                    // archive is still produced (just unsigned — can be signed later)
                     if (!string.IsNullOrWhiteSpace(req.CodesignKey))
                         publishArgs.Add($"-p:CodesignKey={req.CodesignKey}");
+                    else
+                        publishArgs.Add("-p:EnableCodeSigning=false");
+
+                    // Remote Mac build host (needed when running on Windows/Linux)
+                    if (!OperatingSystem.IsMacOS())
+                    {
+                        if (!string.IsNullOrWhiteSpace(st.MacHost))
+                        {
+                            publishArgs.Add($"-p:ServerAddress={st.MacHost}");
+                            if (!string.IsNullOrWhiteSpace(st.MacUser))
+                                publishArgs.Add($"-p:ServerUser={st.MacUser}");
+                        }
+                    }
 
                     await SendLog("===CMD:dotnet " + string.Join(' ', publishArgs) + "===");
                     int exitCode = builder.Run(dir, publishArgs.ToArray(), line =>
@@ -1175,18 +1207,37 @@ public static class WebStartup
                         _ = SendLog(line);
                     }, logFile: record.LogFilePath, onStart: proc => _runningBuilds[dir] = proc);
 
-                    // Discover the .xcarchive path from the publish output directory
+                    // Discover the .xcarchive — search both default locations and
+                    // scan the build output for the path (xcodebuild logs it)
                     string? archivePath = null;
                     try
                     {
-                        var publishRoot = Path.Combine(dir, "bin", "Release", "net10.0-ios", "publish");
-                        if (Directory.Exists(publishRoot))
+                        // Search in standard .NET MAUI output locations
+                        var searchDirs = new[]
                         {
-                            // .xcarchive is a bundle directory, not a file — find it by extension
-                            archivePath = Directory.EnumerateDirectories(publishRoot, "*.xcarchive",
-                                SearchOption.TopDirectoryOnly).FirstOrDefault()
-                                ?? Directory.EnumerateFiles(publishRoot, "*.xcarchive",
-                                SearchOption.AllDirectories).FirstOrDefault();
+                            Path.Combine(dir, "bin", "Release", "net10.0-ios"),
+                            Path.Combine(dir, "bin", "Release", "net10.0-ios", "ios-arm64"),
+                        };
+                        foreach (var searchDir in searchDirs)
+                        {
+                            if (Directory.Exists(searchDir))
+                            {
+                                archivePath = Directory.EnumerateDirectories(searchDir, "*.xcarchive",
+                                    SearchOption.AllDirectories).FirstOrDefault()
+                                    ?? Directory.EnumerateFiles(searchDir, "*.xcarchive",
+                                    SearchOption.AllDirectories).FirstOrDefault();
+                                if (archivePath is not null) break;
+                            }
+                        }
+                        // Fallback: scan entire bin/Release recursively
+                        if (archivePath is null)
+                        {
+                            var binRelease = Path.Combine(dir, "bin", "Release");
+                            if (Directory.Exists(binRelease))
+                            {
+                                archivePath = Directory.EnumerateDirectories(binRelease, "*.xcarchive",
+                                    SearchOption.AllDirectories).FirstOrDefault();
+                            }
                         }
                     }
                     catch { /* best-effort */ }
@@ -1196,10 +1247,13 @@ public static class WebStartup
                     {
                         await SendLog("=========================================");
                         await SendLog($"Archive process completed with exit code: {exitCode}");
-                        if (exitCode == 0 && archivePath is not null)
-                            await SendLog("Archive: " + archivePath);
-                        else if (exitCode == 0)
-                            await SendLog("Archive output: bin/Release/net10.0-ios/publish/");
+                        if (exitCode == 0)
+                        {
+                            if (archivePath is not null)
+                                await SendLog("Archive: " + archivePath);
+                            else
+                                await SendLog("Archive output: bin/Release/net10.0-ios/ (look for .xcarchive)");
+                        }
                         await SendLog("=========================================");
                         if (exitCode == 0)
                         {
