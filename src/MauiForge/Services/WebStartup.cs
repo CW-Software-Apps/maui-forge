@@ -1180,17 +1180,21 @@ public static class WebStartup
 
                     var publishArgs = new List<string> { "publish" };
                     if (csprojPath is not null) publishArgs.Add(csprojPath);
-                    publishArgs.AddRange(new[] { "-c", "Release", "-f", "net10.0-ios" });
+                    // Exact same arg order as the working TUI (AppDetailScreen.ArchiveIOSAction):
+                    // publish <csproj> -f <framework> -c Release -p:ArchiveOnBuild=true -p:CodesignKey=<key> -o <outDir>
+                    publishArgs.AddRange(new[] { "-f", "net10.0-ios", "-c", "Release" });
                     publishArgs.Add("-p:ArchiveOnBuild=true");
 
-                    // Archive requires code signing — use provided key or default to
-                    // "Apple Development" (auto-detects available certificate on macOS).
-                    // NOTE: EnableCodeSigning=false BREAKS ArchiveOnBuild because xcodebuild
-                    // archive refuses to run without a signing identity.
                     var signKey = !string.IsNullOrWhiteSpace(req.CodesignKey)
                         ? req.CodesignKey
                         : "Apple Development";
                     publishArgs.Add($"-p:CodesignKey={signKey}");
+
+                    // Output directory — matches TUI exactly
+                    var outDir = Path.Combine(dir, "bin", "Release", "archive");
+                    publishArgs.Add("-o");
+                    publishArgs.Add(outDir);
+                    await SendLog("Output: " + outDir);
 
                     // Remote Mac build host (needed when running on Windows/Linux)
                     if (!OperatingSystem.IsMacOS())
@@ -1209,14 +1213,15 @@ public static class WebStartup
                         _ = SendLog(line);
                     }, logFile: record.LogFilePath, onStart: proc => _runningBuilds[dir] = proc);
 
-                    // Discover the .xcarchive — search both default locations and
+                    // Discover the .xcarchive — search the output directory and
                     // scan the build output for the path (xcodebuild logs it)
                     string? archivePath = null;
                     try
                     {
-                        // Search in standard .NET MAUI output locations
+                        // Search in expected .NET MAUI output locations
                         var searchDirs = new[]
                         {
+                            outDir,  // -o bin/Release/archive  (matches TUI)
                             Path.Combine(dir, "bin", "Release", "net10.0-ios"),
                             Path.Combine(dir, "bin", "Release", "net10.0-ios", "ios-arm64"),
                         };
