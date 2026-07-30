@@ -1134,7 +1134,8 @@ public static class WebStartup
             return Results.Ok(new { Success = false, Error = "No running build found for this app." });
         });
 
-        // iOS Archive — cleans, then builds Release + ArchiveOnBuild to bin/Release/archive/
+        // iOS Archive — cleans, then publishes Release + ArchiveOnBuild to produce a
+        // .xcarchive bundle that opens directly in Xcode Organizer for App Store submission.
         app.MapPost("/api/apps/archive", (BuildService builder, VersionService versions, StateService state, ArchiveRequest req) =>
         {
             var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
@@ -1144,8 +1145,6 @@ public static class WebStartup
             {
                 try
                 {
-                    var outDir = Path.Combine(dir, "bin", "Release", "archive");
-
                     // Step 1: Clean so the archive is always a full rebuild
                     await SendLog("=========================================");
                     await SendLog("Step 1/2 — Cleaning previous build output...");
@@ -1156,35 +1155,51 @@ public static class WebStartup
                     await SendLog("===CMD:dotnet " + string.Join(' ', cleanArgs) + "===");
                     builder.Run(dir, cleanArgs.ToArray(), line => { _ = SendLog(line); });
 
-                    // Step 2: Archive build
+                    // Step 2: Publish (not build) — dotnet publish triggers the full iOS
+                    // archive pipeline, producing a .xcarchive bundle ready for Xcode Organizer.
                     await SendLog("=========================================");
-                    await SendLog("Step 2/2 — Creating iOS Archive (Release + ArchiveOnBuild)...");
-                    await SendLog("Output: " + outDir);
+                    await SendLog("Step 2/2 — Publishing iOS Archive (dotnet publish + ArchiveOnBuild)...");
                     await SendLog("=========================================");
                     await SendLog("===STEP:BUILD===");
 
-                    var buildArgs = new List<string> { "build", "-c", "Release" };
-                    buildArgs.AddRange(new[] { "-f", "net10.0-ios" });
-                    buildArgs.Add("-p:ArchiveOnBuild=true");
-                    buildArgs.Add("-o");
-                    buildArgs.Add(outDir);
+                    var publishArgs = new List<string> { "publish", "-c", "Release" };
+                    publishArgs.AddRange(new[] { "-f", "net10.0-ios" });
+                    publishArgs.Add("-p:ArchiveOnBuild=true");
 
                     if (!string.IsNullOrWhiteSpace(req.CodesignKey))
-                        buildArgs.Add($"-p:CodesignKey={req.CodesignKey}");
+                        publishArgs.Add($"-p:CodesignKey={req.CodesignKey}");
 
-                    await SendLog("===CMD:dotnet " + string.Join(' ', buildArgs) + "===");
-                    int exitCode = builder.Run(dir, buildArgs.ToArray(), line =>
+                    await SendLog("===CMD:dotnet " + string.Join(' ', publishArgs) + "===");
+                    int exitCode = builder.Run(dir, publishArgs.ToArray(), line =>
                     {
                         _ = SendLog(line);
                     }, logFile: record.LogFilePath, onStart: proc => _runningBuilds[dir] = proc);
+
+                    // Discover the .xcarchive path from the publish output directory
+                    string? archivePath = null;
+                    try
+                    {
+                        var publishRoot = Path.Combine(dir, "bin", "Release", "net10.0-ios", "publish");
+                        if (Directory.Exists(publishRoot))
+                        {
+                            // .xcarchive is a bundle directory, not a file — find it by extension
+                            archivePath = Directory.EnumerateDirectories(publishRoot, "*.xcarchive",
+                                SearchOption.TopDirectoryOnly).FirstOrDefault()
+                                ?? Directory.EnumerateFiles(publishRoot, "*.xcarchive",
+                                SearchOption.AllDirectories).FirstOrDefault();
+                        }
+                    }
+                    catch { /* best-effort */ }
 
                     bool completedNaturally = _runningBuilds.TryRemove(dir, out _);
                     if (completedNaturally)
                     {
                         await SendLog("=========================================");
                         await SendLog($"Archive process completed with exit code: {exitCode}");
-                        if (exitCode == 0)
-                            await SendLog("Archive output: " + outDir);
+                        if (exitCode == 0 && archivePath is not null)
+                            await SendLog("Archive: " + archivePath);
+                        else if (exitCode == 0)
+                            await SendLog("Archive output: bin/Release/net10.0-ios/publish/");
                         await SendLog("=========================================");
                         if (exitCode == 0)
                         {
