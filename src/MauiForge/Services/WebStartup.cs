@@ -1183,12 +1183,14 @@ public static class WebStartup
                     publishArgs.AddRange(new[] { "-c", "Release", "-f", "net10.0-ios" });
                     publishArgs.Add("-p:ArchiveOnBuild=true");
 
-                    // Without a codesign key, use EnableCodeSigning=false so the
-                    // archive is still produced (just unsigned — can be signed later)
-                    if (!string.IsNullOrWhiteSpace(req.CodesignKey))
-                        publishArgs.Add($"-p:CodesignKey={req.CodesignKey}");
-                    else
-                        publishArgs.Add("-p:EnableCodeSigning=false");
+                    // Archive requires code signing — use provided key or default to
+                    // "Apple Development" (auto-detects available certificate on macOS).
+                    // NOTE: EnableCodeSigning=false BREAKS ArchiveOnBuild because xcodebuild
+                    // archive refuses to run without a signing identity.
+                    var signKey = !string.IsNullOrWhiteSpace(req.CodesignKey)
+                        ? req.CodesignKey
+                        : "Apple Development";
+                    publishArgs.Add($"-p:CodesignKey={signKey}");
 
                     // Remote Mac build host (needed when running on Windows/Linux)
                     if (!OperatingSystem.IsMacOS())
