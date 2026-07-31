@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" class="bg-[#0a0f14] text-slate-100">
 <head>
     <meta charset="UTF-8">
@@ -66,15 +66,15 @@
 <div class="w">
 <div class="hd"><div class="logo"><span>MAUI Forge</span></div><div class="tag">Your .NET MAUI release copilot</div></div>
 <div class="card" style="text-align:center">
-<div id="chk"><div style="margin-bottom:5px"><span class="spn"></span></div><div style="font-size:13px;color:var(--dim)">Checking if MAUI Forge is running\u2026</div></div>
+<div id="chk"><div style="margin-bottom:5px"><span class="spn"></span></div><div style="font-size:13px;color:var(--dim)">Checking if MAUI Forge is running&#x2026;</div></div>
 <div id="on" class="h"><span class="badge badge-on"><span class="bdot bdot-on"></span>Running</span><div class="stitle">MAUI Forge is already running!</div><div class="sdesc">Dashboard detected on localhost:5123</div><a href="http://localhost:5123" class="btn btn-go"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Open Dashboard</a></div>
-<div id="off" class="h"><span class="badge badge-off"><span class="bdot bdot-off"></span>Not detected</span><div class="stitle">MAUI Forge is not installed</div><div class="sdesc">Install in seconds \u2014 one command</div></div>
+<div id="off" class="h"><span class="badge badge-off"><span class="bdot bdot-off"></span>Not detected</span><div class="stitle">MAUI Forge is not installed</div><div class="sdesc">Install in seconds &#x2014; one command</div></div>
 </div>
 <div id="inst" class="h">
 <div class="card"><div class="sec">Quick Install</div>
-<div class="tabs"><button class="tab" data-os="windows" onclick="sw('windows')">\u229e Windows</button><button class="tab" data-os="mac" onclick="sw('mac')">\uf8ff macOS</button><button class="tab" data-os="linux" onclick="sw('linux')">\ud83d\udc27 Linux</button></div>
-<div id="os-windows"><div class="cmd"><code id="c-windows">irm https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/install.ps1 | iex</code><button class="btn-cp" onclick="cp(this,'windows')">Copy</button></div><div class="hint">Paste into <b>PowerShell</b> (Admin NOT required) \u2192 Desktop shortcut + auto-update.</div></div>
-<div id="os-mac" class="h"><div class="cmd"><code id="c-mac">curl -fsSL https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/install.sh | bash</code><button class="btn-cp" onclick="cp(this,'mac')">Copy</button></div><div class="hint">Paste into <b>Terminal</b> \u2192 installs globally, creates Desktop launcher. Then <code>maui-forge</code>.</div></div>
+<div class="tabs"><button class="tab" data-os="windows" onclick="sw('windows')">&#x229E; Windows</button><button class="tab" data-os="mac" onclick="sw('mac')">&#xF8FF; macOS</button><button class="tab" data-os="linux" onclick="sw('linux')">&#x1F427; Linux</button></div>
+<div id="os-windows"><div class="cmd"><code id="c-windows">irm https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/install.ps1 | iex</code><button class="btn-cp" onclick="cp(this,'windows')">Copy</button></div><div class="hint">Paste into <b>PowerShell</b> (Admin NOT required) &#x2192; Desktop shortcut + auto-update.</div></div>
+<div id="os-mac" class="h"><div class="cmd"><code id="c-mac">curl -fsSL https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/install.sh | bash</code><button class="btn-cp" onclick="cp(this,'mac')">Copy</button></div><div class="hint">Paste into <b>Terminal</b> &#x2192; installs globally, creates Desktop launcher. Then <code>maui-forge</code>.</div></div>
 <div id="os-linux" class="h"><div class="cmd"><code id="c-linux">curl -fsSL https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/install.sh | bash</code><button class="btn-cp" onclick="cp(this,'linux')">Copy</button></div><div class="hint">Paste into <b>Terminal</b>. Requires <b>.NET SDK</b>. Then <code>maui-forge</code>.</div></div>
 </div>
 <div class="card"><div class="sec">Manual Install (NuGet)</div>
@@ -83,11 +83,11 @@
 </div>
 <div class="card"><div class="sec">How Detection Works</div>
 <div class="steps">
-<div class="step"><span class="step-n">1</span><span>This page tries <code>fetch()</code> to <b>localhost:5123</b> \u2014 the port where MAUI Forge runs its web dashboard.</span></div>
+<div class="step"><span class="step-n">1</span><span>This page tries <code>fetch()</code> to <b>localhost:5123</b> &#x2014; the port where MAUI Forge runs its web dashboard.</span></div>
 <div class="step"><span class="step-n">2</span><span>It probes 3 endpoints: <code>/api/status</code>, <code>/api/diagnostics</code>, <code>/</code>. If <b>any</b> responds, the tool is <b>running</b>.</span></div>
-<div class="step"><span class="step-n">3</span><span>If all fail (connection refused), the tool is <b>not running</b> \u2014 so we show install instructions.</span></div>
+<div class="step"><span class="step-n">3</span><span>If all fail (connection refused), the tool is <b>not running</b> &#x2014; so we show install instructions.</span></div>
 </div>
-<div class="hint" style="margin-top:10px">\u26a0 <b>Important:</b> this detects whether the tool is <b>running</b>, not just installed.<br>If installed but stopped, it shows \u201cNot detected\u201d \u2014 just start it: <code>maui-forge</code>.</div>
+<div class="hint" style="margin-top:10px">&#x26A0; <b>Important:</b> this detects whether the tool is <b>running</b>, not just installed.<br>If installed but stopped, it shows &#x201C;Not detected&#x201D; &#x2014; just start it: <code>maui-forge</code>.</div>
 </div>
 </div>
 </div>
