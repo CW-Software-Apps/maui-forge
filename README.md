@@ -60,28 +60,17 @@ You have multiple .NET MAUI apps. To release even one of them, you have to:
 
 ### Card view
 
-```
-┌───────────────────────────────────────────────────────────────┐
-│  ⚡ MAUI Forge                                   v1.7.0       │
-│  ───────────────────────────────────────────────────────────── │
-│  📁 ~/projects                    [ 12 apps ]                 │
-│  ───────────────────────────────────────────────────────────── │
-│  ┌────────────────────┐  ┌────────────────────┐               │
-│  │ MyApp        MAUI   │  │ ShippingApp  MAUI  │               │
-│  │ 📱 1.4.2 #18  🤖 1.4.2 #18    │  │ 📱 2.0.0 #103 🤖 2.0.0 #103  │               │
-│  │ main  ✅ clean      │  │ release/2.0  ⚠️ +2 │               │
-│  │                     │  │                     │               │
-│  │ [+1] [🚀] [⋮]      │  │ [+1] [🚀] [⋮]      │               │
-│  └────────────────────┘  └────────────────────┘               │
-│  ┌────────────────────┐                                       │
-│  │ OtherApp     MAUI  │                                       │
-│  │ 📱 1.0.0 #5  🤖 1.0.1 #6    │                                       │
-│  │ feature/x  ⚠️ ~    │                                       │
-│  │                     │                                       │
-│  │ [+1] [🚀] [⋮]      │                                       │
-│  └────────────────────┘                                       │
-└───────────────────────────────────────────────────────────────┘
-```
+![Card view](https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/assets/screenshots/dashboard-cards.webp)
+
+Every app in your monitored folders shows up as a card:
+
+- **Project type badge** — MAUI, WPF, Blazor, Unity, ClassLibrary
+- **iOS 📱 and Android 🤖 version + build**, side by side, flagged when they're out of sync
+- **Git branch** and status (clean / dirty / ahead-behind), color-coded
+- **`+1` quick bump**, **🚀 Build & Run**, and a **⋮ overflow menu** (update version, pull, open folder, open in IDE) right on the card
+- Toggle to a **compact table (List view)** instead, with the same actions per row
+
+![List view](https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/assets/screenshots/dashboard-list.webp)
 
 ### Features
 
@@ -99,6 +88,10 @@ You have multiple .NET MAUI apps. To release even one of them, you have to:
 | Auto-Start toggle | Enable/disable launch on login — works the same on Windows, macOS, and Linux |
 | Mobile responsive | Sidebar collapses to drawer on small screens |
 
+![Build menu](https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/assets/screenshots/build-menu.webp)
+
+![Build & Run modal](https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/assets/screenshots/build-run-modal.webp)
+
 Start it: `maui-forge` (default).
 
 ---
@@ -113,18 +106,7 @@ If you develop MAUI apps on a Mac using **VS Code**, you know the pain: there's 
 
 VS Code doesn't have individual per-project launch configurations for each device/simulator out of the box, so you end up with a terminal full of copy-pasted commands.
 
-**MAUI Forge solves this entirely:**
-
-```
-Run iOS Device
-  > iPhone 16 Pro (simulator)
-  > iPhone 15 (simulator)
-  > Cezar's iPhone — physical device ✓
-  > iPad Pro 13" (simulator)
-  > iPad Air (3rd gen) — old device, iOS 16 ✓
-```
-
-It calls `xcrun xctrace list devices` for you, presents every connected physical device and every simulator in a menu, and fires the right `dotnet build -t:Run -p:_DeviceId=<udid>` — no config files, no remembered UDIDs, no launch.json setup. The selected device is remembered per project for next time.
+**MAUI Forge solves this entirely:** the device picker in the **Build & Run** modal calls `xcrun xctrace list devices` for you and lists every connected physical device and every simulator — iPhone 16 Pro (simulator), Cezar's iPhone (physical, connected), iPad Air 3rd gen (old device, iOS 16), all in one dropdown. Pick one and it fires the right `dotnet build -t:Run -p:_DeviceId=<udid>` — no config files, no remembered UDIDs, no launch.json setup. The selected device is remembered per project for next time.
 
 Same for **Archive**: pick your codesign key from a list (Apple Development / Apple Distribution / custom), choose the framework, and MAUI Forge assembles the full `dotnet publish` command — correctly, every time.
 
@@ -238,6 +220,21 @@ Four levels of clean:
 
 </td>
 </tr>
+<tr>
+<td colspan="2">
+
+### 🌐 Remote access
+
+![Remote access](https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/assets/screenshots/remote-access.webp)
+
+Run MAUI Forge on one machine and drive it from another — no VPN, no port-forwarding setup:
+- **Enable Server Mode** — binds to `0.0.0.0` with a generated (or custom) access token; other devices on the network connect over `http://<host-ip>:6284`
+- **Auto-discovery** — a UDP responder lets other MAUI Forge instances on the LAN find and connect to it automatically
+- **Connect to Remote** — pick a discovered server from a list, or type a host:port + token manually
+- Great for driving iOS builds on a **remote Mac** from a Windows PC dashboard, or checking on a build from your phone
+
+</td>
+</tr>
 </table>
 
 ---
@@ -314,23 +311,13 @@ If the selected device is an AVD that isn't running, MAUI Forge **auto-starts th
 
 ## AI commit messages
 
-Open an app and select **Create Commit**. You'll see a diff summary and can generate a message from:
+Open an app and select **Create Commit** in the dashboard. You'll see a diff summary and a source picker — **Smart Suggestion** (heuristic, always available), **Claude CLI**, **Gemini CLI**, **Ollama** (local), or **Write manually** — then a generated message like:
 
 ```
-─ Commit Message Source ────────────────────────────────────────────
-  [x] Smart Suggestion (heuristic)
-  [ ] Claude CLI (claude)
-  [ ] Gemini CLI (gemini)
-  [ ] Ollama (local — llama3.2)
-──
-  [ ] Write manually
-──
-
-Generated message:
-  feat: add user profile screen
-  - added ProfilePage.xaml + ProfilePage.xaml.cs
-  - updated navigation service registration
-  - added profile data models
+feat: add user profile screen
+- added ProfilePage.xaml + ProfilePage.xaml.cs
+- updated navigation service registration
+- added profile data models
 ```
 
 The providers auto-detect — only show up if the CLI tool is in PATH or Ollama is running.
