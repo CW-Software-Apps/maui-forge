@@ -53,22 +53,108 @@ public static class FirstRunSetupService
     private static void EnsureMacLauncher()
     {
         var desktop = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Desktop");
-        var launcherPath = Path.Combine(desktop, "MAUI Forge.command");
-        if (File.Exists(launcherPath)) return;
+        var appPath = Path.Combine(desktop, "MAUI Forge.app");
+        if (Directory.Exists(appPath)) return;
 
-        var content =
+        // Replace the plain .command launcher used by earlier versions — it carried
+        // no custom icon, so Finder just showed the generic shell-script icon.
+        try
+        {
+            var oldCommandPath = Path.Combine(desktop, "MAUI Forge.command");
+            if (File.Exists(oldCommandPath)) File.Delete(oldCommandPath);
+        }
+        catch { }
+
+        var contentsDir = Path.Combine(appPath, "Contents");
+        var macOsDir = Path.Combine(contentsDir, "MacOS");
+        var resourcesDir = Path.Combine(contentsDir, "Resources");
+        Directory.CreateDirectory(macOsDir);
+        Directory.CreateDirectory(resourcesDir);
+
+        var infoPlist =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+            "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n" +
+            "<plist version=\"1.0\">\n" +
+            "<dict>\n" +
+            "    <key>CFBundleExecutable</key><string>launcher</string>\n" +
+            "    <key>CFBundleIconFile</key><string>icon.icns</string>\n" +
+            "    <key>CFBundleName</key><string>MAUI Forge</string>\n" +
+            "    <key>CFBundleIdentifier</key><string>com.cwsoftware.mauiforge</string>\n" +
+            "    <key>CFBundlePackageType</key><string>APPL</string>\n" +
+            "    <key>LSUIElement</key><false/>\n" +
+            "</dict>\n" +
+            "</plist>\n";
+        File.WriteAllText(Path.Combine(contentsDir, "Info.plist"), infoPlist);
+
+        var launcherPath = Path.Combine(macOsDir, "launcher");
+        var launcherContent =
             "#!/bin/bash\n" +
             "# MAUI Forge Launcher — starts the web dashboard and opens your browser.\n" +
             "export PATH=\"$HOME/.dotnet/tools:$PATH\"\n" +
             "pkill -f \"maui-forge\" 2>/dev/null || true\n" +
             "nohup maui-forge > /dev/null 2>&1 &\n" +
             "sleep 2\n" +
-            $"open \"http://localhost:{WebStartup.DefaultPort}\" 2>/dev/null || true\n" +
-            $"echo \"MAUI Forge is running at http://localhost:{WebStartup.DefaultPort}\"\n";
-
-        Directory.CreateDirectory(desktop);
-        File.WriteAllText(launcherPath, content);
+            $"open \"http://localhost:{WebStartup.DefaultPort}\" 2>/dev/null || true\n";
+        File.WriteAllText(launcherPath, launcherContent);
         try { Process.Start("chmod", $"+x \"{launcherPath}\"")?.WaitForExit(2000); } catch { }
+
+        BuildMacIcon(resourcesDir);
+    }
+
+    // Builds Contents/Resources/icon.icns from the bundled icon.png using macOS's
+    // built-in sips + iconutil — no Xcode Command Line Tools required, both ship
+    // with every Mac. Best-effort: if either tool is missing, the .app still works,
+    // it just falls back to the generic app icon.
+    private static void BuildMacIcon(string resourcesDir)
+    {
+        try
+        {
+            var srcIcon = Path.Combine(AppContext.BaseDirectory, "icon.png");
+            if (!File.Exists(srcIcon)) return;
+
+            var iconset = Path.Combine(Path.GetTempPath(), $"mauiforge-icon-{Guid.NewGuid():N}.iconset");
+            Directory.CreateDirectory(iconset);
+
+            (string File, int Size)[] specs =
+            [
+                ("icon_16x16.png", 16),
+                ("icon_16x16@2x.png", 32),
+                ("icon_32x32.png", 32),
+                ("icon_32x32@2x.png", 64),
+                ("icon_128x128.png", 128),
+                ("icon_128x128@2x.png", 256),
+                ("icon_256x256.png", 256),
+                ("icon_256x256@2x.png", 512),
+                ("icon_512x512.png", 512),
+                ("icon_512x512@2x.png", 1024),
+            ];
+
+            foreach (var (file, size) in specs)
+                RunTool("sips", $"-z {size} {size} \"{srcIcon}\" --out \"{Path.Combine(iconset, file)}\"", timeoutMs: 5000);
+
+            var icnsOut = Path.Combine(resourcesDir, "icon.icns");
+            RunTool("iconutil", $"-c icns \"{iconset}\" -o \"{icnsOut}\"", timeoutMs: 10000);
+
+            try { Directory.Delete(iconset, recursive: true); } catch { }
+        }
+        catch { }
+    }
+
+    private static void RunTool(string exe, string args, int timeoutMs)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo(exe, args)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            using var p = Process.Start(psi);
+            p?.WaitForExit(timeoutMs);
+        }
+        catch { }
     }
 
     private static void EnsureLinuxDesktopEntry()
