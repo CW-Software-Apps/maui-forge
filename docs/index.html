@@ -1,5 +1,5 @@
-<!DOCTYPE html>
-<html lang="en" class="h-full overflow-hidden bg-[#0a0f14] text-slate-100">
+﻿<!DOCTYPE html>
+<html lang="en" class="bg-[#0a0f14] text-slate-100">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +7,6 @@
     <meta name="description" content="Install MAUI Forge — the .NET MAUI release copilot. Cross-platform version & build manager for MAUI apps.">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2310b981'/%3E%3Cpath fill='%23ffffff' d='M6,23 V9 h3 l2.5,7 l2.5,-7 h3 V23 h-3 V14.5 l-2,5.5 h-1 l-2,-5.5 V23 Z M19,9 H26 v3.2 h-4 v2.8 h3.5 v3 H22 V23 h-3 Z'/%3E%3C/svg%3E">
     <script>
-        // Auto-detect OS
         (function() {
             var ua = navigator.userAgent || '';
             var plat = navigator.platform || '';
@@ -17,305 +16,95 @@
         })();
     </script>
     <style>
-        :root {
-            --bg: #0a0f14;
-            --card: #111820;
-            --border: #1e293b;
-            --ink: #e2e8f0;
-            --ink-dim: #94a3b8;
-            --ink-muted: #64748b;
-            --accent: #10b981;
-            --accent-hover: #059669;
-            --amber: #f59e0b;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        .container { max-width: 720px; margin: 0 auto; padding: 40px 24px; width: 100%; }
-        
-        /* Logo */
-        .logo {
-            font-size: 32px; font-weight: 700; letter-spacing: -0.5px;
-            background: linear-gradient(135deg, #10b981 0%, #34d399 50%, #6ee7b7 100%);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        /* Card */
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 32px;
-            margin-bottom: 20px;
-            transition: border-color 0.3s;
-        }
-
-        /* Status pill */
-        .pill {
-            display: inline-flex; align-items: center; gap: 6px;
-            padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
-        }
-        .pill-on  { background: #10b98120; color: #10b981; border: 1px solid #10b98140; }
-        .pill-off { background: #f59e0b20; color: #f59e0b; border: 1px solid #f59e0b40; }
-        .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
-        .dot-on  { background: #10b981; box-shadow: 0 0 6px #10b98180; }
-        .dot-off { background: #f59e0b; box-shadow: 0 0 6px #f59e0b80; }
-
-        /* Buttons */
-        .btn {
-            display: inline-flex; align-items: center; gap: 8px;
-            padding: 12px 24px; border-radius: 10px; font-weight: 600; font-size: 14px;
-            text-decoration: none; border: none; cursor: pointer; transition: all 0.2s;
-            font-family: inherit;
-        }
-        .btn-primary { background: var(--accent); color: #fff; }
-        .btn-primary:hover { background: var(--accent-hover); }
-        .btn-ghost { background: transparent; color: var(--ink-dim); border: 1px solid var(--border); }
-        .btn-ghost:hover { border-color: var(--ink-muted); color: var(--ink); }
-
-        /* OS tabs */
-        .os-tabs {
-            display: flex; gap: 4px; background: #0a0f14; border-radius: 10px;
-            padding: 4px; margin-bottom: 24px;
-        }
-        .os-tab {
-            flex: 1; padding: 10px 16px; border-radius: 8px; border: none;
-            background: transparent; color: var(--ink-muted); cursor: pointer;
-            font-size: 13px; font-weight: 600; transition: all 0.2s; font-family: inherit;
-        }
-        .os-tab.active { background: #1e293b; color: var(--ink); }
-
-        /* Code block */
-        .code-block {
-            background: #0a0f14; border: 1px solid var(--border); border-radius: 10px;
-            padding: 16px; font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
-            font-size: 13px; line-height: 1.7; color: var(--ink);
-            position: relative; overflow-x: auto; white-space: pre-wrap; word-break: break-word;
-        }
-        .copy-btn {
-            position: absolute; top: 10px; right: 10px;
-            background: var(--card); border: 1px solid var(--border); border-radius: 6px;
-            color: var(--ink-muted); padding: 4px 10px; font-size: 11px; cursor: pointer;
-            transition: all 0.2s; font-family: inherit;
-        }
-        .copy-btn:hover { border-color: var(--ink-dim); color: var(--ink); }
-        .copy-btn.copied { background: var(--accent); color: #fff; border-color: var(--accent); }
-
-        .subtitle { color: var(--ink-muted); font-size: 14px; margin-top: 4px; }
-        .section-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-muted); font-weight: 600; margin-bottom: 12px; }
-
-        .hidden { display: none !important; }
-
-        .footer { text-align: center; padding: 24px; color: var(--ink-muted); font-size: 12px; margin-top: auto; }
-        .footer a { color: var(--ink-dim); text-decoration: none; }
-        .footer a:hover { color: var(--accent); }
-
-        /* Spinner */
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .spinner {
-            width: 20px; height: 20px; border: 2.5px solid var(--border);
-            border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite;
-            display: inline-block;
-        }
+        :root { --bg:#0a0f14; --card:#0f1419; --bord:#1e293b; --ink:#e2e8f0; --dim:#94a3b8; --mut:#64748b; --grn:#10b981; --grn2:#10b98118; --amb:#f59e0b; --amb2:#f59e0b18; }
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--bg);min-height:100dvh;display:flex;flex-direction:column}
+        a{color:var(--grn);text-decoration:none}a:hover{text-decoration:underline}
+        .h{display:none!important}
+        .w{max-width:600px;margin:0 auto;padding:28px 18px 0;width:100%}
+        .hd{text-align:center;padding:36px 0 22px}
+        .logo{font-size:24px;font-weight:700;letter-spacing:-.3px;line-height:1.2}
+        .logo span{background:linear-gradient(135deg,#10b981,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .tag{font-size:12px;color:var(--mut);margin-top:3px}
+        .card{background:var(--card);border:1px solid var(--bord);border-radius:12px;padding:18px;margin-bottom:10px}
+        .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;margin-bottom:8px}
+        .badge-on{background:var(--grn2);color:var(--grn);border:1px solid #10b98130}
+        .badge-off{background:var(--amb2);color:var(--amb);border:1px solid #f59e0b30}
+        .bdot{width:6px;height:6px;border-radius:50%;display:inline-block}
+        .bdot-on{background:var(--grn);box-shadow:0 0 5px #10b98180}
+        .bdot-off{background:var(--amb);box-shadow:0 0 5px #f59e0b80}
+        .stitle{font-size:15px;font-weight:600;color:var(--ink);margin-bottom:3px}
+        .sdesc{font-size:12px;color:var(--mut);margin-bottom:10px}
+        .btn{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:8px;font-weight:600;font-size:13px;text-decoration:none;border:none;cursor:pointer;transition:.15s;font-family:inherit;line-height:1}
+        .btn-go{background:var(--grn);color:#fff;padding:12px 28px;font-size:14px}
+        .btn-go:hover{background:#059669;text-decoration:none}
+        .btn-cp{background:transparent;color:var(--mut);border:1px solid var(--bord);padding:5px 12px;font-size:11px;border-radius:6px;white-space:nowrap;flex-shrink:0}
+        .btn-cp:hover{border-color:var(--dim);color:var(--dim)}
+        .btn-cp.done{background:var(--grn);color:#fff;border-color:var(--grn)}
+        .tabs{display:flex;gap:3px;background:var(--bg);border-radius:8px;padding:3px;margin-bottom:12px}
+        .tab{flex:1;padding:8px 10px;border-radius:6px;border:none;background:transparent;color:var(--mut);cursor:pointer;font-size:12px;font-weight:600;transition:.15s;font-family:inherit;text-align:center}
+        .tab.sel{background:#1e293b;color:var(--ink)}
+        .cmd{display:flex;align-items:stretch;background:#05080b;border:1px solid var(--bord);border-radius:8px;overflow:hidden}
+        .cmd code{flex:1;padding:9px 12px;font-family:'JetBrains Mono','Fira Code','Cascadia Code',monospace;font-size:11.5px;line-height:1.5;color:var(--dim);overflow-x:auto;white-space:nowrap;background:transparent;display:flex;align-items:center;min-width:0}
+        .cmd .btn-cp{border:none;border-left:1px solid var(--bord);border-radius:0;padding:9px 14px;font-size:11px;background:transparent;display:flex;align-items:center}
+        .hint{font-size:11px;color:var(--mut);margin-top:5px;line-height:1.4}
+        .hint b{color:var(--dim)}
+        .hint code{background:#1e293b;padding:1px 5px;border-radius:3px;font-size:10.5px;font-family:'JetBrains Mono',monospace}
+        .sec{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--mut);font-weight:700;margin-bottom:8px}
+        .steps{counter-reset:step}
+        .step{display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #1e293b40;font-size:12px;color:var(--dim);line-height:1.45}
+        .step:last-child{border-bottom:none;padding-bottom:0}
+        .step-n{width:20px;height:20px;border-radius:50%;background:#1e293b;color:var(--mut);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+        .foot{text-align:center;padding:20px;color:var(--mut);font-size:11px;margin-top:auto}
+        .foot a{color:var(--dim)}.foot a:hover{color:var(--grn);text-decoration:none}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .spn{width:18px;height:18px;border:2.5px solid var(--bord);border-top-color:var(--grn);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px}
+        @media(max-width:480px){.w{padding:20px 12px 0}.hd{padding:24px 0 16px}.logo{font-size:22px}}
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <div style="text-align:center; padding: 48px 0 36px;">
-            <div class="logo">MAUI Forge</div>
-            <div class="subtitle" style="margin-top:8px;">Your .NET MAUI release copilot</div>
-        </div>
-
-        <!-- Status detection -->
-        <div class="card" style="text-align:center;">
-            <div id="statusChecking">
-                <div class="spinner" style="margin-bottom:12px;"></div>
-                <div style="color:var(--ink-dim); font-size:14px;">Checking if MAUI Forge is running on your machine...</div>
-            </div>
-            <div id="statusRunning" class="hidden">
-                <span class="pill pill-on"><span class="dot dot-on"></span> Running</span>
-                <div style="font-size:15px; color:var(--ink); margin:16px 0 8px; font-weight:600;">
-                    MAUI Forge is already running!
-                </div>
-                <div style="color:var(--ink-muted); font-size:13px; margin-bottom:20px;">
-                    Dashboard detected on localhost:5123
-                </div>
-                <a href="http://localhost:5123" class="btn btn-primary" style="font-size:15px; padding:14px 32px;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                    Open Dashboard
-                </a>
-            </div>
-            <div id="statusNotRunning" class="hidden">
-                <span class="pill pill-off"><span class="dot dot-off"></span> Not detected</span>
-                <div style="font-size:15px; color:var(--ink); margin:16px 0 8px; font-weight:600;">
-                    MAUI Forge is not installed yet
-                </div>
-                <div style="color:var(--ink-muted); font-size:13px; margin-bottom:20px;">
-                    Install in seconds with one command
-                </div>
-            </div>
-        </div>
-
-        <!-- Install instructions -->
-        <div id="installSection" class="hidden">
-            <div class="card">
-                <div class="section-title">Install</div>
-                <!-- OS Tabs -->
-                <div class="os-tabs" id="osTabs">
-                    <button class="os-tab" data-os="windows" onclick="switchOS('windows')">⊞ Windows</button>
-                    <button class="os-tab" data-os="mac" onclick="switchOS('mac')"> macOS</button>
-                    <button class="os-tab" data-os="linux" onclick="switchOS('linux')">🐧 Linux</button>
-                </div>
-
-                <!-- Windows -->
-                <div id="os-windows" class="os-content">
-                    <div class="code-block">
-                        <button class="copy-btn" onclick="copyCode(this, 'windows')">Copy</button>
-                        <code id="code-windows">irm https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/install.ps1 | iex</code>
-                    </div>
-                    <div style="color:var(--ink-muted); font-size:12px; margin-top:8px;">
-                        Run in <b>PowerShell</b> (Admin NOT required). Creates a Desktop shortcut with auto-update.
-                    </div>
-                </div>
-
-                <!-- Mac -->
-                <div id="os-mac" class="os-content hidden">
-                    <div class="code-block">
-                        <button class="copy-btn" onclick="copyCode(this, 'mac')">Copy</button>
-                        <code id="code-mac">curl -fsSL https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/install.sh | bash</code>
-                    </div>
-                    <div style="color:var(--ink-muted); font-size:12px; margin-top:8px;">
-                        Run in <b>Terminal</b>. Installs the dotnet tool globally, sets up PATH, and creates a Desktop launcher.
-                        After install, double-click <b>MAUI Forge.command</b> on your Desktop or run <code style="background:#1e293b; padding:2px 6px; border-radius:4px; font-size:12px;">maui-forge</code> from any terminal.
-                    </div>
-                </div>
-
-                <!-- Linux -->
-                <div id="os-linux" class="os-content hidden">
-                    <div class="code-block">
-                        <button class="copy-btn" onclick="copyCode(this, 'linux')">Copy</button>
-                        <code id="code-linux">curl -fsSL https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/install.sh | bash</code>
-                    </div>
-                    <div style="color:var(--ink-muted); font-size:12px; margin-top:8px;">
-                        Run in <b>Terminal</b>. Requires .NET SDK installed.
-                        After install, run <code style="background:#1e293b; padding:2px 6px; border-radius:4px; font-size:12px;">maui-forge</code>.
-                    </div>
-                </div>
-            </div>
-
-            <!-- Manual install -->
-            <div class="card">
-                <div class="section-title">Or install manually via NuGet</div>
-                <div class="code-block">
-                    <button class="copy-btn" onclick="copyCode(this, 'nuget')">Copy</button>
-                    <code id="code-nuget">dotnet tool install -g CwSoftware.MauiForge</code>
-                </div>
-                <div style="color:var(--ink-muted); font-size:12px; margin-top:8px;">
-                    Requires <a href="https://dotnet.microsoft.com/download" style="color:var(--accent);">.NET SDK</a>.
-                    Then run <code style="background:#1e293b; padding:2px 6px; border-radius:4px; font-size:12px;">maui-forge</code> from any terminal.
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="footer">
-        <a href="https://github.com/CW-Software-Apps/maui-forge" target="_blank">GitHub</a>
-        &nbsp;·&nbsp;
-        <a href="https://www.nuget.org/packages/CwSoftware.MauiForge" target="_blank">NuGet</a>
-    </div>
-
-    <script>
-        var currentOS = window._os || 'windows';
-
-        function switchOS(os) {
-            currentOS = os;
-            document.querySelectorAll('.os-tab').forEach(function(t) {
-                t.classList.toggle('active', t.dataset.os === os);
-            });
-            document.querySelectorAll('.os-content').forEach(function(c) { c.classList.add('hidden'); });
-            var el = document.getElementById('os-' + os);
-            if (el) el.classList.remove('hidden');
-        }
-
-        function copyCode(btn, id) {
-            var el = document.getElementById('code-' + id);
-            if (!el) return;
-            var text = el.textContent.trim();
-            navigator.clipboard.writeText(text).then(function() {
-                btn.textContent = 'Copied!';
-                btn.classList.add('copied');
-                setTimeout(function() {
-                    btn.textContent = 'Copy';
-                    btn.classList.remove('copied');
-                }, 2000);
-            }).catch(function() {
-                // Fallback: select text
-                var range = document.createRange();
-                range.selectNodeContents(el);
-                var sel = window.getSelection();
-                sel.removeAllRanges();
-                sel.addRange(range);
-            });
-        }
-
-        // Check if MAUI Forge is running on localhost
-        async function checkStatus() {
-            var elCheck  = document.getElementById('statusChecking');
-            var elRun    = document.getElementById('statusRunning');
-            var elNotRun = document.getElementById('statusNotRunning');
-            var elInst   = document.getElementById('installSection');
-
-            // Try multiple endpoints with short timeout
-            var endpoints = [
-                'http://localhost:5123/api/status',
-                'http://localhost:5123/api/diagnostics',
-                'http://localhost:5123'
-            ];
-
-            var found = false;
-            for (var i = 0; i < endpoints.length; i++) {
-                try {
-                    var controller = new AbortController();
-                    var timeout = setTimeout(function() { controller.abort(); }, 2000);
-                    var res = await fetch(endpoints[i], {
-                        method: 'GET',
-                        mode: 'cors',
-                        signal: controller.signal
-                    });
-                    clearTimeout(timeout);
-                    found = true;
-                    break;
-                } catch(e) {
-                    // Try next endpoint
-                }
-            }
-
-            elCheck.classList.add('hidden');
-
-            if (found) {
-                elRun.classList.remove('hidden');
-                elNotRun.classList.add('hidden');
-                elInst.classList.add('hidden');
-            } else {
-                elRun.classList.add('hidden');
-                elNotRun.classList.remove('hidden');
-                elInst.classList.remove('hidden');
-            }
-        }
-
-        // Init
-        switchOS(currentOS);
-        document.querySelectorAll('.os-tab').forEach(function(tab) {
-            if (tab.dataset.os === currentOS) tab.classList.add('active');
-        });
-        checkStatus();
-    </script>
+<div class="w">
+<div class="hd"><div class="logo"><span>MAUI Forge</span></div><div class="tag">Your .NET MAUI release copilot</div></div>
+<div class="card" style="text-align:center">
+<div id="chk"><div style="margin-bottom:5px"><span class="spn"></span></div><div style="font-size:13px;color:var(--dim)">Checking if MAUI Forge is running\u2026</div></div>
+<div id="on" class="h"><span class="badge badge-on"><span class="bdot bdot-on"></span>Running</span><div class="stitle">MAUI Forge is already running!</div><div class="sdesc">Dashboard detected on localhost:5123</div><a href="http://localhost:5123" class="btn btn-go"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Open Dashboard</a></div>
+<div id="off" class="h"><span class="badge badge-off"><span class="bdot bdot-off"></span>Not detected</span><div class="stitle">MAUI Forge is not installed</div><div class="sdesc">Install in seconds \u2014 one command</div></div>
+</div>
+<div id="inst" class="h">
+<div class="card"><div class="sec">Quick Install</div>
+<div class="tabs"><button class="tab" data-os="windows" onclick="sw('windows')">\u229e Windows</button><button class="tab" data-os="mac" onclick="sw('mac')">\uf8ff macOS</button><button class="tab" data-os="linux" onclick="sw('linux')">\ud83d\udc27 Linux</button></div>
+<div id="os-windows"><div class="cmd"><code id="c-windows">irm https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/install.ps1 | iex</code><button class="btn-cp" onclick="cp(this,'windows')">Copy</button></div><div class="hint">Paste into <b>PowerShell</b> (Admin NOT required) \u2192 Desktop shortcut + auto-update.</div></div>
+<div id="os-mac" class="h"><div class="cmd"><code id="c-mac">curl -fsSL https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/install.sh | bash</code><button class="btn-cp" onclick="cp(this,'mac')">Copy</button></div><div class="hint">Paste into <b>Terminal</b> \u2192 installs globally, creates Desktop launcher. Then <code>maui-forge</code>.</div></div>
+<div id="os-linux" class="h"><div class="cmd"><code id="c-linux">curl -fsSL https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/install.sh | bash</code><button class="btn-cp" onclick="cp(this,'linux')">Copy</button></div><div class="hint">Paste into <b>Terminal</b>. Requires <b>.NET SDK</b>. Then <code>maui-forge</code>.</div></div>
+</div>
+<div class="card"><div class="sec">Manual Install (NuGet)</div>
+<div class="cmd"><code id="c-nuget">dotnet tool install -g CwSoftware.MauiForge</code><button class="btn-cp" onclick="cp(this,'nuget')">Copy</button></div>
+<div class="hint">Requires <a href="https://dotnet.microsoft.com/download">.NET SDK</a>. Then <code>maui-forge</code> from any terminal.</div>
+</div>
+<div class="card"><div class="sec">How Detection Works</div>
+<div class="steps">
+<div class="step"><span class="step-n">1</span><span>This page tries <code>fetch()</code> to <b>localhost:5123</b> \u2014 the port where MAUI Forge runs its web dashboard.</span></div>
+<div class="step"><span class="step-n">2</span><span>It probes 3 endpoints: <code>/api/status</code>, <code>/api/diagnostics</code>, <code>/</code>. If <b>any</b> responds, the tool is <b>running</b>.</span></div>
+<div class="step"><span class="step-n">3</span><span>If all fail (connection refused), the tool is <b>not running</b> \u2014 so we show install instructions.</span></div>
+</div>
+<div class="hint" style="margin-top:10px">\u26a0 <b>Important:</b> this detects whether the tool is <b>running</b>, not just installed.<br>If installed but stopped, it shows \u201cNot detected\u201d \u2014 just start it: <code>maui-forge</code>.</div>
+</div>
+</div>
+</div>
+<div class="foot"><a href="https://github.com/CW-Software-Apps/maui-forge">GitHub</a> &middot; <a href="https://www.nuget.org/packages/CwSoftware.MauiForge">NuGet</a></div>
+<script>
+var cur=window._os||'windows';
+function sw(o){cur=o;document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('sel',t.dataset.os===o)});document.querySelectorAll('[id^=os-]').forEach(function(c){c.classList.add('h')});var e=document.getElementById('os-'+o);if(e)e.classList.remove('h')}
+function cp(b,id){var e=document.getElementById('c-'+id);if(!e)return;navigator.clipboard.writeText(e.textContent.trim()).then(function(){b.textContent='Copied!';b.classList.add('done');setTimeout(function(){b.textContent='Copy';b.classList.remove('done')},1800)}).catch(function(){var r=document.createRange();r.selectNodeContents(e);var s=window.getSelection();s.removeAllRanges();s.addRange(r)})}
+(async function(){
+var ec=document.getElementById('chk'),er=document.getElementById('on'),en=document.getElementById('off'),ei=document.getElementById('inst');
+var urls=['http://localhost:5123/api/status','http://localhost:5123/api/diagnostics','http://localhost:5123'];
+var f=0;
+for(var i=0;i<urls.length;i++){try{var c=new AbortController();var t=setTimeout(function(){c.abort()},2000);await fetch(urls[i],{method:'GET',mode:'cors',signal:c.signal});clearTimeout(t);f=1;break}catch(e){}}
+ec.classList.add('h');
+if(f){er.classList.remove('h');en.classList.add('h');ei.classList.add('h')}else{er.classList.add('h');en.classList.remove('h');ei.classList.remove('h')}
+})();
+sw(cur);document.querySelectorAll('.tab').forEach(function(t){if(t.dataset.os===cur)t.classList.add('sel')});
+</script>
 </body>
 </html>
