@@ -5,28 +5,29 @@
 A cross-platform CLI + web tool written in **C# .NET 10** that replaces the PowerShell script `maui-version.ps1`. It manages versions, builds, and deployments for .NET MAUI apps via an interactive terminal TUI and a web dashboard.
 
 Repository: `https://github.com/CW-Software-Apps/maui-forge`  
-Distribution: `dotnet tool install -g CwSoftware.MauiForge` (NuGet) or self-contained exe via install scripts.
+Distribution: `dotnet tool install -g CwSoftware.MauiForge` (NuGet) — the only supported install path, on Windows, macOS, and Linux.
 
 ## Stack
 
 - **C# .NET 10**, console app + ASP.NET Core Minimal API
 - **Spectre.Console** — TUI (tables, prompts, panels, progress, colors)
-- **Spectre.Console.Cli** — CLI arg parsing (`--depth`, `--path`, `--cli`, `--web`)
-- **ASP.NET Core + SignalR** — web dashboard (`localhost:5123`), real-time build log streaming
+- **Spectre.Console.Cli** — CLI arg parsing (`--depth`, `--path`, `--cli`, `--port`)
+- **ASP.NET Core + SignalR** — web dashboard (`localhost:6284`), real-time build log streaming
 - **Tailwind CSS** — web dashboard (CDN, no build step)
 - **Microsoft.Extensions.DependencyInjection** — DI between services
 
 ## Distribution
 
-- **NuGet `dotnet tool`** (primary) — `dotnet tool install -g CwSoftware.MauiForge`
-- **Self-contained exe** via `install.ps1` (Windows) / `install.sh` (macOS/Linux) as fallback
+- **NuGet `dotnet tool`** (only path) — `dotnet tool install -g CwSoftware.MauiForge`
+- No self-contained exe fallback — the .NET SDK is required on every platform
+- `FirstRunSetupService` creates the launcher (Desktop shortcut/launcher/`.desktop` entry) on first start — replaces the old `install.ps1`/`install.sh` scripts
 - **Auto-publish** via GitHub Actions on `v*` tag push
 
 ## Mode
 
-- **Default** (`maui-forge`): starts web dashboard on `http://localhost:5123`
+- **Default** (`maui-forge`): starts web dashboard on `http://localhost:6284` (`WebStartup.DefaultPort` — "MAUI" on a phone keypad)
 - **`--cli` / `--terminal`**: starts traditional terminal TUI
-- **`--web`**: explicit web dashboard
+- **`--port <n>`**: overrides the default port
 
 ## Project structure
 
@@ -38,8 +39,8 @@ maui-forge/
 │   └── icon.ico                   ← Application icon
 ├── .github/workflows/
 │   └── publish.yml                ← Auto-publish to NuGet on v* tag push
-├── install.ps1                    ← Windows: self-contained exe → dist/ → PATH + desktop shortcut
-├── install.sh                     ← macOS/Linux: dotnet tool install -g, ensures ~/.dotnet/tools in profile
+├── docs/
+│   └── index.html                 ← GitHub Pages landing/install page (cw-software-apps.github.io/maui-forge)
 ├── PRODUCT.md                     ← Product strategy ("Your MAUI release copilot")
 ├── DESIGN.md                      ← Design system (OKLCH tokens, typography, components)
 ├── README.md                      ← Full documentation
@@ -60,7 +61,11 @@ maui-forge/
     │   ├── StateService.cs        ← ~/.maui-forge.state.json load/save, RecordUsage
     │   ├── UpdateService.cs       ← NuGet version check (background), deferred update (batch/Unix), ForceCheck
     │   ├── AiCommitService.cs     ← Claude CLI / Gemini CLI / Ollama (HTTP) / Smart suggestion fallback
-    │   └── ProcessEnvironment.cs  ← Forces English CLI output on spawned processes
+    │   ├── ProcessEnvironment.cs  ← Forces English CLI output on spawned processes
+    │   ├── FirstRunSetupService.cs← Idempotent first-run setup: Desktop shortcut (Win) / launcher (Mac) / .desktop entry (Linux)
+    │   ├── AutoStartService.cs    ← Cross-platform auto-start on login: Windows Registry Run key, delegates to LaunchAgentService (Mac) / LinuxAutoStartService (Linux)
+    │   ├── LaunchAgentService.cs  ← macOS launchd LaunchAgent install/uninstall/status/logs
+    │   └── LinuxAutoStartService.cs ← Linux XDG autostart (~/.config/autostart) install/uninstall/status
     ├── UI/
     │   ├── AppListScreen.cs       ← Main dashboard: app table, filters, folder browser, menu, scan
     │   ├── AppDetailScreen.cs     ← Detail panel: version/git/run profile, all actions (bump, run, archive, publish, git, commit, clean, IDE)
@@ -147,7 +152,7 @@ AndroidDevice          — Serial, Model, State
 
 ## Web Dashboard API Endpoints
 
-All defined in `WebStartup.cs`. Server runs on `http://localhost:5123`.
+All defined in `WebStartup.cs`. Server runs on `http://localhost:6284` (`WebStartup.DefaultPort`).
 
 ### REST Endpoints
 
@@ -172,6 +177,8 @@ All defined in `WebStartup.cs`. Server runs on `http://localhost:5123`.
 | GET | `/api/update/check` | — | `{ currentVersion, latestVersion, updateAvailable, updateCommand }` |
 | POST | `/api/update/install` | `{ version? }` | — |
 | GET | `/api/diagnostics` | — | `{ dotnetVersion, os }` |
+| GET | `/api/agent/info` | — | `AutoStartStatus` (Supported, Enabled, IsRunning, Platform, Details) |
+| POST | `/api/agent/autostart/toggle` | — | `{ success, message, status }` |
 
 ### SignalR Hub (`/hubs/logs`)
 
@@ -261,11 +268,11 @@ All defined in `WebStartup.cs`. Server runs on `http://localhost:5123`.
 - [x] Mobile responsive (sidebar → drawer)
 
 **Distribution**
-- [x] NuGet `dotnet tool` package
-- [x] Self-contained exe via `install.ps1` (win-x64, single-file, desktop shortcut)
-- [x] Self-contained via `install.sh` (macOS/Linux: dotnet tool install -g + profile setup)
+- [x] NuGet `dotnet tool` package — the only install path, on Windows/macOS/Linux
+- [x] `FirstRunSetupService` — idempotent Desktop shortcut (Win) / launcher (Mac) / `.desktop` entry (Linux) on first start
+- [x] Cross-platform auto-start on login (Windows Registry, macOS LaunchAgent, Linux XDG autostart) via `AutoStartService`, exposed identically through the CLI (`maui-forge autostart`) and the web dashboard
 - [x] Auto-publish to NuGet via GitHub Actions on `v*` tag
-- [x] Auto-update check + deferred install
+- [x] Auto-update check on every boot + periodic re-check every 4h for long-running background instances (skipped while a build/hot-reload is active)
 
 **Pending**
 - (none — all planned features implemented)
@@ -276,7 +283,8 @@ All defined in `WebStartup.cs`. Server runs on `http://localhost:5123`.
 - **`Process` directly** for git, dotnet, adb, ssh — no shell abstraction layer
 - **Immutable records** for models — AppEntry is never mutated, UI re-reads from disk when needed
 - **State in `~/.maui-forge.state.json`** — never inside the project folder
-- **NuGet `dotnet tool`** as primary distribution — install scripts kept as fallback for dev/offline use
+- **NuGet `dotnet tool`** as the only distribution path — no self-contained exe fallback; simplifies to a single install command on every platform
+- **No native tray/menu-bar icon on any platform** — the web dashboard is the single status/control panel everywhere (the previous macOS-only Swift tray was removed for cross-platform consistency)
 - **AppBuildConfig per app dir** in state — remembers last device, framework, codesign key per project
 - **Web dashboard default** (`maui-forge` starts web, `--cli` for TUI) — richer visual surface
 - **ASP.NET Core Minimal API** — no MVC/controllers, inline route handlers for simplicity
@@ -311,7 +319,7 @@ builder.Services.AddSignalR().AddCors();
 dotnet run --project src/MauiForge -- --path K:\your\projects --depth 2
 ```
 
-Default mode starts the web dashboard at `http://localhost:5123`.
+Default mode starts the web dashboard at `http://localhost:6284`.
 
 ```powershell
 dotnet run --project src/MauiForge -- --cli --path K:\your\projects --depth 2
@@ -321,12 +329,9 @@ Force TUI mode.
 
 ## How to install locally (dev build)
 
-```powershell
-# Windows
-.\install.ps1
-
-# macOS/Linux
-./install.sh
+```bash
+dotnet pack src/MauiForge -c Release -o ./nupkg
+dotnet tool install -g CwSoftware.MauiForge --add-source ./nupkg
 ```
 
 ## How to publish a new release

@@ -108,6 +108,12 @@ UpdateService.Instance.StartCheck();
             iconDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Application Support", "MauiForge");
             dstIcon = Path.Combine(iconDir, "icon.png");
         }
+        else if (OperatingSystem.IsLinux())
+        {
+            srcIcon = Path.Combine(assemblyDir, "icon.png");
+            iconDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "maui-forge");
+            dstIcon = Path.Combine(iconDir, "icon.png");
+        }
 
         if (iconDir is not null && dstIcon is not null)
         {
@@ -130,6 +136,13 @@ UpdateService.Instance.StartCheck();
     catch { /* best-effort — icon refresh failure should never block the app */ }
 }
 
+// ── First-run setup (shortcut / launcher / .desktop entry) ────
+// Idempotent — checks if the launcher already exists before creating it,
+// so it's cheap to run on every start. Replaces the old install.ps1/install.sh
+// scripts: the only supported install path now is `dotnet tool install`, and
+// this handles everything those scripts used to do beyond that.
+FirstRunSetupService.EnsureSetup();
+
 var services = new ServiceCollection()
     .AddSingleton<GitService>()
     .AddSingleton<VersionService>()
@@ -149,7 +162,7 @@ var runUpdate   = false;
 var runHelp     = false;
 var serveMode   = false;
 var serveToken  = (string?)null;
-var servePort   = 5123;
+var servePort   = WebStartup.DefaultPort;
 var noOpen      = false;
 
 for (int i = 0; i < args.Length; i++)
@@ -191,44 +204,31 @@ if (!serveMode)
     }
 }
 
-if (args.Length > 0 && (args[0] is "tray" or "--tray"))
-{
-    var (ok, msg) = MacTrayHelper.LaunchOrActivate();
-    Console.WriteLine(msg);
-    return;
-}
-
 if (args.Length > 0 && (args[0] is "autostart" or "service"))
 {
-    if (!OperatingSystem.IsMacOS())
-    {
-        Console.WriteLine("O comando autostart/service está disponível apenas no macOS.");
-        return;
-    }
-    var launchAgent = new LaunchAgentService();
+    var autoStart = new AutoStartService();
     var action = args.Length > 1 ? args[1].ToLowerInvariant() : "status";
     switch (action)
     {
         case "install":
-            var installed = launchAgent.Install();
-            Console.WriteLine(installed ? "✅ Auto-start (LaunchAgent) instalado e iniciado com sucesso." : "❌ Falha ao instalar auto-start.");
+        case "on":
+            var onOk = autoStart.SetAutoStart(true, out var onMsg);
+            Console.WriteLine(onOk ? $"✅ {onMsg}" : $"❌ {onMsg}");
             return;
         case "uninstall":
         case "remove":
-            var uninstalled = launchAgent.Uninstall();
-            Console.WriteLine(uninstalled ? "✅ Auto-start (LaunchAgent) removido." : "❌ Falha ao remover auto-start.");
-            return;
-        case "logs":
-            Console.WriteLine(launchAgent.GetLogs());
+        case "off":
+            var offOk = autoStart.SetAutoStart(false, out var offMsg);
+            Console.WriteLine(offOk ? $"✅ {offMsg}" : $"❌ {offMsg}");
             return;
         case "status":
         default:
-            var agentStatus = launchAgent.GetStatus();
-            Console.WriteLine($"Instalado: {(agentStatus.Installed ? "Sim" : "Não")}");
-            Console.WriteLine($"Ativo:     {(agentStatus.Loaded ? "Sim" : "Não")}");
-            Console.WriteLine($"Label:     {agentStatus.Label}");
-            Console.WriteLine($"Plist:     {agentStatus.PlistPath}");
-            if (!string.IsNullOrWhiteSpace(agentStatus.Details)) Console.WriteLine($"Detalhes:  {agentStatus.Details}");
+            var status = autoStart.GetStatus();
+            Console.WriteLine($"Plataforma:  {status.Platform}");
+            Console.WriteLine($"Suportado:   {(status.Supported ? "Sim" : "Não")}");
+            Console.WriteLine($"Ativado:     {(status.Enabled ? "Sim" : "Não")}");
+            Console.WriteLine($"Rodando:     {(status.IsRunning ? "Sim" : "Não")}");
+            Console.WriteLine($"Detalhes:    {status.Details}");
             return;
     }
 }
@@ -238,8 +238,7 @@ if (runHelp)
     AnsiConsole.MarkupLine("[bold cyan1]MAUI Forge Command Line Help[/]");
     AnsiConsole.MarkupLine("Usage:");
     AnsiConsole.MarkupLine("  [cyan1]maui-forge[/]                         Starts the local Web Dashboard (default)");
-    AnsiConsole.MarkupLine("  [cyan1]maui-forge tray[/]                    Opens the macOS Status Bar tray icon");
-    AnsiConsole.MarkupLine("  [cyan1]maui-forge autostart [action][/]      Manages macOS LaunchAgent (install/uninstall/status/logs)");
+    AnsiConsole.MarkupLine("  [cyan1]maui-forge autostart [action][/]      Manages auto-start on login (install/uninstall/status)");
     AnsiConsole.MarkupLine("  [cyan1]maui-forge --cli[/]                  Starts the traditional terminal interface");
     AnsiConsole.MarkupLine("  [cyan1]maui-forge --update[/]               Forces check and installs updates");
     AnsiConsole.MarkupLine("  [cyan1]maui-forge --serve --token X[/]      Starts in remote server mode (binds 0.0.0.0)");
@@ -318,7 +317,6 @@ if (protoState.ProtocolRegistered == null)
             {
                 AnsiConsole.MarkupLine("[yellow]Auto protocol registration is not available on this system.[/]");
                 AnsiConsole.MarkupLine("[dim]On macOS, create a .app bundle with CFBundleURLSchemes containing \"maui-forge\".[/]");
-                AnsiConsole.MarkupLine("[dim]On Linux, add MimeType=x-scheme-handler/maui-forge to your .desktop file.[/]");
                 protoState.ProtocolRegistered = false;
             }
         }

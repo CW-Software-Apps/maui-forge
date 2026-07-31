@@ -27,7 +27,7 @@ public class PersistentState
 public class SavedRemote
 {
     public string Host { get; set; } = "";
-    public int Port { get; set; } = 5123;
+    public int Port { get; set; } = 6284;
     public string Hostname { get; set; } = "";
     public string? Token { get; set; }
     public DateTime LastUsed { get; set; }

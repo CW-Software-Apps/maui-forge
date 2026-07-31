@@ -67,23 +67,19 @@
 <div class="hd"><div class="logo"><span>MAUI Forge</span></div><div class="tag">Your .NET MAUI release copilot</div></div>
 <div class="card" style="text-align:center">
 <div id="chk"><div style="margin-bottom:5px"><span class="spn"></span></div><div style="font-size:13px;color:var(--dim)">Checking if MAUI Forge is running&#x2026;</div></div>
-<div id="on" class="h"><span class="badge badge-on"><span class="bdot bdot-on"></span>Running</span><div class="stitle">MAUI Forge is already running!</div><div class="sdesc">Dashboard detected on localhost:5123</div><a href="http://localhost:5123" class="btn btn-go"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Open Dashboard</a></div>
+<div id="on" class="h"><span class="badge badge-on"><span class="bdot bdot-on"></span>Running</span><div class="stitle">MAUI Forge is already running!</div><div class="sdesc">Dashboard detected on localhost:6284</div><a href="http://localhost:6284" class="btn btn-go"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Open Dashboard</a></div>
 <div id="off" class="h"><span class="badge badge-off"><span class="bdot bdot-off"></span>Not detected</span><div class="stitle">MAUI Forge is not installed</div><div class="sdesc">Install in seconds &#x2014; one command</div></div>
 </div>
 <div id="inst" class="h">
 <div class="card"><div class="sec">Quick Install</div>
 <div class="tabs"><button class="tab" data-os="windows" onclick="sw('windows')">&#x229E; Windows</button><button class="tab" data-os="mac" onclick="sw('mac')">&#xF8FF; macOS</button><button class="tab" data-os="linux" onclick="sw('linux')">&#x1F427; Linux</button></div>
-<div id="os-windows"><div class="cmd"><code id="c-windows">irm https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/install.ps1 | iex</code><button class="btn-cp" onclick="cp(this,'windows')">Copy</button></div><div class="hint">Paste into <b>PowerShell</b> (Admin NOT required) &#x2192; Desktop shortcut + auto-update.</div></div>
-<div id="os-mac" class="h"><div class="cmd"><code id="c-mac">curl -fsSL https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/install.sh | bash</code><button class="btn-cp" onclick="cp(this,'mac')">Copy</button></div><div class="hint">Paste into <b>Terminal</b> &#x2192; installs globally, creates Desktop launcher. Then <code>maui-forge</code>.</div></div>
-<div id="os-linux" class="h"><div class="cmd"><code id="c-linux">curl -fsSL https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/install.sh | bash</code><button class="btn-cp" onclick="cp(this,'linux')">Copy</button></div><div class="hint">Paste into <b>Terminal</b>. Requires <b>.NET SDK</b>. Then <code>maui-forge</code>.</div></div>
-</div>
-<div class="card"><div class="sec">Manual Install (NuGet)</div>
-<div class="cmd"><code id="c-nuget">dotnet tool install -g CwSoftware.MauiForge</code><button class="btn-cp" onclick="cp(this,'nuget')">Copy</button></div>
-<div class="hint">Requires <a href="https://dotnet.microsoft.com/download">.NET SDK</a>. Then <code>maui-forge</code> from any terminal.</div>
+<div id="os-windows"><div class="cmd"><code id="c-windows">dotnet tool install -g CwSoftware.MauiForge; maui-forge</code><button class="btn-cp" onclick="cp(this,'windows')">Copy</button></div><div class="hint">Paste into <b>PowerShell</b>. Requires <a href="https://dotnet.microsoft.com/download">.NET SDK</a> &#x2192; creates a Desktop shortcut on first run, auto-updates on every start.</div></div>
+<div id="os-mac" class="h"><div class="cmd"><code id="c-mac">dotnet tool install -g CwSoftware.MauiForge && maui-forge</code><button class="btn-cp" onclick="cp(this,'mac')">Copy</button></div><div class="hint">Paste into <b>Terminal</b>. Requires <a href="https://dotnet.microsoft.com/download">.NET SDK</a> &#x2192; creates a Desktop launcher on first run.</div></div>
+<div id="os-linux" class="h"><div class="cmd"><code id="c-linux">dotnet tool install -g CwSoftware.MauiForge && maui-forge</code><button class="btn-cp" onclick="cp(this,'linux')">Copy</button></div><div class="hint">Paste into <b>Terminal</b>. Requires <b>.NET SDK</b> &#x2192; creates an app-menu entry on first run.</div></div>
 </div>
 <div class="card"><div class="sec">How Detection Works</div>
 <div class="steps">
-<div class="step"><span class="step-n">1</span><span>This page tries <code>fetch()</code> to <b>localhost:5123</b> &#x2014; the port where MAUI Forge runs its web dashboard.</span></div>
+<div class="step"><span class="step-n">1</span><span>This page tries <code>fetch()</code> to <b>localhost:6284</b> &#x2014; the port where MAUI Forge runs its web dashboard.</span></div>
 <div class="step"><span class="step-n">2</span><span>It probes 3 endpoints: <code>/api/status</code>, <code>/api/diagnostics</code>, <code>/</code>. If <b>any</b> responds, the tool is <b>running</b>.</span></div>
 <div class="step"><span class="step-n">3</span><span>If all fail (connection refused), the tool is <b>not running</b> &#x2014; so we show install instructions.</span></div>
 </div>
@@ -98,7 +94,7 @@ function sw(o){cur=o;document.querySelectorAll('.tab').forEach(function(t){t.cla
 function cp(b,id){var e=document.getElementById('c-'+id);if(!e)return;navigator.clipboard.writeText(e.textContent.trim()).then(function(){b.textContent='Copied!';b.classList.add('done');setTimeout(function(){b.textContent='Copy';b.classList.remove('done')},1800)}).catch(function(){var r=document.createRange();r.selectNodeContents(e);var s=window.getSelection();s.removeAllRanges();s.addRange(r)})}
 (async function(){
 var ec=document.getElementById('chk'),er=document.getElementById('on'),en=document.getElementById('off'),ei=document.getElementById('inst');
-var urls=['http://localhost:5123/api/status','http://localhost:5123/api/diagnostics','http://localhost:5123'];
+var urls=['http://localhost:6284/api/status','http://localhost:6284/api/diagnostics','http://localhost:6284'];
 var f=0;
 for(var i=0;i<urls.length;i++){try{var c=new AbortController();var t=setTimeout(function(){c.abort()},2000);await fetch(urls[i],{method:'GET',mode:'cors',signal:c.signal});clearTimeout(t);f=1;break}catch(e){}}
 ec.classList.add('h');

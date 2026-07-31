@@ -8,7 +8,7 @@ public class RemoteDiscoveryService
 {
     private CancellationTokenSource? _cts;
 
-    public void StartResponder(int discoveryPort = 5124, int webPort = 5123, string? token = null)
+    public void StartResponder(int discoveryPort = 6285, int webPort = WebStartup.DefaultPort, string? token = null)
     {
         _cts = new CancellationTokenSource();
         var token2 = _cts.Token;
@@ -143,7 +143,7 @@ public class RemoteDiscoveryService
 public class RemoteServerInfo
 {
     public string Host { get; set; } = "";
-    public int Port { get; set; } = 5123;
+    public int Port { get; set; } = WebStartup.DefaultPort;
     public string Hostname { get; set; } = "";
     public bool TokenRequired { get; set; }
     public override string ToString() => $"{Hostname} ({Host}:{Port})";

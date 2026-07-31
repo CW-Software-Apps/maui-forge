@@ -28,7 +28,16 @@ public static class WebStartup
     private static readonly object _buildsLock = new();
     public static string[]? OriginalArgs { get; set; }
     private static string? _serveToken;
-    public static int ActualPort { get; set; } = 5123;
+
+    /// M-A-U-I on a phone keypad — memorable, branded, avoids known ports (Postgres/MySQL/Redis/common dev ports).
+    public const int DefaultPort = 6284;
+
+    /// How often the background loop re-checks NuGet for updates while the process stays alive long-term
+    /// (e.g. launched once via auto-start and never restarted). The boot-time check in Program.cs already
+    /// covers the common case of a fresh process start.
+    private static readonly TimeSpan UpdateRecheckInterval = TimeSpan.FromHours(4);
+
+    public static int ActualPort { get; set; } = DefaultPort;
 
     public static int FindAvailablePort(int preferredPort, bool preferRandom = false)
     {
@@ -156,7 +165,7 @@ public static class WebStartup
 
 
     public static void Start(string[] args, StateService stateService, AppDiscoveryService discoveryService, VersionService versionService, GitService gitService, BuildService buildService, DeviceService deviceService, SfxService sfxService,
-        bool serveMode = false, string? token = null, int port = 5123, bool noOpen = false)
+        bool serveMode = false, string? token = null, int port = DefaultPort, bool noOpen = false)
     {
         OriginalArgs = args;
         _serveToken = serveMode ? token : null;
@@ -207,8 +216,9 @@ public static class WebStartup
         app.UseDefaultFiles();
         app.UseStaticFiles();
 
-        // Landing page — shortcut to the install/detection page
-        app.MapGet("/landing", () => Results.Redirect("/landing.html"));
+        // Landing page — redirects to the public GitHub Pages install/detection page
+        // (single source of truth; avoids maintaining a duplicate copy in wwwroot).
+        app.MapGet("/landing", () => Results.Redirect("https://cw-software-apps.github.io/maui-forge/"));
 
         // Token auth middleware (for serve/remote mode)
         app.Use(async (context, next) =>
@@ -231,7 +241,7 @@ public static class WebStartup
 
         _hubContext = app.Services.GetRequiredService<IHubContext<LogHub>>();
 
-        // Status endpoint for Mac Tray / Agent Status
+        // Status endpoint — live build/version status for the web dashboard
         app.MapGet("/api/status", (BuildService builder) =>
         {
             var activeCount = _runningBuilds.Count;
@@ -272,12 +282,6 @@ public static class WebStartup
         {
             var st = autoStartService.GetStatus();
             return Results.Ok(st);
-        });
-
-        app.MapPost("/api/agent/tray/start", () =>
-        {
-            var (ok, msg) = MacTrayHelper.LaunchOrActivate();
-            return Results.Ok(new { success = ok, message = msg });
         });
 
         app.MapPost("/api/agent/autostart/toggle", () =>
@@ -1610,7 +1614,50 @@ public static class WebStartup
         });
 
         app.MapHub<LogHub>("/hubs/logs");
+
+        // Periodic background update re-check — the boot-time check in Program.cs only
+        // fires once per process start, so a long-running instance (started once via
+        // auto-start and never restarted) would otherwise never see new versions.
+        _ = Task.Run(() => PeriodicUpdateCheckLoop(args, buildService));
+
         app.Run();
+    }
+
+    private static async Task PeriodicUpdateCheckLoop(string[] args, BuildService buildService)
+    {
+        using var timer = new PeriodicTimer(UpdateRecheckInterval);
+        while (await timer.WaitForNextTickAsync())
+        {
+            try
+            {
+                var isIdle = _runningBuilds.IsEmpty && buildService.GetActiveHotReloadDirs().Count == 0;
+                if (!isIdle)
+                {
+                    Console.Error.WriteLine("[maui-forge] Periodic update check skipped — a build or hot-reload session is in progress.");
+                    continue;
+                }
+
+                UpdateService.Instance.ForceCheck();
+                for (var i = 0; i < 50 && UpdateService.Instance.GetLatestVersion() is null; i++)
+                    await Task.Delay(100);
+
+                var latestStr = UpdateService.Instance.GetLatestVersion();
+                var currentVer = typeof(WebStartup).Assembly.GetName().Version;
+                if (latestStr is null || currentVer is null) continue;
+
+                var cleanLatest = latestStr.Split('-')[0];
+                if (Version.TryParse(cleanLatest, out var latestVer) && latestVer > currentVer)
+                {
+                    Console.Error.WriteLine($"[maui-forge] Periodic check found update: {currentVer} → {latestStr}. Updating now...");
+                    UpdateService.LaunchDeferredUpdate(latestStr, args, interactive: false, port: ActualPort);
+                    // LaunchDeferredUpdate calls Environment.Exit(0) — we never reach here.
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[maui-forge] Periodic update check failed: {ex.Message}");
+            }
+        }
     }
 
     private static void RefreshCacheAndNotify(AppDiscoveryService discovery, StateService state, string dir)

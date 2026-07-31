@@ -10,7 +10,9 @@ env:
 
 jobs:
   publish:
-    runs-on: macos-latest
+    # dotnet pack of a NuGet global-tool package is OS-agnostic — no macOS-only
+    # build step remains now that the Swift tray binary has been removed.
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -23,12 +25,6 @@ jobs:
       - name: Extract version from tag
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
-
-      - name: Pre-compile Mac Tray Swift binary
-        run: |
-          mkdir -p src/MauiForge/Resources/mac-tray
-          swiftc -O src/MauiForge/Resources/mac-tray/main.swift -o src/MauiForge/Resources/mac-tray/mac-tray || true
-          chmod +x src/MauiForge/Resources/mac-tray/mac-tray || true
 
       - name: Build and pack
         run: |

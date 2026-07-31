@@ -51,7 +51,7 @@ public static class RemoteConnectScreen
         if (picked == "[cyan1]Enter IP manually...[/]")
         {
             var host = AnsiConsole.Ask<string>("[cyan1]Server IP or hostname:[/]");
-            var port = AnsiConsole.Ask<int>("[cyan1]Port[/]", 5123);
+            var port = AnsiConsole.Ask<int>("[cyan1]Port[/]", WebStartup.DefaultPort);
             servers = [new RemoteServerInfo { Host = host, Port = port, TokenRequired = true }];
             picked = servers[0].ToString();
         }

@@ -591,9 +591,6 @@
             </div>
             <div id="agentDetailsText" class="text-[11px] text-[var(--ink-muted)] leading-tight bg-[var(--surface-hover)] p-2 rounded-lg border border-[var(--border)]"></div>
             <div class="space-y-2 pt-1">
-                <button id="startTrayBtn" onclick="startSystemTray()" class="btn-ghost text-xs w-full py-2 flex items-center justify-center gap-1.5" title="Start Status Bar in macOS menu bar">
-                    🚀 Start Status Bar
-                </button>
                 <button id="toggleAutoStartBtn" onclick="toggleAutoStart()" class="btn-primary text-xs w-full py-2 flex items-center justify-center gap-1.5" title="Enable or disable auto-start on login">
                     🔄 Auto-Start on Login
                 </button>
@@ -626,7 +623,7 @@
             <details class="text-xs">
                 <summary class="cursor-pointer select-none py-1" style="color: var(--ink-muted);">Or connect via IP directly</summary>
                 <form onsubmit="submitManualConnect(event)" class="space-y-1.5 mt-1.5">
-                    <input id="manualHostInput" type="text" placeholder="192.168.1.23:5123" class="input w-full text-xs" required>
+                    <input id="manualHostInput" type="text" placeholder="192.168.1.23:6284" class="input w-full text-xs" required>
                     <input id="manualTokenInput" type="text" placeholder="Token (if required)" class="input w-full text-xs">
                     <button type="submit" class="btn-ghost text-xs w-full py-1.5">Connect</button>
                 </form>
@@ -698,9 +695,6 @@
             </div>
             <div id="agentDetailsText" class="text-[10px] text-slate-400 leading-tight"></div>
             <div class="flex items-center gap-2">
-                <button id="startTrayBtn" onclick="startSystemTray()" class="btn-ghost text-[10px] flex-1 py-1.5" title="Iniciar Status Bar na barra do sistema">
-                    🚀 Iniciar Status Bar
-                </button>
                 <button id="toggleAutoStartBtn" onclick="toggleAutoStart()" class="btn-primary text-[10px] flex-1 py-1.5" title="Enable or disable auto-start on login">
                     🔄 Auto-Start
                 </button>
@@ -1842,7 +1836,7 @@
                     text.textContent = "Server Mode Active";
                     activePanel.classList.remove("hidden");
                     notConnected.classList.add("hidden");
-                    var port = data.port || (localApiBase ? (new URL(localApiBase)).port : window.location.port) || "5123";
+                    var port = data.port || (localApiBase ? (new URL(localApiBase)).port : window.location.port) || "6284";
                     renderServeAddresses(data.addresses || [], port);
                     document.getElementById("serverModeActiveToken").textContent = localServeToken || "(saved on the machine that enabled it)";
                 } else {
@@ -1886,11 +1880,11 @@
             var raw = document.getElementById("manualHostInput").value.trim();
             var token = document.getElementById("manualTokenInput").value.trim();
             if (!raw) return;
-            var host = raw, port = 5123;
+            var host = raw, port = 6284;
             var colonIdx = raw.lastIndexOf(":");
             if (colonIdx !== -1) {
                 host = raw.slice(0, colonIdx);
-                port = parseInt(raw.slice(colonIdx + 1), 10) || 5123;
+                port = parseInt(raw.slice(colonIdx + 1), 10) || 6284;
             }
             connectToRemote(host, port, false, token || undefined);
         }
@@ -2972,7 +2966,7 @@ function toggleTheme() {
         }
 
         async function restartInServerMode() {
-            if (!confirm("Restart MAUI Forge in server mode?\n\nThe dashboard will close and reopen on port 5123 accessible from other machines.")) return;
+            if (!confirm("Restart MAUI Forge in server mode?\n\nThe dashboard will close and reopen on port 6284 accessible from other machines.")) return;
             var btn = document.getElementById("restartServerBtn");
             btn.disabled = true;
             btn.textContent = "Restarting...";
@@ -5245,21 +5239,6 @@ function toggleTheme() {
                     }
                 }
             } catch(e) {}
-        }
-
-        async function startSystemTray() {
-            try {
-                const res = await fetch('/api/agent/tray/start', { method: 'POST' });
-                const data = await res.json();
-                if (typeof showToast === 'function') {
-                    showToast(data.message || (data.success ? 'Status Bar started!' : 'Failed to start Status Bar'), data.success ? 'success' : 'error');
-                } else {
-                    alert(data.message);
-                }
-                loadAgentStatus();
-            } catch(e) {
-                if (typeof showToast === 'function') showToast('Error communicating with agent', 'error');
-            }
         }
 
         async function toggleAutoStart() {

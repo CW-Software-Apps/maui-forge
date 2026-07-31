@@ -66,7 +66,7 @@ public class UpdateService
     public static string GetManualUpdateCommand(string latestVer) =>
         $"dotnet tool update {PackageId} -g --version {latestVer}";
 
-    public static void LaunchDeferredUpdate(string latestVer, string[] originalArgs, bool interactive = true, int port = 5123)
+    public static void LaunchDeferredUpdate(string latestVer, string[] originalArgs, bool interactive = true, int port = WebStartup.DefaultPort)
     {
         var currentPid = Environment.ProcessId;
         var dotnetPath = FindDotnet() ?? "dotnet";

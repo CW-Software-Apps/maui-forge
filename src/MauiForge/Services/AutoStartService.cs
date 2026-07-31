@@ -7,19 +7,22 @@ public class AutoStartService
 {
     private const string AppName = "MauiForge";
     private readonly LaunchAgentService _macLaunchAgent = new();
+    private readonly LinuxAutoStartService _linuxAutoStart = new();
 
     public record AutoStartStatus(bool Supported, bool Enabled, bool IsRunning, string Platform, string Details);
+
+    private static bool IsProcessRunning() =>
+        System.Diagnostics.Process.GetProcessesByName("maui-forge").Length > 0;
 
     public AutoStartStatus GetStatus()
     {
         if (OperatingSystem.IsMacOS())
         {
             var macStatus = _macLaunchAgent.GetStatus();
-            var isRunning = MacTrayHelper.IsTrayProcessRunning();
             return new AutoStartStatus(
                 Supported: true,
                 Enabled: macStatus.Installed,
-                IsRunning: isRunning,
+                IsRunning: IsProcessRunning(),
                 Platform: "macOS",
                 Details: macStatus.Loaded ? "LaunchAgent active and running" : (macStatus.Installed ? "LaunchAgent installed" : "Not installed")
             );
@@ -31,9 +34,21 @@ public class AutoStartService
             return new AutoStartStatus(
                 Supported: true,
                 Enabled: enabled,
-                IsRunning: true,
+                IsRunning: IsProcessRunning(),
                 Platform: "Windows",
                 Details: enabled ? "Windows Registry (HKCU Run) startup enabled" : "Login auto-start not configured"
+            );
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            var linuxStatus = _linuxAutoStart.GetStatus();
+            return new AutoStartStatus(
+                Supported: true,
+                Enabled: linuxStatus.Installed,
+                IsRunning: IsProcessRunning(),
+                Platform: "Linux",
+                Details: linuxStatus.Installed ? "XDG autostart entry installed" : "Not installed"
             );
         }
 
@@ -109,6 +124,15 @@ public class AutoStartService
                 message = $"Error configuring Windows Registry: {ex.Message}";
                 return false;
             }
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            var ok = enable ? _linuxAutoStart.Install() : _linuxAutoStart.Uninstall();
+            message = ok
+                ? (enable ? "Linux auto-start (XDG autostart) installed successfully." : "Linux auto-start (XDG autostart) removed.")
+                : (enable ? "Failed to install Linux autostart entry." : "Failed to remove Linux autostart entry.");
+            return ok;
         }
 
         message = "Platform not supported.";

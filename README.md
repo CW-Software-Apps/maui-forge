@@ -175,7 +175,7 @@ Four levels of clean:
 
 ## 🌐 Web Dashboard
 
-MAUI Forge includes a **full web dashboard** — an SPA built with Tailwind CSS + SignalR that runs on `http://localhost:5123`. It's the default mode (just run `maui-forge`).
+MAUI Forge includes a **full web dashboard** — an SPA built with Tailwind CSS + SignalR that runs on `http://localhost:6284`. It's the default mode (just run `maui-forge`).
 
 ### Card view
 
@@ -217,16 +217,17 @@ MAUI Forge includes a **full web dashboard** — an SPA built with Tailwind CSS 
 | Sidebar | Monitored paths, theme toggle, diagnostics, update checker |
 | Mobile responsive | Sidebar collapses to drawer on small screens |
 
-Start it: `maui-forge` (default) or `maui-forge --web`
+Start it: `maui-forge` (default)
 
 ---
 
 ## Install
 
-Requires the [.NET SDK](https://dotnet.microsoft.com/download) — which every MAUI developer already has.
+The **only** supported install path, on Windows, macOS, and Linux — requires the [.NET SDK](https://dotnet.microsoft.com/download), which every MAUI developer already has:
 
 ```bash
 dotnet tool install -g CwSoftware.MauiForge
+maui-forge
 ```
 
 ```bash
@@ -234,16 +235,19 @@ dotnet tool update -g CwSoftware.MauiForge   # update
 dotnet tool uninstall -g CwSoftware.MauiForge # remove
 ```
 
+On first run, MAUI Forge creates its own launcher — a Desktop shortcut on Windows, a Desktop launcher on macOS, or an app-menu entry on Linux — so there's nothing else to set up. It also auto-updates on every start.
+
 ---
 
 ## Quick start
 
 ```bash
-maui-forge                              # starts web dashboard on localhost:5123
+maui-forge                              # starts web dashboard on localhost:6284
 maui-forge --cli                        # starts terminal TUI (traditional)
 maui-forge --path ~/projects            # point to your projects folder
 maui-forge --path ~/projects --depth 3  # deeper scan (default depth: 2)
 maui-forge --update                     # force update check + install
+maui-forge autostart [status|install|uninstall]  # manage login auto-start (Windows/macOS/Linux)
 maui-forge --help                       # show help
 ```
 
@@ -467,12 +471,13 @@ Run this first when something isn't working — it immediately shows if `adb` is
 
 | Argument | Effect |
 |----------|--------|
-| *(none)* | Starts web dashboard on `http://localhost:5123` |
+| *(none)* | Starts web dashboard on `http://localhost:6284` |
 | `--cli` or `--terminal` | Starts traditional terminal TUI |
-| `--web` | (explicit) Starts web dashboard |
+| `--port <n>` | Overrides the default port (6284) |
 | `--update` | Forces NuGet update check; installs if newer available |
 | `--path <dir>` | Sets scan root directory |
 | `--depth <n>` | Sets scan depth (default: 2) |
+| `autostart [status\|install\|uninstall]` | Manages login auto-start (Windows/macOS/Linux) |
 | `--help` / `-h` / `/?` | Show help |
 
 ---
@@ -493,44 +498,6 @@ All settings live in `~/.maui-forge.state.json` — nothing inside your project 
 | `AppUsage` | Last-used timestamp per app — drives sort order |
 | `AppBuildConfigs` | Per-app: framework, device IDs, codesign key, build config |
 | `CachedApps` | Cached app list for instant web dashboard load |
-
----
-
-## Manual install (without NuGet)
-
-<details>
-<summary><strong>Windows — self-contained exe (no .NET runtime required)</strong></summary>
-
-```powershell
-git clone https://github.com/CW-Software-Apps/maui-forge.git
-cd maui-forge
-.\install.ps1
-```
-
-Publishes `dist\maui-forge.exe` as a self-contained `win-x64` single-file binary and adds `dist\` to the user PATH. Also creates a desktop shortcut that opens the web dashboard.
-
-```powershell
-git pull && .\install.ps1   # update
-```
-
-</details>
-
-<details>
-<summary><strong>macOS/Linux — dotnet tool (requires .NET SDK)</strong></summary>
-
-```bash
-git clone https://github.com/CW-Software-Apps/maui-forge.git
-cd maui-forge
-./install.sh
-```
-
-Installs the NuGet tool globally and adds `~/.dotnet/tools` to your shell profile if needed.
-
-```bash
-git pull && ./install.sh   # update
-```
-
-</details>
 
 ---
 
