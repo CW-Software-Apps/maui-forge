@@ -79,6 +79,57 @@ UpdateService.Instance.StartCheck();
     }
 }
 
+// ── Desktop icon refresh ──────────────────────────────────────
+// Every startup, copy the latest icon to a permanent OS-specific
+// location so the desktop shortcut / Dock launcher always shows
+// the current icon, even after auto-update.
+//
+//   Windows → %LOCALAPPDATA%\MauiForge\icon.ico
+//   macOS   → ~/Library/Application Support/MauiForge/icon.png
+{
+    try
+    {
+        var assemblyDir = AppContext.BaseDirectory;
+
+        // Try .ico first (Windows), fall back to .png (macOS/Linux)
+        string? srcIcon = null;
+        string? dstIcon = null;
+        string? iconDir = null;
+
+        if (OperatingSystem.IsWindows())
+        {
+            srcIcon = Path.Combine(assemblyDir, "icon.ico");
+            iconDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MauiForge");
+            dstIcon = Path.Combine(iconDir, "icon.ico");
+        }
+        else if (OperatingSystem.IsMacOS())
+        {
+            srcIcon = Path.Combine(assemblyDir, "icon.png");
+            iconDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Application Support", "MauiForge");
+            dstIcon = Path.Combine(iconDir, "icon.png");
+        }
+
+        if (iconDir is not null && dstIcon is not null)
+        {
+            // If the preferred format isn't found, try the other one
+            if (srcIcon is null || !File.Exists(srcIcon))
+            {
+                var alt = OperatingSystem.IsWindows()
+                    ? Path.Combine(assemblyDir, "icon.png")
+                    : Path.Combine(assemblyDir, "icon.ico");
+                if (File.Exists(alt)) srcIcon = alt;
+            }
+
+            if (srcIcon is not null && File.Exists(srcIcon))
+            {
+                Directory.CreateDirectory(iconDir);
+                File.Copy(srcIcon, dstIcon, overwrite: true);
+            }
+        }
+    }
+    catch { /* best-effort — icon refresh failure should never block the app */ }
+}
+
 var services = new ServiceCollection()
     .AddSingleton<GitService>()
     .AddSingleton<VersionService>()

@@ -207,6 +207,9 @@ public static class WebStartup
         app.UseDefaultFiles();
         app.UseStaticFiles();
 
+        // Landing page — shortcut to the install/detection page
+        app.MapGet("/landing", () => Results.Redirect("/landing.html"));
+
         // Token auth middleware (for serve/remote mode)
         app.Use(async (context, next) =>
         {
@@ -1134,12 +1137,17 @@ public static class WebStartup
             return Results.Ok(new { Success = false, Error = "No running build found for this app." });
         });
 
-        // iOS Archive — cleans, then publishes Release + ArchiveOnBuild to produce a
-        // .xcarchive bundle that opens directly in Xcode Organizer for App Store submission.
+        // Archive — cleans, then publishes Release to produce a distributable bundle.
+        // iOS: publishes with ArchiveOnBuild=true, producing a .xcarchive that opens
+        // directly in Xcode Organizer for App Store submission.
+        // Android: publishes normally, producing a signed .apk/.aab under bin/Release/<tfm>/publish
+        // (matching the TUI's "Create Android Release" action) for Play Store / sideload distribution.
         app.MapPost("/api/apps/archive", (BuildService builder, VersionService versions, StateService state, ArchiveRequest req) =>
         {
             var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
             var record = RecordBuildStart(dir, req.Platform, "Release", versions: versions);
+            bool isAndroid = req.Platform.Equals("Android", StringComparison.OrdinalIgnoreCase);
+            var framework = isAndroid ? "net10.0-android" : "net10.0-ios";
 
             // Find the .csproj so we can pass it explicitly (dotnet publish needs it)
             var csprojPath = Directory.EnumerateFiles(dir, "*.csproj").FirstOrDefault();
@@ -1157,17 +1165,19 @@ public static class WebStartup
 
                     var cleanArgs = new List<string> { "clean" };
                     if (csprojPath is not null) cleanArgs.Add(csprojPath);
-                    cleanArgs.AddRange(new[] { "-c", "Release", "-f", "net10.0-ios" });
+                    cleanArgs.AddRange(new[] { "-c", "Release", "-f", framework });
                     await SendLog("===CMD:dotnet " + string.Join(' ', cleanArgs) + "===");
                     builder.Run(dir, cleanArgs.ToArray(), line => { _ = SendLog(line); });
 
-                    // Step 2: Publish with ArchiveOnBuild=true — this triggers the iOS
-                    // _Archive MSBuild target which invokes xcodebuild archive, producing
-                    // the .xcarchive bundle. On Windows, a remote Mac build host is
-                    // required (ServerAddress / ServerUser from saved state).
+                    // Step 2: Publish. iOS triggers ArchiveOnBuild=true — this triggers the
+                    // iOS _Archive MSBuild target which invokes xcodebuild archive, producing
+                    // the .xcarchive bundle. On Windows, a remote Mac build host is required
+                    // (ServerAddress / ServerUser from saved state). Android publishes normally.
                     await SendLog("=========================================");
-                    await SendLog("Step 2/2 — Creating iOS Archive (dotnet publish + ArchiveOnBuild)...");
-                    if (!OperatingSystem.IsMacOS())
+                    await SendLog(isAndroid
+                        ? "Step 2/2 — Creating Android Archive (dotnet publish Release)..."
+                        : "Step 2/2 — Creating iOS Archive (dotnet publish + ArchiveOnBuild)...");
+                    if (!isAndroid && !OperatingSystem.IsMacOS())
                     {
                         await SendLog("Detected non-macOS host — checking for remote Mac build host...");
                         if (!string.IsNullOrWhiteSpace(st.MacHost))
@@ -1180,22 +1190,31 @@ public static class WebStartup
 
                     var publishArgs = new List<string> { "publish" };
                     if (csprojPath is not null) publishArgs.Add(csprojPath);
-                    publishArgs.AddRange(new[] { "-f", "net10.0-ios", "-c", "Release" });
-                    publishArgs.Add("-p:ArchiveOnBuild=true");
+                    publishArgs.AddRange(new[] { "-f", framework, "-c", "Release" });
 
-                    var signKey = !string.IsNullOrWhiteSpace(req.CodesignKey)
-                        ? req.CodesignKey
-                        : "Apple Development";
-                    publishArgs.Add($"-p:CodesignKey={signKey}");
-
-                    // Remote Mac build host (needed when running on Windows/Linux)
-                    if (!OperatingSystem.IsMacOS())
+                    if (isAndroid)
                     {
-                        if (!string.IsNullOrWhiteSpace(st.MacHost))
+                        // Signing/package-format (apk vs aab) is left to the project's own
+                        // csproj settings, matching the TUI's "Create Android Release" action.
+                    }
+                    else
+                    {
+                        publishArgs.Add("-p:ArchiveOnBuild=true");
+
+                        var signKey = !string.IsNullOrWhiteSpace(req.CodesignKey)
+                            ? req.CodesignKey
+                            : "Apple Development";
+                        publishArgs.Add($"-p:CodesignKey={signKey}");
+
+                        // Remote Mac build host (needed when running on Windows/Linux)
+                        if (!OperatingSystem.IsMacOS())
                         {
-                            publishArgs.Add($"-p:ServerAddress={st.MacHost}");
-                            if (!string.IsNullOrWhiteSpace(st.MacUser))
-                                publishArgs.Add($"-p:ServerUser={st.MacUser}");
+                            if (!string.IsNullOrWhiteSpace(st.MacHost))
+                            {
+                                publishArgs.Add($"-p:ServerAddress={st.MacHost}");
+                                if (!string.IsNullOrWhiteSpace(st.MacUser))
+                                    publishArgs.Add($"-p:ServerUser={st.MacUser}");
+                            }
                         }
                     }
 
@@ -1205,35 +1224,48 @@ public static class WebStartup
                         _ = SendLog(line);
                     }, logFile: record.LogFilePath, onStart: proc => _runningBuilds[dir] = proc);
 
-                    // Discover the .xcarchive — search standard .NET MAUI output and
-                    // the default Xcode Archives location
+                    // Discover the archive output.
                     string? archivePath = null;
                     try
                     {
-                        var searchDirs = new[]
+                        if (isAndroid)
                         {
-                            Path.Combine(dir, "bin", "Release", "net10.0-ios"),
-                            Path.Combine(dir, "bin", "Release", "net10.0-ios", "ios-arm64"),
-                        };
-                        foreach (var searchDir in searchDirs)
-                        {
-                            if (Directory.Exists(searchDir))
+                            var publishDir = Path.Combine(dir, "bin", "Release", framework, "publish");
+                            if (Directory.Exists(publishDir))
                             {
-                                archivePath = Directory.EnumerateDirectories(searchDir, "*.xcarchive",
-                                    SearchOption.AllDirectories).FirstOrDefault()
-                                    ?? Directory.EnumerateFiles(searchDir, "*.xcarchive",
-                                    SearchOption.AllDirectories).FirstOrDefault();
-                                if (archivePath is not null) break;
+                                archivePath = Directory.EnumerateFiles(publishDir, "*.aab", SearchOption.TopDirectoryOnly).FirstOrDefault()
+                                    ?? Directory.EnumerateFiles(publishDir, "*-Signed.apk", SearchOption.TopDirectoryOnly).FirstOrDefault()
+                                    ?? Directory.EnumerateFiles(publishDir, "*.apk", SearchOption.TopDirectoryOnly).FirstOrDefault();
                             }
                         }
-                        // Fallback: scan entire bin/Release recursively
-                        if (archivePath is null)
+                        else
                         {
-                            var binRelease = Path.Combine(dir, "bin", "Release");
-                            if (Directory.Exists(binRelease))
+                            // Search standard .NET MAUI output and the default Xcode Archives location
+                            var searchDirs = new[]
                             {
-                                archivePath = Directory.EnumerateDirectories(binRelease, "*.xcarchive",
-                                    SearchOption.AllDirectories).FirstOrDefault();
+                                Path.Combine(dir, "bin", "Release", "net10.0-ios"),
+                                Path.Combine(dir, "bin", "Release", "net10.0-ios", "ios-arm64"),
+                            };
+                            foreach (var searchDir in searchDirs)
+                            {
+                                if (Directory.Exists(searchDir))
+                                {
+                                    archivePath = Directory.EnumerateDirectories(searchDir, "*.xcarchive",
+                                        SearchOption.AllDirectories).FirstOrDefault()
+                                        ?? Directory.EnumerateFiles(searchDir, "*.xcarchive",
+                                        SearchOption.AllDirectories).FirstOrDefault();
+                                    if (archivePath is not null) break;
+                                }
+                            }
+                            // Fallback: scan entire bin/Release recursively
+                            if (archivePath is null)
+                            {
+                                var binRelease = Path.Combine(dir, "bin", "Release");
+                                if (Directory.Exists(binRelease))
+                                {
+                                    archivePath = Directory.EnumerateDirectories(binRelease, "*.xcarchive",
+                                        SearchOption.AllDirectories).FirstOrDefault();
+                                }
                             }
                         }
                     }
@@ -1249,7 +1281,9 @@ public static class WebStartup
                             if (archivePath is not null)
                                 await SendLog("Archive: " + archivePath);
                             else
-                                await SendLog("Archive output: bin/Release/net10.0-ios/ (look for .xcarchive)");
+                                await SendLog(isAndroid
+                                    ? $"Archive output: bin/Release/{framework}/publish/ (look for .apk/.aab)"
+                                    : "Archive output: bin/Release/net10.0-ios/ (look for .xcarchive)");
                         }
                         await SendLog("=========================================");
                         if (exitCode == 0)

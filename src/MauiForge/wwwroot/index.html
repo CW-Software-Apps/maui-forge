@@ -1601,9 +1601,12 @@
                     // Uses directory-based tracking so only the archive build triggers this
                     if (archiveBuildDirs[currentBuildDir] && message.startsWith("Archive process completed") && message.indexOf("exit code: 0") >= 0) {
                         var _dir = currentBuildDir;
+                        var _isAndroid = archiveBuildDirs[currentBuildDir] === "Android";
                         setTimeout(function () {
                             openFolder(_dir);
-                            showToast("Archive complete — .xcarchive saved to default Xcode location (open in Xcode Organizer)", "success");
+                            showToast(_isAndroid
+                                ? "Archive complete — .apk/.aab saved to bin/Release/net10.0-android/publish/"
+                                : "Archive complete — .xcarchive saved to default Xcode location (open in Xcode Organizer)", "success");
                         }, 500);
                     }
                     delete archiveBuildDirs[currentBuildDir];
@@ -1667,7 +1670,10 @@
             // Individual app update handler
             connection.on("AppUpdated", function (updatedApp) {
                 if (!Array.isArray(appsList)) appsList = [];
-                const index = appsList.findIndex(a => a.dir === updatedApp.dir);
+                // Normalize both sides for comparison — server may return backslashes
+                // but the frontend encodes everything with forward slashes.
+                const normDir = (updatedApp.dir || '').replace(/\\/g, '/');
+                const index = appsList.findIndex(a => (a.dir || '').replace(/\\/g, '/') === normDir);
                 if (index !== -1) {
                     appsList[index] = updatedApp;
                 } else {
@@ -2042,7 +2048,8 @@
                 <button onclick="buildApp(decodeURIComponent('${encDir}'), 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Compile iOS (Debug)">${ICON_BUILD}iOS</button>
                 <div class="border-t border-slate-800 my-1"></div>
                 <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Archive</div>
-                <button onclick="archiveApp(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Create iOS Archive (Release)">${ICON_ARCHIVE}iOS</button>
+                <button onclick="archiveApp(decodeURIComponent('${encDir}'), 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Create Android Archive (Release .apk/.aab)">${ICON_ARCHIVE}Android</button>
+                <button onclick="archiveApp(decodeURIComponent('${encDir}'), 'iOS'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Create iOS Archive (Release)">${ICON_ARCHIVE}iOS</button>
                 <div class="border-t border-slate-800 my-1"></div>
                 <div class="text-[9px] uppercase tracking-wider text-slate-600 font-semibold px-3 pt-0 pb-1">Compile & Run</div>
                 <button onclick="openBuildRun(decodeURIComponent('${encDir}'), 'Android'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Build & run on Android device/emulator">▶ Android</button>
@@ -2112,9 +2119,11 @@
                 });
                 var data = await res.json();
                 hideProcessing();
-                if (data.success) {
+                // Server may return PascalCase (Success) or camelCase (success)
+                var success = data.success || data.Success;
+                if (success) {
                     document.getElementById("modalSyncWarning").classList.add("hidden");
-                    refreshSingleApp(dir);
+                    await refreshSingleApp(dir);
                     showToast("All platforms synced to " + data.version + " #" + data.build, "success");
                 } else {
                     showToast("Sync failed", "error");
@@ -2122,6 +2131,7 @@
             } catch (err) {
                 hideProcessing();
                 showToast("Sync failed: " + err.message, "error");
+                refreshSingleApp(dir);
             }
         }
 
@@ -2176,7 +2186,9 @@
                 })
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
-                    if (data.success) {
+                    // Server may return PascalCase (Success) or camelCase (success)
+                    var success = data.success || data.Success;
+                    if (success) {
                         var line = document.createElement("div");
                         line.className = "text-green-400";
                         line.textContent = "[Sync] All platforms synced to " + data.version + " #" + data.build;
@@ -2424,15 +2436,19 @@
                 });
                 var data = await res.json();
                 hideProcessing();
-                if (data.success) {
+                // Server may return PascalCase (Success) or camelCase (success) depending on serialization
+                var success = data.success || data.Success;
+                if (success) {
                     showToast("Bumped to " + data.version + " #" + data.build + " and pushed", "success");
                 } else {
                     showToast("Push failed: " + data.output, "error");
                 }
-                refreshSingleApp(dir);
+                await refreshSingleApp(dir);
             } catch (err) {
                 hideProcessing();
                 showToast("Bump & Push failed: " + err.message, "error");
+                // Still refresh — version files may have been written before the error
+                refreshSingleApp(dir);
             }
         }
 
@@ -3301,7 +3317,7 @@ function toggleTheme() {
             } catch (err) {
                 console.error("Failed to load apps:", err);
                 appsList = [];
-                container.innerHTML = '<div class="text-center py-12 text-red-400 text-sm">Failed to connect to web server. Verify the service is running.</div>';
+                container.innerHTML = '<div class="text-center py-12 text-red-400 text-sm">Failed to connect to the backend. Try restarting maui-forge.</div><div class="text-center mt-2 text-[var(--ink-muted)] text-xs">Need to install? <a href="/landing" class="text-[var(--accent)] hover:underline">Open install guide</a></div>';
                 // Auto-fallback: if viewing remote and local is reachable, switch
                 if (viewingRemote) tryFallbackToLocal();
             }
@@ -3320,7 +3336,10 @@ function toggleTheme() {
                 if (res.ok) {
                     const updatedApp = await res.json();
                     if (!Array.isArray(appsList)) appsList = [];
-                    const index = appsList.findIndex(a => a.dir === dir);
+                    // Normalize both sides for comparison — server may return backslashes
+                    // but the frontend encodes everything with forward slashes.
+                    const normDir = (dir || '').replace(/\\/g, '/');
+                    const index = appsList.findIndex(a => (a.dir || '').replace(/\\/g, '/') === normDir);
                     if (index !== -1) {
                         appsList[index] = updatedApp;
                     } else {
@@ -3968,7 +3987,7 @@ function toggleTheme() {
                 hideProcessing();
                 if (res.ok) {
                     closeVersionModal();
-                    refreshSingleApp(dir);
+                    await refreshSingleApp(dir);
                     showToast("Version updated locally", "success");
                 } else {
                     showToast(await res.text(), "error");
@@ -3977,6 +3996,8 @@ function toggleTheme() {
                 hideProcessing();
                 console.error("Failed to update version:", err);
                 showToast("Failed to update version: " + err.message, "error");
+                // Still refresh — version files may have been partially written
+                refreshSingleApp(dir);
             }
         }
 
@@ -4000,21 +4021,24 @@ function toggleTheme() {
                 });
                 const data = await res.json();
                 hideProcessing();
-                if (data.success) {
+                // Server may return PascalCase (Success) or camelCase (success)
+                var success = data.success || data.Success;
+                if (success) {
                     showToast("Git pull complete", "success");
                 } else {
                     showToast("Pull failed: " + (data.output || "unknown error"), "error");
                 }
-                refreshSingleApp(dir);
+                await refreshSingleApp(dir);
             } catch (err) {
                 hideProcessing();
                 console.error(err);
                 showToast("Pull failed: " + err.message, "error");
+                refreshSingleApp(dir);
             }
         }
 
         var currentBuildDir = null;
-        var archiveBuildDirs = {}; // { dir: true } tracks which builds are archives
+        var archiveBuildDirs = {}; // { dir: platform } tracks which builds are archives, and for which platform
 
         async function buildApp(dir, platform) {
             clearConsole();
@@ -4037,12 +4061,18 @@ function toggleTheme() {
             }
         }
 
-        // iOS Archive — builds with Release config + ArchiveOnBuild=true
-        async function archiveApp(dir) {
-            showProcessing("Creating iOS Archive...", "Step 1/2: Cleaning previous build, then compiling Release + ArchiveOnBuild");
+        // Archive — builds with Release config. iOS adds ArchiveOnBuild=true (.xcarchive);
+        // Android publishes normally, producing a signed .apk/.aab.
+        async function archiveApp(dir, platform) {
+            platform = platform || "iOS";
+            var isAndroid = platform === "Android";
+            showProcessing(
+                isAndroid ? "Creating Android Archive..." : "Creating iOS Archive...",
+                isAndroid ? "Step 1/2: Cleaning previous build, then compiling Release (.apk/.aab)" : "Step 1/2: Cleaning previous build, then compiling Release + ArchiveOnBuild"
+            );
 
-            // Track this build as an archive so we auto-open the output folder
-            archiveBuildDirs[dir] = true;
+            // Track this build as an archive (and its platform) so we auto-open the output folder
+            archiveBuildDirs[dir] = platform;
             clearConsole();
             openTerminal();
             currentBuildDir = dir;
@@ -4051,7 +4081,7 @@ function toggleTheme() {
                 const res = await fetch(`${API_BASE}/api/apps/archive`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ dir, platform: "iOS" })
+                    body: JSON.stringify({ dir, platform })
                 });
                 hideProcessing();
                 if (res.ok) {
