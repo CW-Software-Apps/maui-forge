@@ -1463,6 +1463,12 @@
         };
         let appsList = [];
         let monitoredPaths = [];
+        // Windows drive/segment casing can differ between backend responses (e.g. "K:\..." vs
+        // "k:\..."), so every appsList lookup/merge must normalize both slashes AND case or a
+        // case-mismatched match falls through to "not found" and gets pushed as a duplicate row.
+        function normDir(dir) {
+            return (dir || '').replace(/\\/g, '/').toLowerCase();
+        }
         var _prefsTimer = null;
         function savePrefs() {
             if (_prefsTimer) clearTimeout(_prefsTimer);
@@ -1674,10 +1680,8 @@
             // Individual app update handler
             connection.on("AppUpdated", function (updatedApp) {
                 if (!Array.isArray(appsList)) appsList = [];
-                // Normalize both sides for comparison — server may return backslashes
-                // but the frontend encodes everything with forward slashes.
-                const normDir = (updatedApp.dir || '').replace(/\\/g, '/');
-                const index = appsList.findIndex(a => (a.dir || '').replace(/\\/g, '/') === normDir);
+                const targetDir = normDir(updatedApp.dir);
+                const index = appsList.findIndex(a => normDir(a.dir) === targetDir);
                 if (index !== -1) {
                     appsList[index] = updatedApp;
                 } else {
@@ -2093,7 +2097,7 @@
             // Check sync status from cached apps
             var syncWarning = document.getElementById("modalSyncWarning");
             var syncDetails = document.getElementById("modalSyncDetails");
-            var app = appsList.find(function (a) { return (a.dir || '').replace(/\\/g, '/') === dir.replace(/\\/g, '/'); });
+            var app = appsList.find(function (a) { return normDir(a.dir) === normDir(dir); });
             if (app && app.versions && !app.versions.inSync) {
                 var lines = [];
                 if (app.versions.csproj) lines.push("Project: " + app.versions.csproj.version + " (#" + app.versions.csproj.build + ")");
@@ -2177,7 +2181,7 @@
         // Checks if the app is out of sync and auto-syncs before proceeding with
         // the bump callback. This prevents bumping from a stale/mismatched baseline.
         function ensureSyncBeforeBump(dir, callback) {
-            var app = appsList.find(function (a) { return (a.dir || '').replace(/\\/g, '/') === dir.replace(/\\/g, '/'); });
+            var app = appsList.find(function (a) { return normDir(a.dir) === normDir(dir); });
             if (app && app.versions && !app.versions.inSync) {
                 openTerminal();
                 var terminal = document.getElementById("terminalConsole");
@@ -2199,7 +2203,7 @@
                         terminal.appendChild(line);
                         refreshSingleApp(dir);
                         // Re-read current version from the freshly synced app
-                        var syncedApp = appsList.find(function (a) { return (a.dir || '').replace(/\\/g, '/') === dir.replace(/\\/g, '/'); });
+                        var syncedApp = appsList.find(function (a) { return normDir(a.dir) === normDir(dir); });
                         if (syncedApp && syncedApp.versions && syncedApp.versions.csproj) {
                             document.getElementById("modalOriginalVersion").value = syncedApp.versions.csproj.version;
                             document.getElementById("modalOriginalBuild").value = syncedApp.versions.csproj.build;
@@ -3340,10 +3344,8 @@ function toggleTheme() {
                 if (res.ok) {
                     const updatedApp = await res.json();
                     if (!Array.isArray(appsList)) appsList = [];
-                    // Normalize both sides for comparison — server may return backslashes
-                    // but the frontend encodes everything with forward slashes.
-                    const normDir = (dir || '').replace(/\\/g, '/');
-                    const index = appsList.findIndex(a => (a.dir || '').replace(/\\/g, '/') === normDir);
+                    const targetDir = normDir(dir);
+                    const index = appsList.findIndex(a => normDir(a.dir) === targetDir);
                     if (index !== -1) {
                         appsList[index] = updatedApp;
                     } else {
@@ -4337,13 +4339,12 @@ function toggleTheme() {
         // ── Build & Run ────────────────────────────────────────────────────────────
 
         function openBuildRun(dir, platform) {
-            dir = (dir || '').replace(/\\/g, '/');
-            buildRunDir = dir;
+            buildRunDir = (dir || '').replace(/\\/g, '/');
             buildRunPlatform = platform;
             // appsList entries keep the OS-native path (backslashes on Windows); normalize
             // both sides before comparing or this lookup never matches and version/build
             // always fall back to "--" in the progress modal.
-            var app = appsList.find(function(a) { return (a.dir || '').replace(/\\/g, '/') === dir; });
+            var app = appsList.find(function(a) { return normDir(a.dir) === normDir(dir); });
             var verObj = app && app.versions && (app.versions.master || app.versions.iOS || app.versions.android || app.versions.csproj);
             buildRunVersion = verObj ? verObj.version : "";
             buildRunBuild = verObj ? verObj.build : "";

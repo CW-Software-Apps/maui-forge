@@ -20,24 +20,35 @@ public static class FirstRunSetupService
 
     private static void EnsureWindowsShortcut()
     {
+        var iconPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MauiForge", "icon.ico");
+
+        // Marker so we only pay the (re)creation cost once per icon-fix generation, not on
+        // every launch — but it lets us retroactively fix shortcuts created by older versions
+        // before icon.ico existed, or before the Start Menu entry was added, instead of leaving
+        // them stuck with the generic icon / desktop-only forever.
+        var markerPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MauiForge", "shortcuts-v2.flag");
+        if (File.Exists(markerPath)) return;
+
         var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-        var shortcutPath = Path.Combine(desktop, "MAUI Forge.lnk");
-        if (File.Exists(shortcutPath)) return;
+        var startMenuDir = Environment.GetFolderPath(Environment.SpecialFolder.StartMenu) is { Length: > 0 } sm
+            ? Path.Combine(sm, "Programs")
+            : null;
 
         var shimPath = DotnetToolShimPath("maui-forge.exe");
         var target = File.Exists(shimPath) ? shimPath : (Environment.ProcessPath ?? "maui-forge.exe");
         var workingDir = Path.GetDirectoryName(target) ?? ".";
-        var iconPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MauiForge", "icon.ico");
 
-        var iconLine = File.Exists(iconPath) ? $"$S.IconLocation = '{iconPath},0'; " : "";
-        var psScript =
-            "$W = New-Object -ComObject WScript.Shell; " +
-            $"$S = $W.CreateShortcut('{shortcutPath}'); " +
-            $"$S.TargetPath = '{target}'; " +
-            $"$S.WorkingDirectory = '{workingDir}'; " +
-            iconLine +
-            "$S.Save()";
+        var shortcutPaths = new List<string> { Path.Combine(desktop, "MAUI Forge.lnk") };
+        if (startMenuDir is not null) shortcutPaths.Add(Path.Combine(startMenuDir, "MAUI Forge.lnk"));
+
+        var createLines = string.Join(" ", shortcutPaths.Select((path, i) =>
+            $"$S{i} = $W.CreateShortcut('{path}'); $S{i}.TargetPath = '{target}'; $S{i}.WorkingDirectory = '{workingDir}'; " +
+            (File.Exists(iconPath) ? $"$S{i}.IconLocation = '{iconPath},0'; " : "") +
+            $"$S{i}.Save();"));
+
+        var psScript = "$W = New-Object -ComObject WScript.Shell; " + createLines;
 
         var psi = new ProcessStartInfo("powershell", $"-NoProfile -NonInteractive -Command \"{psScript}\"")
         {
@@ -48,6 +59,13 @@ public static class FirstRunSetupService
         };
         using var p = Process.Start(psi);
         p?.WaitForExit(5000);
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(markerPath)!);
+            File.WriteAllText(markerPath, DateTime.UtcNow.ToString("O"));
+        }
+        catch { }
     }
 
     private static void EnsureMacLauncher()
