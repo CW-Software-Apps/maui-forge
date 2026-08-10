@@ -187,19 +187,34 @@ if (!serveMode)
     var persisted = services.GetRequiredService<StateService>().Load();
     if (persisted.ServerModeEnabled && !string.IsNullOrEmpty(persisted.ServeToken))
     {
-        // Ask user instead of silently resuming server mode
-        AnsiConsole.MarkupLine("\n[yellow]⚡ Server Mode was previously enabled on this machine.[/]");
-        AnsiConsole.MarkupLine("[grey]Other devices can connect using the saved token.[/]");
-        if (AnsiConsole.Confirm("  Resume server mode?", defaultValue: true))
+        if (runTerminal)
         {
-            serveMode = true;
-            serveToken = persisted.ServeToken;
+            // Interactive TUI launch — ask, since a real person is at the keyboard.
+            AnsiConsole.MarkupLine("\n[yellow]⚡ Server Mode was previously enabled on this machine.[/]");
+            AnsiConsole.MarkupLine("[grey]Other devices can connect using the saved token.[/]");
+            if (AnsiConsole.Confirm("  Resume server mode?", defaultValue: true))
+            {
+                serveMode = true;
+                serveToken = persisted.ServeToken;
+            }
+            else
+            {
+                persisted.ServerModeEnabled = false;
+                services.GetRequiredService<StateService>().Save(persisted);
+                AnsiConsole.MarkupLine("[dim]Starting in local-only mode. Server Mode can be re-enabled from the dashboard.[/]\n");
+            }
         }
         else
         {
-            persisted.ServerModeEnabled = false;
-            services.GetRequiredService<StateService>().Save(persisted);
-            AnsiConsole.MarkupLine("[dim]Starting in local-only mode. Server Mode can be re-enabled from the dashboard.[/]\n");
+            // Default web-dashboard launch (desktop shortcut / double-click) has no one
+            // watching the console to answer a prompt. Blocking here used to leave the
+            // process stuck waiting forever — and since this runs before the "kill any
+            // previous instance" step below, every re-launch piled up another stuck
+            // console window instead of replacing the last one. Just resume silently;
+            // the dashboard can still disable Server Mode with one click.
+            serveMode = true;
+            serveToken = persisted.ServeToken;
+            AnsiConsole.MarkupLine("[dim]⚡ Resuming Server Mode (previously enabled).[/]");
         }
     }
 }
@@ -287,50 +302,66 @@ var discovery    = services.GetRequiredService<AppDiscoveryService>();
 var detail       = services.GetRequiredService<AppDetailScreen>();
 var deviceSvc    = services.GetRequiredService<DeviceService>();
 
-// First-run protocol registration prompt
+// First-run protocol registration prompt — interactive-CLI only. In the default
+// web-dashboard launch (desktop shortcut / double-click) nobody is watching the
+// console to answer this, so it used to block forever; every re-launch then piled
+// up another stuck console window instead of replacing the previous one. Register
+// silently there instead of asking.
 var protoState = stateService.Load();
 if (protoState.ProtocolRegistered == null)
 {
-    AnsiConsole.MarkupLine("\n[bold cyan1]🔗 maui-forge:// Protocol[/]");
-    AnsiConsole.MarkupLine("This feature allows the browser to [bold]relaunch[/] MAUI Forge automatically");
-    AnsiConsole.MarkupLine("when the local server goes down — clicking the \"Relaunch\" button on the dashboard");
-    AnsiConsole.MarkupLine("will open the terminal and run the command, no copy/paste needed.\n");
-    if (AnsiConsole.Confirm("Register the maui-forge:// protocol?", defaultValue: true))
+    if (runTerminal)
     {
-        try
+        AnsiConsole.MarkupLine("\n[bold cyan1]🔗 maui-forge:// Protocol[/]");
+        AnsiConsole.MarkupLine("This feature allows the browser to [bold]relaunch[/] MAUI Forge automatically");
+        AnsiConsole.MarkupLine("when the local server goes down — clicking the \"Relaunch\" button on the dashboard");
+        AnsiConsole.MarkupLine("will open the terminal and run the command, no copy/paste needed.\n");
+        if (AnsiConsole.Confirm("Register the maui-forge:// protocol?", defaultValue: true))
         {
-            if (OperatingSystem.IsWindows())
-            {
-                foreach (var cmd in new[]
-                {
-                    $"add HKCU\\Software\\Classes\\maui-forge /ve /d \"URL:maui-forge\" /f",
-                    $"add HKCU\\Software\\Classes\\maui-forge\\shell\\open\\command /ve /d \"\\\"dotnet\\\" tool run maui-forge \\\"%1\\\"\" /f"
-                })
-                {
-                    using var p = System.Diagnostics.Process.Start("reg", cmd);
-                    p?.WaitForExit();
-                }
-                protoState.ProtocolRegistered = true;
-                AnsiConsole.MarkupLine("[green]✓ maui-forge:// protocol registered successfully![/]");
-            }
-            else
-            {
-                AnsiConsole.MarkupLine("[yellow]Auto protocol registration is not available on this system.[/]");
-                AnsiConsole.MarkupLine("[dim]On macOS, create a .app bundle with CFBundleURLSchemes containing \"maui-forge\".[/]");
-                protoState.ProtocolRegistered = false;
-            }
+            RegisterProtocol(protoState);
         }
-        catch
+        else
         {
-            AnsiConsole.MarkupLine("[red]✗ Failed to register protocol.[/]");
             protoState.ProtocolRegistered = false;
         }
     }
     else
     {
-        protoState.ProtocolRegistered = false;
+        RegisterProtocol(protoState);
     }
     stateService.Save(protoState);
+}
+
+void RegisterProtocol(PersistentState state)
+{
+    try
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            foreach (var cmd in new[]
+            {
+                $"add HKCU\\Software\\Classes\\maui-forge /ve /d \"URL:maui-forge\" /f",
+                $"add HKCU\\Software\\Classes\\maui-forge\\shell\\open\\command /ve /d \"\\\"dotnet\\\" tool run maui-forge \\\"%1\\\"\" /f"
+            })
+            {
+                using var p = System.Diagnostics.Process.Start("reg", cmd);
+                p?.WaitForExit();
+            }
+            state.ProtocolRegistered = true;
+            AnsiConsole.MarkupLine("[green]✓ maui-forge:// protocol registered successfully![/]");
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("[yellow]Auto protocol registration is not available on this system.[/]");
+            AnsiConsole.MarkupLine("[dim]On macOS, create a .app bundle with CFBundleURLSchemes containing \"maui-forge\".[/]");
+            state.ProtocolRegistered = false;
+        }
+    }
+    catch
+    {
+        AnsiConsole.MarkupLine("[red]✗ Failed to register protocol.[/]");
+        state.ProtocolRegistered = false;
+    }
 }
 
 if (!runTerminal)
