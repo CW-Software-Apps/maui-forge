@@ -35,7 +35,7 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                     {
                         // Unity Project
                         dir = Path.GetDirectoryName(dir)!; // Parent of ProjectSettings is the root Unity folder
-                        if (entries.Any(e => string.Equals(e.Dir, dir, StringComparison.OrdinalIgnoreCase))) continue;
+                        if (entries.Any(e => SameDir(e.Dir, dir))) continue;
 
                         var name = Path.GetFileName(dir);
                         var unityV = versions.ReadUnity(dir);
@@ -60,7 +60,7 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                     }
 
                     // Csproj Project (MAUI, WPF, Blazor, standard .NET)
-                    if (entries.Any(e => string.Equals(e.Dir, dir, StringComparison.OrdinalIgnoreCase))) continue;
+                    if (entries.Any(e => SameDir(e.Dir, dir))) continue;
 
                     var nameC = Path.GetFileNameWithoutExtension(projectFile);
                     var csprojContent = "";
@@ -316,6 +316,13 @@ public class AppDiscoveryService(VersionService versions, GitService git)
         if (b is null) return a;
         return a > b ? a : b;
     }
+
+    // Two monitored roots that differ only by slash style or drive-letter case (e.g. a root added
+    // as "K:\Foo" and another added later as "K:/Foo") otherwise scan to the same project dir with
+    // different literal separators, defeating a plain OrdinalIgnoreCase comparison and producing
+    // duplicate app cards.
+    private static bool SameDir(string a, string b) =>
+        string.Equals(a.Replace('/', '\\'), b.Replace('/', '\\'), StringComparison.OrdinalIgnoreCase);
 
     private static string ToBase64(string path, string mimeType)
     {

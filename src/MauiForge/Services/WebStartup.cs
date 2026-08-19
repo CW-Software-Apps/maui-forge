@@ -71,6 +71,20 @@ public static class WebStartup
 
     private static string NormalizeDir(string dir) => (dir ?? "").Replace('\\', '/').TrimEnd('/');
 
+    // Guards against duplicate cards from a CachedApps snapshot on disk that predates the
+    // slash/case-normalized dedupe in AppDiscoveryService (e.g. the same project scanned once
+    // via a "K:\..." monitored path and once via "K:/..."). Keeps the first occurrence.
+    private static List<AppEntry> DedupeByDir(List<AppEntry> apps)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<AppEntry>(apps.Count);
+        foreach (var app in apps)
+        {
+            if (seen.Add(NormalizeDir(app.Dir).ToLowerInvariant())) result.Add(app);
+        }
+        return result;
+    }
+
     private static List<AppEntry> WithFavorites(List<AppEntry> apps, PersistentState st)
     {
         if (st.FavoriteApps.Count == 0) return apps;
@@ -443,14 +457,14 @@ public static class WebStartup
                 paths = [Directory.GetCurrentDirectory()];
             }
 
-            var cached = st.CachedApps ?? [];
+            var cached = DedupeByDir(st.CachedApps ?? []);
 
             // Background task to perform scanning
             _ = Task.Run(() =>
             {
                 try
                 {
-                    var freshApps = discovery.FindApps(paths, depth: 2);
+                    var freshApps = DedupeByDir(discovery.FindApps(paths, depth: 2));
                     var curState = state.Load();
                     curState.CachedApps = freshApps;
                     state.Save(curState);
