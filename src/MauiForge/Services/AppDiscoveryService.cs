@@ -107,7 +107,7 @@ public class AppDiscoveryService(VersionService versions, GitService git)
 
                     var branch = git.GetBranch(dir);
                     var status = git.FetchAndGetStatus(dir);
-                    var icon = GetAppIconBase64(dir);
+                    var icon = GetAppIconBase64(dir, csprojContent);
                     var lastActivity = MaxDate(
                         versions.GetVersionFilesLastWriteTime(dir, projectFile),
                         GetLastBuildOutputTime(dir));
@@ -205,7 +205,7 @@ public class AppDiscoveryService(VersionService versions, GitService git)
 
             var branch = git.GetBranch(dir);
             var status = git.FetchAndGetStatus(dir);
-            var icon = GetAppIconBase64(dir);
+            var icon = GetAppIconBase64(dir, csprojContent);
             var lastActivity = MaxDate(
                 versions.GetVersionFilesLastWriteTime(dir, csproj),
                 GetLastBuildOutputTime(dir));
@@ -233,10 +233,50 @@ public class AppDiscoveryService(VersionService versions, GitService git)
     /// Used by the icon-patch background task in WebStartup to fill in missing
     /// IconBase64 values on cached AppEntry records.
     /// </summary>
-    public string? GetIconForDir(string dir) => GetAppIconBase64(dir);
-
-    private string? GetAppIconBase64(string dir)
+    public string? GetIconForDir(string dir)
     {
+        string? csprojContent = null;
+        try
+        {
+            var csproj = Directory.EnumerateFiles(dir, "*.csproj").FirstOrDefault();
+            if (csproj is not null && File.Exists(csproj)) csprojContent = File.ReadAllText(csproj);
+        }
+        catch { }
+        return GetAppIconBase64(dir, csprojContent);
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex BrandingIconFgRegex =
+        new(@"<BrandingAppIconFg>\s*(.+?)\s*</BrandingAppIconFg>", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex BrandingIconRegex =
+        new(@"<BrandingAppIcon>\s*(.+?)\s*</BrandingAppIcon>", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private string? GetAppIconBase64(string dir, string? csprojContent = null)
+    {
+        // Some projects point MauiIcon at a per-project branding folder (e.g. Branding/<Name>/AppIcon/appicon.png)
+        // via <BrandingAppIcon>/<BrandingAppIconFg> MSBuild properties instead of the conventional Resources/AppIcon
+        // path. Honor that first so the generic folder heuristics below don't pick an unrelated image (e.g. a
+        // language-flag icon) as a last resort.
+        if (!string.IsNullOrEmpty(csprojContent))
+        {
+            var fgMatch = BrandingIconFgRegex.Match(csprojContent);
+            var brandingFile = fgMatch.Success ? fgMatch.Groups[1].Value : null;
+            if (string.IsNullOrEmpty(brandingFile))
+            {
+                var iconMatch = BrandingIconRegex.Match(csprojContent);
+                brandingFile = iconMatch.Success ? iconMatch.Groups[1].Value : null;
+            }
+
+            if (!string.IsNullOrEmpty(brandingFile))
+            {
+                var brandingPath = Path.Combine(dir, brandingFile.Replace('/', Path.DirectorySeparatorChar));
+                if (File.Exists(brandingPath))
+                {
+                    var mime = brandingPath.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ? "image/svg+xml" : "image/png";
+                    return ToBase64(brandingPath, mime);
+                }
+            }
+        }
+
         try
         {
             var appIconDirs = new[]
