@@ -94,6 +94,15 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                         csprojV = versions.ReadAssemblyInfo(dir);
                     }
 
+                    // MAUI Single Project: when version is defined only in .csproj
+                    // (no Info.plist and no versionName in AndroidManifest), infer
+                    // platform versions from the .csproj — MAUI propagates them at build time.
+                    if (projType == "MAUI" && csprojV is not null)
+                    {
+                        ios     ??= csprojV;
+                        android ??= csprojV;
+                    }
+
                     if (ios is null && android is null && csprojV is null) continue;
 
                     var branch = git.GetBranch(dir);
@@ -183,6 +192,15 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                 csprojV = versions.ReadAssemblyInfo(dir);
             }
 
+            // MAUI Single Project: when version is defined only in .csproj
+            // (no Info.plist and no versionName in AndroidManifest), infer
+            // platform versions from the .csproj — MAUI propagates them at build time.
+            if (projType == "MAUI" && csprojV is not null)
+            {
+                ios     ??= csprojV;
+                android ??= csprojV;
+            }
+
             if (ios is null && android is null && csprojV is null) return null;
 
             var branch = git.GetBranch(dir);
@@ -210,6 +228,13 @@ public class AppDiscoveryService(VersionService versions, GitService git)
         }
     }
 
+    /// <summary>
+    /// Public entry point for resolving an app icon without a full re-scan.
+    /// Used by the icon-patch background task in WebStartup to fill in missing
+    /// IconBase64 values on cached AppEntry records.
+    /// </summary>
+    public string? GetIconForDir(string dir) => GetAppIconBase64(dir);
+
     private string? GetAppIconBase64(string dir)
     {
         try
@@ -226,7 +251,7 @@ public class AppDiscoveryService(VersionService versions, GitService git)
             {
                 if (!Directory.Exists(iconDir)) continue;
 
-                // 1. Search for foreground files (svg or png)
+                // 1. Foreground/toolbar files take priority (svg or png)
                 var fgFile = Directory.EnumerateFiles(iconDir, "*fg.*")
                     .Concat(Directory.EnumerateFiles(iconDir, "*foreground*.*"))
                     .Concat(Directory.EnumerateFiles(iconDir, "*toolbar*.*"))
@@ -238,7 +263,7 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                     return ToBase64(fgFile, mime);
                 }
 
-                // 2. Search for any standard appicon (svg or png)
+                // 2. Standard appicon name (svg or png)
                 var stdFile = Directory.EnumerateFiles(iconDir, "appicon.*")
                     .FirstOrDefault(f => f.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".png", StringComparison.OrdinalIgnoreCase));
 
@@ -247,9 +272,56 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                     var mime = stdFile.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ? "image/svg+xml" : "image/png";
                     return ToBase64(stdFile, mime);
                 }
+
+                // 3. Common alternative icon names (icon.svg, logo.svg, splash.svg, etc.)
+                var altNames = new[] { "icon", "logo", "splash", "app" };
+                foreach (var altName in altNames)
+                {
+                    var altSvg = Path.Combine(iconDir, altName + ".svg");
+                    if (File.Exists(altSvg)) return ToBase64(altSvg, "image/svg+xml");
+                    var altPng = Path.Combine(iconDir, altName + ".png");
+                    if (File.Exists(altPng)) return ToBase64(altPng, "image/png");
+                }
+
+                // 4. Any SVG in this icon directory (largest file = best resolution heuristic)
+                var anySvg = Directory.EnumerateFiles(iconDir, "*.svg")
+                    .OrderByDescending(f => { try { return new FileInfo(f).Length; } catch { return 0L; } })
+                    .FirstOrDefault();
+                if (anySvg != null) return ToBase64(anySvg, "image/svg+xml");
+
+                // 5. Any PNG in this icon directory (largest file = best resolution heuristic)
+                var anyPng = Directory.EnumerateFiles(iconDir, "*.png")
+                    .OrderByDescending(f => { try { return new FileInfo(f).Length; } catch { return 0L; } })
+                    .FirstOrDefault();
+                if (anyPng != null) return ToBase64(anyPng, "image/png");
             }
 
-            // 3. wwwroot for Blazor
+            // 6. Android launcher icons (Platforms/Android/Resources/mipmap-*/ic_launcher.png)
+            var androidResDir = Path.Combine(dir, "Platforms", "Android", "Resources");
+            if (Directory.Exists(androidResDir))
+            {
+                // Prefer highest density: xxxhdpi > xxhdpi > xhdpi > hdpi > mdpi
+                var mipmapPriority = new[] { "mipmap-xxxhdpi", "mipmap-xxhdpi", "mipmap-xhdpi", "mipmap-hdpi", "mipmap-mdpi" };
+                foreach (var mipmap in mipmapPriority)
+                {
+                    var launcherRound = Path.Combine(androidResDir, mipmap, "ic_launcher_round.png");
+                    if (File.Exists(launcherRound)) return ToBase64(launcherRound, "image/png");
+                    var launcher = Path.Combine(androidResDir, mipmap, "ic_launcher.png");
+                    if (File.Exists(launcher)) return ToBase64(launcher, "image/png");
+                }
+            }
+
+            // 7. iOS AppIcon in Platforms/iOS/Assets.xcassets
+            var iosAssetsDir = Path.Combine(dir, "Platforms", "iOS", "Assets.xcassets", "AppIcon.appiconset");
+            if (Directory.Exists(iosAssetsDir))
+            {
+                var iosIcon = Directory.EnumerateFiles(iosAssetsDir, "*.png")
+                    .OrderByDescending(f => { try { return new FileInfo(f).Length; } catch { return 0L; } })
+                    .FirstOrDefault();
+                if (iosIcon != null) return ToBase64(iosIcon, "image/png");
+            }
+
+            // 8. wwwroot for Blazor
             var wwwroot = Path.Combine(dir, "wwwroot");
             if (Directory.Exists(wwwroot))
             {
@@ -263,11 +335,16 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                 if (File.Exists(favIco)) return ToBase64(favIco, "image/x-icon");
             }
 
-            // 4. Generic logo/icon in root directory
+            // 9. Generic logo/icon in root directory
             var genericIcon = Directory.EnumerateFiles(dir, "*icon*.png")
                 .Concat(Directory.EnumerateFiles(dir, "*logo*.png"))
                 .FirstOrDefault();
             if (genericIcon != null) return ToBase64(genericIcon, "image/png");
+
+            var genericSvg = Directory.EnumerateFiles(dir, "*icon*.svg")
+                .Concat(Directory.EnumerateFiles(dir, "*logo*.svg"))
+                .FirstOrDefault();
+            if (genericSvg != null) return ToBase64(genericSvg, "image/svg+xml");
 
             var genericIco = Directory.EnumerateFiles(dir, "*.ico").FirstOrDefault();
             if (genericIco != null) return ToBase64(genericIco, "image/x-icon");

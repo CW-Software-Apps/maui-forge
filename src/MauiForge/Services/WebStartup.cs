@@ -459,7 +459,46 @@ public static class WebStartup
 
             var cached = DedupeByDir(st.CachedApps ?? []);
 
-            // Background task to perform scanning
+            // If any cached apps are missing icons, patch them immediately via a
+            // lightweight background task — no need to wait for a full re-scan.
+            var missingIconApps = cached.Where(a => a.IconBase64 == null).ToList();
+            if (missingIconApps.Count > 0)
+            {
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        var patched = false;
+                        var curState = state.Load();
+                        if (curState.CachedApps is null) return;
+
+                        for (int i = 0; i < curState.CachedApps.Count; i++)
+                        {
+                            var entry = curState.CachedApps[i];
+                            if (entry.IconBase64 != null) continue;
+                            var icon = discovery.GetIconForDir(entry.Dir);
+                            if (icon != null)
+                            {
+                                curState.CachedApps[i] = entry with { IconBase64 = icon };
+                                patched = true;
+                            }
+                        }
+
+                        if (patched)
+                        {
+                            state.Save(curState);
+                            if (_hubContext != null)
+                                _ = _hubContext.Clients.All.SendAsync("ScanCompleted", WithFavorites(curState.CachedApps, curState));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _ = SendLog($"Icon patch task failed: {ex.Message}");
+                    }
+                });
+            }
+
+            // Background task to perform full scanning
             _ = Task.Run(() =>
             {
                 try
@@ -482,6 +521,7 @@ public static class WebStartup
 
             return Results.Ok(WithFavorites(cached, st));
         });
+
 
         // Favorite toggle — flips membership in PersistentState.FavoriteApps, keyed by
         // a slash-normalized dir so it matches regardless of how the caller wrote it.
