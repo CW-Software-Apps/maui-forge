@@ -697,14 +697,18 @@ public class AppDetailScreen(
         if (cfg.BuildConfiguration is null) return;
         cfg.iOSFramework       = PickFramework(csproj, "ios", cfg.iOSFramework ?? "net9.0-ios");
         if (cfg.iOSFramework is null) return;
+
+        var rebuildAll = AnsiConsole.Confirm(
+            "  Rebuild All (recompile this project and referenced projects)?",
+            defaultValue: false);
         state.Save(st);
 
         var buildArgs = new List<string>
         {
             "build", csproj,
+            "-t:" + (rebuildAll ? "Rebuild" : "Build"),
             "-f", cfg.iOSFramework,
             "-c", cfg.BuildConfiguration,
-            "--no-incremental",
         };
         AddIosRunDeviceArgs(buildArgs, device);
         AddMacBuildArgs(buildArgs, st);
@@ -1257,9 +1261,14 @@ public class AppDetailScreen(
         if (cfg.BuildConfiguration is null) return;
         cfg.AndroidFramework   = PickFramework(csproj, "android", cfg.AndroidFramework ?? "net9.0-android");
         if (cfg.AndroidFramework is null) return;
+
+        var rebuildAll = AnsiConsole.Confirm(
+            "  Rebuild All (recompile this project and referenced projects)?",
+            defaultValue: false);
         state.Save(st);
 
-        var args = new List<string> { "build", csproj, "-t:Run", "-f", cfg.AndroidFramework, "-c", cfg.BuildConfiguration };
+        var target = rebuildAll ? "Rebuild;Run" : "Run";
+        var args = new List<string> { "build", csproj, "-t:" + target, "-f", cfg.AndroidFramework, "-c", cfg.BuildConfiguration };
         if (serial is not null) args.Add($"-p:AdbTarget=-s {serial}");
         AnsiConsole.WriteLine();
         st.LastAction = "Run on Android";

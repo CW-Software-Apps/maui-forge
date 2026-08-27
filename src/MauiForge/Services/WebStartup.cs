@@ -971,6 +971,7 @@ public static class WebStartup
                     await SendLog($"Starting {req.Platform} build & run...");
                     await SendLog($"Device: {req.DeviceName} ({req.DeviceId})");
                     await SendLog($"Config: {req.Configuration} | Framework: {req.Framework}");
+                    await SendLog($"Build mode: {(req.RebuildAll ? "Rebuild All" : "Fast Build")}");
                     await SendLog("=========================================");
                     await SendLog("===STEP:INIT===");
 
@@ -1006,7 +1007,7 @@ public static class WebStartup
                         // Step 1: build
                         var buildArgs = new List<string>
                         {
-                            "build", csproj, "-f", req.Framework, "-c", req.Configuration, "--no-incremental"
+                            "build", csproj, "-t:" + (req.RebuildAll ? "Rebuild" : "Build"), "-f", req.Framework, "-c", req.Configuration
                         };
                         if (req.DeviceType == "Device")
                         {
@@ -1129,7 +1130,7 @@ public static class WebStartup
                         await SendLog("===STEP:BUILD===");
                         var runArgs = new List<string>
                         {
-                            "build", csproj, "-t:Run", "-f", req.Framework, "-c", req.Configuration,
+                            "build", csproj, "-t:" + (req.RebuildAll ? "Rebuild;Run" : "Run"), "-f", req.Framework, "-c", req.Configuration,
                             $"-p:AdbTarget=-s {serial}"
                         };
 
@@ -1955,7 +1956,7 @@ public record DeviceItem(string Id, string Name, string Type);
 public record DevicesResponse(List<DeviceItem> Devices);
 public record ConfigRequest(string Dir, string Platform);
 public record ConfigResponse(List<string> Configurations, List<string> Frameworks);
-public record RunRequest(string Dir, string Platform, string DeviceId, string DeviceName, string DeviceType, string Configuration, string Framework);
+public record RunRequest(string Dir, string Platform, string DeviceId, string DeviceName, string DeviceType, string Configuration, string Framework, bool RebuildAll = false);
 public record HotReloadRequest(string Dir, string? DeviceId);
 public record PrefsRequest(string? Theme, Dictionary<string, string>? Prefs);
 public record GitBranchListRequest(string Dir);

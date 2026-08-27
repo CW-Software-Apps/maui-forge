@@ -4482,6 +4482,15 @@ function toggleTheme() {
                         frameworksHtml +
                     "</select>" +
                 "</div>" +
+                '<div class="pt-1">' +
+                    '<label class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all duration-200 cursor-pointer" style="border-color:var(--border);">' +
+                        '<input type="checkbox" id="brRebuildAll" class="accent-amber-500 w-4 h-4">' +
+                        '<div>' +
+                            '<div class="text-sm text-white font-medium">Rebuild All</div>' +
+                            '<div class="text-[10px] text-slate-500">Recompila este projeto e todos os projetos referenciados</div>' +
+                        '</div>' +
+                    '</label>' +
+                '</div>' +
                 (isAndroid ? `
                 <div class="pt-1">
                     <label class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all duration-200 cursor-pointer" id="hrToggleLabel" style="border-color:var(--border);">
@@ -4535,6 +4544,7 @@ function toggleTheme() {
             var deviceId = selectedDevice.value;
             var deviceName = selectedDevice.getAttribute("data-name");
             var deviceType = selectedDevice.getAttribute("data-type");
+            var rebuildAll = document.getElementById("brRebuildAll") ? document.getElementById("brRebuildAll").checked : false;
 
             closeBuildRunModal();
 
@@ -4561,7 +4571,8 @@ function toggleTheme() {
                         deviceName: deviceName,
                         deviceType: deviceType,
                         configuration: config,
-                        framework: framework
+                        framework: framework,
+                        rebuildAll: rebuildAll
                     })
                 });
                 if (res.ok) {

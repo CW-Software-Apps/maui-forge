@@ -171,7 +171,7 @@ All defined in `WebStartup.cs`. Server runs on `http://localhost:6284` (`WebStar
 | POST | `/api/apps/build/cancel` | `{ dir }` | — |
 | POST | `/api/apps/devices` | `{ dir, platform }` | `{ devices: DeviceItem[] }` |
 | POST | `/api/apps/config` | `{ dir, platform }` | `{ configurations, frameworks }` |
-| POST | `/api/apps/run` | `{ dir, platform, deviceId, deviceName, deviceType, configuration, framework }` | 202 Accepted (build + deploy pipeline, streams via SignalR) |
+| POST | `/api/apps/run` | `{ dir, platform, deviceId, deviceName, deviceType, configuration, framework, rebuildAll }` | 202 Accepted (build + deploy pipeline, streams via SignalR) |
 | POST | `/api/apps/open-folder` | `{ dir }` | — |
 | POST | `/api/apps/open-ide` | `{ dir, ide }` | — |
 | GET | `/api/update/check` | — | `{ currentVersion, latestVersion, updateAvailable, updateCommand }` |
@@ -233,6 +233,8 @@ All defined in `WebStartup.cs`. Server runs on `http://localhost:6284` (`WebStar
 **Build**
 - [x] `dotnet build` with verbosity control (quiet/minimal/normal/detailed/diagnostic)
 - [x] Build & Run combined pipeline (build → deploy on device)
+- [x] Build & Run mode selector (Fast Build or Rebuild All, including referenced projects)
+- Fast Build uses the incremental `Build` target; Rebuild All uses `Rebuild` before deployment and applies to referenced projects
 - [x] Step markers for frontend progress tracking
 - [x] Live output streaming via SignalR
 - [x] Cancel running build

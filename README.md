@@ -48,7 +48,7 @@ Pick **Build Only** or **Build & Run**, per platform, right from the card.
 
 ![Build & Run modal](https://raw.githubusercontent.com/CW-Software-Apps/maui-forge/master/assets/screenshots/build-run-modal.webp)
 
-The Build & Run modal lists every physical device and simulator, lets you pick the configuration and target framework, and remembers your choice for next time.
+The Build & Run modal lists every physical device and simulator, lets you pick the configuration and target framework, and offers **Fast Build** or **Rebuild All** when referenced projects also need recompilation.
 
 ---
 
