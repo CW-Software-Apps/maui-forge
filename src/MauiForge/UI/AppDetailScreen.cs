@@ -373,6 +373,8 @@ public class AppDetailScreen(
 
     private void IncrementVersionAction(AppEntry app, bool incrementVersion, PersistentState st)
     {
+        app = RefreshApp(app);
+
         // ── Sync enforcement ────────────────────────────────────────────────
         // If the app is out of sync, offer to align all platforms to the Master
         // version before bumping. This prevents bumping from a stale or mismatched
@@ -433,6 +435,7 @@ public class AppDetailScreen(
 
     private void SetManualAction(AppEntry app, PersistentState st)
     {
+        app = RefreshApp(app);
         AnsiConsole.WriteLine();
         var master = app.Versions.Master;
         var newVer = AnsiConsole.Ask<string>("  [cyan1]New version:[/]", master?.Version ?? "1.0.0");
@@ -446,6 +449,7 @@ public class AppDetailScreen(
 
     private void SyncAction(AppEntry app, PersistentState st)
     {
+        app = RefreshApp(app);
         var v = app.Versions;
         if (v.iOS is null || v.Android is null)
         {
