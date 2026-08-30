@@ -935,8 +935,8 @@
                 </div>
 
                 <!-- Collapsible Terminal Output Console -->
-                <div class="space-y-1.5">
-                    <div class="flex items-center justify-between text-xs text-slate-400 px-0.5">
+                <div id="bpLogSection" class="space-y-1.5 transition-all duration-300">
+                    <div class="flex items-center justify-between text-xs text-slate-400 px-0.5 flex-wrap gap-2">
                         <div class="flex items-center gap-2">
                             <button onclick="toggleBpLogCollapse()" class="flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-white transition">
                                 <span id="bpLogCollapseIcon" class="text-blue-400 text-xs">▼</span>
@@ -944,14 +944,42 @@
                             </button>
                             <span id="bpLogCount" class="text-[10px] bg-slate-900/90 border border-slate-800/90 text-slate-400 px-2 py-0.5 rounded-md font-mono">0 lines</span>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <input type="text" id="bpLogSearch" oninput="filterBpLogs()" placeholder="Filter output..." class="bg-slate-950 border border-slate-800/90 rounded-lg px-2.5 py-1 text-[11px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/30 w-32 md:w-44 transition-all" />
-                            <button onclick="toggleBpLogAutoScroll()" id="bpAutoScrollBtn" class="text-[11px] text-blue-400 border border-blue-500/50 bg-slate-900 px-2.5 py-1 rounded-lg transition hover:text-white flex items-center gap-1 shadow-sm" title="Toggle auto-scroll">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <input type="text" id="bpLogSearch" oninput="filterBpLogs()" placeholder="Filter output..." class="bg-slate-950 border border-slate-800/90 rounded-lg px-2.5 py-1 text-[11px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/30 w-32 md:w-40 transition-all" />
+                            <button onclick="toggleBpLogAutoScroll()" id="bpAutoScrollBtn" class="text-[11px] text-blue-400 border border-blue-500/50 bg-slate-900 px-2.5 py-1 rounded-lg transition hover:text-white flex items-center gap-1 shadow-sm" title="Alternar auto-scroll">
                                 <span>↓ Auto-scroll</span>
                             </button>
-                            <button onclick="copyBpLogs()" class="text-[11px] text-slate-300 hover:text-white transition flex items-center gap-1 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg shadow-sm" title="Copy logs">
-                                <span>📋 Copy Log</span>
+                            <button onclick="toggleBpLogFullscreen()" id="bpFullscreenBtn" class="text-[11px] text-slate-300 hover:text-white transition flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg shadow-sm hover:border-slate-700" title="Ver logs em tela cheia">
+                                <span id="bpFullscreenIcon">⛶</span>
+                                <span id="bpFullscreenLabel">Tela Cheia</span>
                             </button>
+                            <!-- Copy Dropdown (Plain vs Formatted) -->
+                            <div class="relative inline-block text-left" id="bpCopyDropdownWrapper">
+                                <div class="inline-flex rounded-lg shadow-sm">
+                                    <button onclick="copyBpLogs(false)" class="text-[11px] text-slate-300 hover:text-white transition flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-l-lg px-2.5 py-1 hover:border-slate-700" title="Copiar logs sem formatação (texto puro)">
+                                        <span>📋 Copiar</span>
+                                    </button>
+                                    <button onclick="toggleBpCopyMenu(event)" class="text-[11px] text-slate-400 hover:text-white transition bg-slate-900 border-t border-r border-b border-l-0 border-slate-800 rounded-r-lg px-1.5 py-1 hover:bg-slate-800" title="Opções de cópia">
+                                        <span>▾</span>
+                                    </button>
+                                </div>
+                                <div id="bpCopyMenu" class="hidden absolute right-0 mt-1 w-52 rounded-xl bg-slate-900 border border-slate-700/80 shadow-2xl z-50 py-1 text-xs backdrop-blur-md">
+                                    <button onclick="copyBpLogs(false); closeBpCopyMenu();" class="w-full text-left px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2.5 transition">
+                                        <span class="text-sm">📄</span>
+                                        <div>
+                                            <div class="font-semibold text-white">Texto Puro</div>
+                                            <div class="text-[10px] text-slate-400">Sem formatação (clean log)</div>
+                                        </div>
+                                    </button>
+                                    <button onclick="copyBpLogs(true); closeBpCopyMenu();" class="w-full text-left px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2.5 border-t border-slate-800 transition">
+                                        <span class="text-sm">🎨</span>
+                                        <div>
+                                            <div class="font-semibold text-white">Com Formatação</div>
+                                            <div class="text-[10px] text-slate-400">Markdown & cores para chat</div>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div id="bpLogContainer" class="bg-slate-950/95 rounded-xl p-3.5 h-44 overflow-y-auto font-mono text-[11px] leading-relaxed space-y-0.5 select-text border border-slate-800/90 shadow-inner transition-all duration-300">
@@ -972,7 +1000,8 @@
                         </div>
                     </div>
                     <div class="flex items-center gap-2.5 mt-2">
-                        <button onclick="copyBpLogs()" class="btn-ghost px-4 py-2 text-xs font-semibold flex items-center gap-1.5 rounded-xl" title="Copy output log">📋 Copy Logs</button>
+                        <button onclick="copyBpLogs(false)" class="btn-ghost px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 rounded-xl" title="Copiar logs sem formatação">📄 Copiar Texto Puro</button>
+                        <button onclick="copyBpLogs(true)" class="btn-ghost px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 rounded-xl text-cyan-400 border-cyan-500/30" title="Copiar logs formatados em Markdown">🎨 Copiar com Formatação</button>
                         <button id="bpStopHrBtn" onclick="stopHotReloadFromModal()" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 text-xs rounded-xl transition" title="Stop Hot Reload">■ Stop Hot Reload</button>
                         <button onclick="closeBuildProgress()" class="btn-primary px-6 py-2 text-xs font-semibold rounded-xl" title="Close modal">Close</button>
                     </div>
@@ -1107,25 +1136,28 @@
                 return "text-emerald-400 font-semibold";
             }
 
-            // 4. True Error patterns
-            if (/(?:^|\s)(?:error|ERROR|Error|FAILED|Failed|FAILURE|Failure|FATAL|Fatal|EXCEPTION|Exception)(?:[:\s\b]|$)/.test(trimmed) ||
-                /\b(?:error\s+[A-Z0-9_-]+|MSB\d+|CS\d+|XA\d+|clang:\s*error|fatal\s+error:)\b/i.test(trimmed) ||
-                /:\s*error\b/i.test(trimmed)) {
-                return isPipeline ? "text-red-400 font-semibold bp-log-error" : "text-red-400 font-semibold";
-            }
-
-            // 5. True Warning patterns
-            if (/(?:^|\s)(?:warning|WARNING|Warning|AVISO|Aviso|WARN|Warn)(?:[:\s\b]|$)/.test(trimmed) ||
-                /\b(?:warning\s+[A-Z0-9_-]+)\b/i.test(trimmed) ||
-                /:\s*warning\b/i.test(trimmed)) {
-                return isPipeline ? "text-amber-400 bp-log-warn" : "text-amber-400";
-            }
-
-            // 6. Section headers / steps
+            // 4. Section headers / steps
             if (trimmed.startsWith("===")) {
                 return isPipeline
                     ? "text-cyan-400 font-bold py-0.5 border-t border-b border-cyan-900/40 my-1"
                     : "text-blue-400 font-bold";
+            }
+
+            // 5. True Warning patterns (Checked BEFORE error so warnings containing the word 'failed' or 'error' in description stay AMBER/YELLOW)
+            if (/\b(?:warning\s+[A-Z0-9_-]+|aviso)\b/i.test(trimmed) ||
+                /:\s*warning\b/i.test(trimmed) ||
+                /\bwarning:/i.test(trimmed) ||
+                /^(?:warning|aviso|warn)\b/i.test(trimmed) ||
+                /(?:^|\s)(?:warning|WARNING|Warning|AVISO|Aviso|WARN|Warn)(?:[:\s\b]|$)/.test(trimmed)) {
+                return isPipeline ? "text-amber-400 bp-log-warn" : "text-amber-400";
+            }
+
+            // 6. True Error patterns
+            if (/(?:^|\s)(?:error|ERROR|Error|FAILED|Failed|FAILURE|Failure|FATAL|Fatal|EXCEPTION|Exception)(?:[:\s\b]|$)/.test(trimmed) ||
+                /\b(?:error\s+[A-Z0-9_-]+|MSB\d+|CS\d+|XA\d+|clang:\s*error|fatal\s+error:)\b/i.test(trimmed) ||
+                /:\s*error\b/i.test(trimmed) ||
+                /\b(?:build failed|compilação com falha)\b/i.test(trimmed)) {
+                return isPipeline ? "text-red-400 font-semibold bp-log-error" : "text-red-400 font-semibold";
             }
 
             return isPipeline ? "text-slate-300" : "text-slate-400";
@@ -4865,32 +4897,169 @@ function toggleTheme() {
             }
         }
 
-        function copyBpLogs() {
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        var bpLogFullscreen = false;
+        function toggleBpLogFullscreen() {
+            bpLogFullscreen = !bpLogFullscreen;
+            var section = document.getElementById("bpLogSection");
             var container = document.getElementById("bpLogContainer");
-            var text = container ? container.innerText : "";
-            if (!text || text.trim() === "" || text.includes("Waiting for log output...")) {
-                showToast("No log content to copy", "info");
-                return;
-            }
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).then(function() {
-                    showToast("Build logs copied to clipboard!", "success");
-                }).catch(function() {
-                    fallbackCopyBpLogs(text);
-                });
+            var icon = document.getElementById("bpFullscreenIcon");
+            var label = document.getElementById("bpFullscreenLabel");
+            var btn = document.getElementById("bpFullscreenBtn");
+
+            if (bpLogFullscreen) {
+                if (section) {
+                    section.className = "fixed inset-3 md:inset-6 z-[100] bg-slate-950/98 border border-slate-700/90 rounded-2xl p-5 shadow-2xl flex flex-col gap-3 backdrop-blur-xl animate-fade-in";
+                }
+                if (container) {
+                    container.className = "bg-slate-950 rounded-xl p-4 flex-1 overflow-y-auto font-mono text-xs leading-relaxed space-y-0.5 select-text border border-slate-800 shadow-inner";
+                    container.style.height = "auto";
+                }
+                if (icon) icon.textContent = "🗗";
+                if (label) label.textContent = "Restaurar";
+                if (btn) btn.className = "text-[11px] text-cyan-400 border border-cyan-500/50 bg-slate-900 px-2.5 py-1 rounded-lg transition hover:text-white flex items-center gap-1.5 shadow-sm";
             } else {
-                fallbackCopyBpLogs(text);
+                if (section) {
+                    section.className = "space-y-1.5 transition-all duration-300";
+                }
+                if (container) {
+                    container.className = "bg-slate-950/95 rounded-xl p-3.5 h-44 overflow-y-auto font-mono text-[11px] leading-relaxed space-y-0.5 select-text border border-slate-800/90 shadow-inner transition-all duration-300";
+                    container.style.height = "";
+                }
+                if (icon) icon.textContent = "⛶";
+                if (label) label.textContent = "Tela Cheia";
+                if (btn) btn.className = "text-[11px] text-slate-300 hover:text-white transition flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg shadow-sm";
             }
         }
 
-        function fallbackCopyBpLogs(text) {
+        function toggleBpCopyMenu(ev) {
+            if (ev) ev.stopPropagation();
+            var menu = document.getElementById("bpCopyMenu");
+            if (menu) menu.classList.toggle("hidden");
+        }
+
+        function closeBpCopyMenu() {
+            var menu = document.getElementById("bpCopyMenu");
+            if (menu) menu.classList.add("hidden");
+        }
+
+        document.addEventListener("click", function(e) {
+            var wrapper = document.getElementById("bpCopyDropdownWrapper");
+            if (wrapper && !wrapper.contains(e.target)) {
+                closeBpCopyMenu();
+            }
+        });
+
+        document.addEventListener("keydown", function(e) {
+            if (e.key === "Escape" && bpLogFullscreen) {
+                toggleBpLogFullscreen();
+            }
+        });
+
+        function copyBpLogs(formatted) {
+            var container = document.getElementById("bpLogContainer");
+            if (!container) return;
+            var lines = container.querySelectorAll("div:not(.italic)");
+            if (!lines || lines.length === 0) {
+                showToast("Nenhum log disponível para copiar", "info");
+                return;
+            }
+
+            var plainLines = [];
+            var htmlLines = [];
+
+            lines.forEach(function(l) {
+                var text = (l.innerText || l.textContent || "").trimEnd();
+                if (text) {
+                    plainLines.push(text);
+                    var color = "#cbd5e1"; // slate-300 default
+                    if (l.classList.contains("bp-log-error") || l.classList.contains("text-red-400")) color = "#f87171";
+                    else if (l.classList.contains("bp-log-warn") || l.classList.contains("text-amber-400")) color = "#fbbf24";
+                    else if (l.classList.contains("text-emerald-400")) color = "#34d399";
+                    else if (l.classList.contains("text-cyan-400") || l.classList.contains("text-blue-400")) color = "#38bdf8";
+                    htmlLines.push('<div style="color: ' + color + '; font-family: monospace; font-size: 12px; line-height: 1.5;">' + escapeHtml(text) + '</div>');
+                }
+            });
+
+            if (plainLines.length === 0) {
+                showToast("Nenhum log disponível para copiar", "info");
+                return;
+            }
+
+            var appName = (document.getElementById("bpAppNameGrid") && document.getElementById("bpAppNameGrid").textContent !== "--") 
+                ? document.getElementById("bpAppNameGrid").textContent 
+                : "App";
+            var device = (document.getElementById("bpDeviceName") ? document.getElementById("bpDeviceName").textContent : "--");
+            var platform = (document.getElementById("bpPlatform") ? document.getElementById("bpPlatform").textContent : "--");
+            var config = (document.getElementById("bpConfig") ? document.getElementById("bpConfig").textContent : "--");
+            var version = (document.getElementById("bpVersion") ? document.getElementById("bpVersion").textContent : "--");
+            var buildNum = (document.getElementById("bpBuild") ? document.getElementById("bpBuild").textContent : "--");
+            var buildId = (document.getElementById("bpBuildId") ? document.getElementById("bpBuildId").textContent : "--");
+            var timer = (document.getElementById("bpTimer") ? document.getElementById("bpTimer").textContent : "--");
+            var status = (document.getElementById("bpStatusBadge") ? document.getElementById("bpStatusBadge").textContent : "Finished");
+
+            if (formatted) {
+                var mdHeader = "### 🔨 MAUI Forge Build Log — " + appName + "\n" +
+                               "- **Dispositivo:** " + device + "\n" +
+                               "- **Plataforma:** " + platform + " (" + config + ")\n" +
+                               "- **Versão:** " + version + " (Build " + buildNum + ")\n" +
+                               "- **Build ID:** " + buildId + "\n" +
+                               "- **Duração:** " + timer + "\n" +
+                               "- **Status:** " + status + "\n\n" +
+                               "```log\n" + plainLines.join("\n") + "\n```";
+
+                var fullHtml = '<div style="background-color: #020617; color: #f8fafc; padding: 16px; border-radius: 12px; font-family: sans-serif;">' +
+                               '<h3 style="margin-top:0; color: #38bdf8;">🔨 MAUI Forge Build Log — ' + escapeHtml(appName) + '</h3>' +
+                               '<p style="font-size: 13px; color: #94a3b8; margin: 4px 0;">' +
+                               '<strong>Plataforma:</strong> ' + escapeHtml(platform) + ' (' + escapeHtml(config) + ') | ' +
+                               '<strong>Versão:</strong> ' + escapeHtml(version) + ' (' + escapeHtml(buildNum) + ') | ' +
+                               '<strong>Status:</strong> ' + escapeHtml(status) + ' (' + escapeHtml(timer) + ')' +
+                               '</p>' +
+                               '<div style="background-color: #0b0f19; padding: 12px; border-radius: 8px; margin-top: 10px; border: 1px solid #1e293b; max-height: 500px; overflow-y: auto;">' +
+                               htmlLines.join('') +
+                               '</div></div>';
+
+                if (navigator.clipboard && window.ClipboardItem) {
+                    var blobHtml = new Blob([fullHtml], { type: "text/html" });
+                    var blobText = new Blob([mdHeader], { type: "text/plain" });
+                    var item = new ClipboardItem({
+                        "text/html": blobHtml,
+                        "text/plain": blobText
+                    });
+                    navigator.clipboard.write([item]).then(function() {
+                        showToast("Log formatado copiado! (Markdown + Cores)", "success");
+                    }).catch(function() {
+                        fallbackCopyText(mdHeader, "Log formatado copiado!");
+                    });
+                } else {
+                    fallbackCopyText(mdHeader, "Log formatado copiado!");
+                }
+            } else {
+                var rawText = plainLines.join("\n");
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(rawText).then(function() {
+                        showToast("Log texto puro copiado para a área de transferência!", "success");
+                    }).catch(function() {
+                        fallbackCopyText(rawText, "Log copiado!");
+                    });
+                } else {
+                    fallbackCopyText(rawText, "Log copiado!");
+                }
+            }
+        }
+
+        function fallbackCopyText(text, successMsg) {
             var ta = document.createElement("textarea");
             ta.value = text;
             document.body.appendChild(ta);
             ta.select();
             document.execCommand("copy");
             document.body.removeChild(ta);
-            showToast("Build logs copied to clipboard!", "success");
+            showToast(successMsg || "Copiado com sucesso!", "success");
         }
 
         function closeBuildProgress() {
