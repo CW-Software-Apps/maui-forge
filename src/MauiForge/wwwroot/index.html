@@ -755,7 +755,14 @@
                 </div>
 
                 <!-- Target Device Specs Card Grid -->
-                <div id="bpDeviceSpecsGrid" class="bg-gradient-to-r from-slate-950/90 via-slate-900/70 to-slate-950/90 border border-slate-800/80 rounded-2xl p-3.5 grid grid-cols-2 md:grid-cols-6 gap-2.5 text-xs shadow-md backdrop-blur-sm">
+                <div id="bpDeviceSpecsGrid" class="bg-gradient-to-r from-slate-950/90 via-slate-900/70 to-slate-950/90 border border-slate-800/80 rounded-2xl p-3.5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-2.5 text-xs shadow-md backdrop-blur-sm">
+                    <div class="bg-slate-900/50 border border-slate-800/60 rounded-xl p-2 flex flex-col justify-between hover:border-slate-700/60 transition-colors col-span-2 sm:col-span-1">
+                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1">📱 App</span>
+                        <div class="flex items-center gap-1.5 mt-0.5 min-w-0">
+                            <div id="bpAppIconSmall" class="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center overflow-hidden bg-slate-800"></div>
+                            <div id="bpAppNameGrid" class="text-white font-semibold truncate text-xs">--</div>
+                        </div>
+                    </div>
                     <div class="bg-slate-900/50 border border-slate-800/60 rounded-xl p-2 flex flex-col justify-between hover:border-slate-700/60 transition-colors">
                         <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">📱 Device</span>
                         <div id="bpDeviceName" class="text-white font-semibold truncate text-xs mt-0.5">--</div>
@@ -1168,10 +1175,15 @@
                     if (!isActive && typeof showBuildProgress === "function") {
                         showBuildProgress(record.deviceName || "Desconhecido", record.platform || "Auto", record.configuration || "Release", record.id, record.version || "--", record.buildNumber || "--", record.appName, record.appDir);
                     } else {
+                        if (typeof updateBpAppHeader === "function" && (record.appName || record.appDir)) {
+                            updateBpAppHeader(record.appName, record.appDir);
+                        }
                         var vEl = document.getElementById("bpVersion");
                         var bEl = document.getElementById("bpBuild");
+                        var idEl = document.getElementById("bpBuildId");
                         if (vEl && record.version && record.version !== "--") vEl.textContent = record.version;
                         if (bEl && record.buildNumber && record.buildNumber !== "--") bEl.textContent = record.buildNumber;
+                        if (idEl && record.id) idEl.textContent = "#" + record.id.substring(0, 8);
                     }
                 }
             });
@@ -4371,6 +4383,60 @@ function toggleTheme() {
             renderBpStepsUI();
         }
 
+        function updateBpAppHeader(appName, appDir) {
+            var targetDir = appDir || currentBuildDir || buildRunDir;
+            var app = null;
+            if (targetDir) {
+                var cleanTarget = normDir(targetDir).replace(/\/+[^\/]+\.csproj$/i, '').replace(/\/+$/, '');
+                app = appsList.find(function(a) { 
+                    var cleanAppDir = normDir(a.dir).replace(/\/+[^\/]+\.csproj$/i, '').replace(/\/+$/, '');
+                    return cleanAppDir === cleanTarget; 
+                });
+            }
+            if (!app && appName) {
+                app = appsList.find(function(a) { return (a.name || '').toLowerCase() === (appName || '').toLowerCase(); });
+            }
+            var finalAppName = (app && app.name) || appName || (targetDir ? targetDir.replace(/\\/g, '/').split('/').filter(Boolean).pop() : "App");
+
+            // 1. Header Icon & Ping Indicator
+            var headerBadge = document.getElementById("bpHeaderBadge");
+            if (headerBadge) {
+                if (app && app.iconBase64) {
+                    headerBadge.className = "w-11 h-11 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center flex-shrink-0 overflow-hidden relative shadow-sm p-1";
+                    headerBadge.innerHTML = '<img src="' + app.iconBase64 + '" class="w-full h-full object-contain rounded-lg" alt="' + finalAppName + ' Icon"><span id="bpHeaderIcon" class="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-blue-400 border border-slate-900 animate-ping"></span>';
+                } else if (app) {
+                    headerBadge.className = "w-11 h-11 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center flex-shrink-0 overflow-hidden relative shadow-sm";
+                    headerBadge.innerHTML = iconFallbackHtml(app, "w-full h-full rounded-xl flex items-center justify-center font-bold", "text-sm") + '<span id="bpHeaderIcon" class="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-blue-400 border border-slate-900 animate-ping"></span>';
+                } else {
+                    var initial = (finalAppName || "A").charAt(0).toUpperCase();
+                    headerBadge.className = "w-11 h-11 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300 font-bold text-base shadow-sm relative";
+                    headerBadge.innerHTML = '<span>' + initial + '</span><span id="bpHeaderIcon" class="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-blue-400 border border-slate-900 animate-ping"></span>';
+                }
+            }
+
+            // 2. Title
+            var titleEl = document.getElementById("buildProgressTitle");
+            if (titleEl) {
+                titleEl.innerHTML = '<span class="text-white font-extrabold">' + finalAppName + '</span> <span class="text-slate-400 font-normal text-sm">&bull; Build & Deploy</span>';
+            }
+
+            // 3. Grid App Name & Icon
+            var gridAppName = document.getElementById("bpAppNameGrid");
+            if (gridAppName) gridAppName.textContent = finalAppName;
+            
+            var gridAppIcon = document.getElementById("bpAppIconSmall");
+            if (gridAppIcon) {
+                if (app && app.iconBase64) {
+                    gridAppIcon.innerHTML = '<img src="' + app.iconBase64 + '" class="w-full h-full object-contain rounded" alt="icon">';
+                } else if (app) {
+                    gridAppIcon.innerHTML = iconFallbackHtml(app, "w-full h-full rounded flex items-center justify-center font-bold", "text-[10px]");
+                } else {
+                    var initial = (finalAppName || "A").charAt(0).toUpperCase();
+                    gridAppIcon.innerHTML = '<div class="w-full h-full bg-indigo-500/30 text-indigo-300 font-bold text-[10px] flex items-center justify-center rounded">' + initial + '</div>';
+                }
+            }
+        }
+
         function showBuildProgress(deviceName, platform, config, buildId, version, buildNum, appName, appDir) {
             buildProgressActive = true;
             buildProgressStartTime = Date.now();
@@ -4381,38 +4447,11 @@ function toggleTheme() {
             currentHeavyCommand = "";
             lastBuildActivityAt = Date.now();
 
-            var targetDir = appDir || currentBuildDir || buildRunDir;
-            var app = null;
-            if (targetDir) {
-                app = appsList.find(function(a) { return normDir(a.dir) === normDir(targetDir); });
-            }
-            if (!app && appName) {
-                app = appsList.find(function(a) { return a.name === appName; });
-            }
-            var finalAppName = (app && app.name) || appName || (targetDir ? targetDir.replace(/\\/g, '/').split('/').pop() : "App");
-
             var stallBanner = document.getElementById("bpStallBanner");
             if (stallBanner) stallBanner.classList.add("hidden");
 
-            // Header Icon & App Name
-            var headerBadge = document.getElementById("bpHeaderBadge");
-            if (headerBadge) {
-                if (app && app.iconBase64) {
-                    headerBadge.className = "w-11 h-11 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center flex-shrink-0 overflow-hidden relative shadow-sm p-1";
-                    headerBadge.innerHTML = '<img src="' + app.iconBase64 + '" class="w-full h-full object-contain rounded-lg" alt="' + finalAppName + ' Icon"><span id="bpHeaderIcon" class="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-blue-400 border border-slate-900 animate-ping"></span>';
-                } else if (app) {
-                    headerBadge.className = "w-11 h-11 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center flex-shrink-0 overflow-hidden relative shadow-sm";
-                    headerBadge.innerHTML = iconFallbackHtml(app, "w-full h-full rounded-xl flex items-center justify-center font-bold", "text-sm") + '<span id="bpHeaderIcon" class="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-blue-400 border border-slate-900 animate-ping"></span>';
-                } else {
-                    headerBadge.className = "w-11 h-11 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-sm relative";
-                    headerBadge.innerHTML = '<span id="bpHeaderIcon" class="w-3.5 h-3.5 rounded-full bg-blue-400 animate-ping"></span>';
-                }
-            }
+            updateBpAppHeader(appName, appDir);
 
-            var titleEl = document.getElementById("buildProgressTitle");
-            if (titleEl) {
-                titleEl.innerHTML = '<span class="text-white font-extrabold">' + finalAppName + '</span> <span class="text-slate-400 font-medium text-sm">&bull; Build & Deploy</span>';
-            }
             var subtitleEl = document.getElementById("buildProgressSubtitle");
             if (subtitleEl) {
                 subtitleEl.textContent = (platform || "Auto") + " (" + (config || "Release") + ") \u2014 Real-time Build & Deploy monitoring";
@@ -4542,6 +4581,23 @@ function toggleTheme() {
                 if (liveCmdText) liveCmdText.textContent = currentHeavyCommand;
                 noteBuildActivity();
                 return;
+            }
+
+            // Auto-detect project / app name from dotnet build commands if not already resolved
+            if (msg.indexOf("dotnet build") >= 0 || msg.indexOf(".csproj") >= 0) {
+                var gridApp = document.getElementById("bpAppNameGrid");
+                if (!gridApp || gridApp.textContent === "--" || gridApp.textContent === "App") {
+                    var match = msg.match(/[A-Za-z]:[\\\/][^"'`\r\n]+\.csproj/i) || msg.match(/\/([^"'`\r\n]+)\.csproj/i);
+                    if (match) {
+                        var parts = match[0].replace(/\\/g, '/').split('/');
+                        parts.pop(); // remove filename
+                        var extractedDir = parts.join('/');
+                        var extractedName = parts.pop();
+                        if (extractedName) {
+                            updateBpAppHeader(extractedName, extractedDir);
+                        }
+                    }
+                }
             }
 
             // Update live action text from informative log messages
