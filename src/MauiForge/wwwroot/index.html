@@ -704,15 +704,23 @@
 
     <!-- Processing overlay (blocks interaction during bump/push) -->
     <div id="processingOverlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-label="Processing">
-        <div class="modal-panel modal-panel--sm text-center">
+        <div class="modal-panel modal-panel--sm">
             <div class="p-6 space-y-4">
-                <div class="flex justify-center">
-                    <svg class="animate-spin" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <div class="flex items-center gap-3">
+                    <svg id="processingSpinner" class="animate-spin flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
                     </svg>
+                    <div class="min-w-0 flex-1">
+                        <p id="processingMessage" class="text-sm font-semibold text-ink">Processing...</p>
+                        <p id="processingDetail" class="text-xs text-ink-muted break-words">Please wait — do not close this window.</p>
+                    </div>
                 </div>
-                <p id="processingMessage" class="text-sm font-semibold text-ink">Processing...</p>
-                <p id="processingDetail" class="text-xs text-ink-muted">Please wait — do not close this window.</p>
+                <div id="processingBarWrap" class="hidden">
+                    <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                        <div id="processingBar" class="h-full bg-[var(--accent)] rounded-full transition-all duration-300" style="width:0%"></div>
+                    </div>
+                </div>
+                <ul id="processingSteps" class="hidden space-y-3" aria-live="polite"></ul>
             </div>
         </div>
     </div>
@@ -1228,6 +1236,14 @@
                 sfxEnabled = enabled;
                 localStorage.setItem("maui_forge_sfx", enabled ? "true" : "false");
                 if (typeof updateSfxBtnUI === "function") updateSfxBtnUI();
+            });
+
+            // Live checklist for an in-flight bump & push. Filtered to the app being
+            // bumped so a second browser bumping another app can't hijack the overlay.
+            connection.on("BumpProgress", function (data) {
+                if (!data || typeof setProcessingStep !== "function") return;
+                if (_bumpProgressDir && data.dir && normDir(data.dir) !== _bumpProgressDir) return;
+                setProcessingStep(data.step, data.status, data.detail);
             });
 
             connection.on("LogReceived", function (message) {
@@ -2079,9 +2095,79 @@
             setTimeout(function () { trapFocus("bumpConfirmModal"); }, 50);
         }
 
-        var pendingBumpDir = null;
-        var pendingBumpVersion = null;
-        var pendingBumpBuild = null;
+        // Steps shown in the processing overlay while a bump & push is running.
+        // Mirrors the order the backend emits them over SignalR ("BumpProgress").
+        var BUMP_STEPS = [
+            { id: "read",   label: "Ler versão atual" },
+            { id: "write",  label: "Escrever arquivos de versão" },
+            { id: "commit", label: "Commitar alterações" },
+            { id: "push",   label: "Enviar para o remoto" }
+        ];
+        var _bumpProgressDir = null;
+
+        function processingStepIcon(status) {
+            if (status === "active") return '<svg class="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>';
+            if (status === "done") return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+            if (status === "warn") return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>';
+            if (status === "error") return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+            return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>';
+        }
+
+        function setProcessingBar(pct) {
+            var bar = document.getElementById("processingBar");
+            if (bar) bar.style.width = Math.max(0, Math.min(100, pct)) + "%";
+        }
+
+        // Progress = finished steps + half credit for whichever step is running.
+        function refreshProcessingBar() {
+            var total = BUMP_STEPS.length, finished = 0, active = 0;
+            BUMP_STEPS.forEach(function (s) {
+                var el = document.getElementById("bumpStep-" + s.id);
+                var st = el ? el.dataset.status : null;
+                if (st === "done" || st === "warn" || st === "error") finished++;
+                else if (st === "active") active++;
+            });
+            setProcessingBar(((finished + (active ? 0.5 : 0)) / total) * 100);
+        }
+
+        function setProcessingStep(step, status, detail) {
+            var el = document.getElementById("bumpStep-" + step);
+            if (!el) return;
+            el.dataset.status = status;
+            var icon = el.querySelector(".bp-step-icon");
+            if (icon) icon.innerHTML = processingStepIcon(status);
+            var label = el.querySelector(".bp-step-label");
+            if (label) {
+                label.className = "bp-step-label block font-medium " + (
+                    status === "done" ? "text-emerald-400" :
+                    status === "error" ? "text-red-400" :
+                    status === "warn" ? "text-amber-400" : "text-ink");
+            }
+            if (detail !== undefined && detail !== null) {
+                var d = document.getElementById("bumpStepDetail-" + step);
+                if (d) d.textContent = detail;
+            }
+            refreshProcessingBar();
+        }
+
+        function showBumpProcessing(dir, version, build) {
+            _bumpProgressDir = normDir(dir);
+            document.getElementById("processingMessage").textContent = "Bump para " + version + " #" + build;
+            document.getElementById("processingDetail").textContent = "Escrevendo arquivos e enviando para o remoto...";
+            var list = document.getElementById("processingSteps");
+            list.innerHTML = BUMP_STEPS.map(function (s) {
+                return '<li id="bumpStep-' + s.id + '" data-status="pending" class="flex items-start gap-2.5 text-xs">' +
+                    '<span class="bp-step-icon mt-0.5 flex-shrink-0">' + processingStepIcon("pending") + '</span>' +
+                    '<span class="min-w-0">' +
+                        '<span class="bp-step-label block font-medium text-ink-muted">' + s.label + '</span>' +
+                        '<span id="bumpStepDetail-' + s.id + '" class="block text-ink-muted break-words"></span>' +
+                    '</span></li>';
+            }).join("");
+            list.classList.remove("hidden");
+            document.getElementById("processingBarWrap").classList.remove("hidden");
+            setProcessingBar(0);
+            document.getElementById("processingOverlay").classList.remove("hidden");
+        }
 
         async function executeBumpPush() {
             var confirmBtn = document.getElementById("confirmBumpBtn");
@@ -2091,8 +2177,8 @@
 
             closeBumpConfirm();
 
-            // Blocking processing overlay — prevents interaction during bump
-            showProcessing("Bumping version...", "Version " + version + " #" + build + " — writing files & pushing to git");
+            // Blocking processing overlay with live step checklist — prevents interaction during bump
+            showBumpProcessing(dir, version, build);
 
             try {
                 var res = await fetch(API_BASE + "/api/apps/bump-push", {
@@ -2101,12 +2187,22 @@
                     body: JSON.stringify({ dir: dir, version: version, build: build })
                 });
                 var data = await res.json();
-                hideProcessing();
                 // Server may return PascalCase (Success) or camelCase (success) depending on serialization
                 var success = data.success || data.Success;
                 if (success) {
+                    BUMP_STEPS.forEach(function (s) {
+                        var el = document.getElementById("bumpStep-" + s.id);
+                        if (el && el.dataset.status !== "done") setProcessingStep(s.id, "done", "");
+                    });
+                    setProcessingBar(100);
+                    await new Promise(function (r) { setTimeout(r, 350); });
+                    hideProcessing();
                     showToast("Bumped to " + data.version + " #" + data.build + " and pushed", "success");
                 } else {
+                    setProcessingStep("push", "error", data.output || "Push falhou");
+                    setProcessingBar(100);
+                    await new Promise(function (r) { setTimeout(r, 900); });
+                    hideProcessing();
                     showToast("Push failed: " + data.output, "error");
                 }
                 await refreshSingleApp(dir);
@@ -2119,8 +2215,13 @@
         }
 
         function showProcessing(message, detail) {
+            _bumpProgressDir = null;
             document.getElementById("processingMessage").textContent = message || "Processing...";
             document.getElementById("processingDetail").textContent = detail || "Please wait — do not close this window.";
+            document.getElementById("processingBarWrap").classList.add("hidden");
+            var list = document.getElementById("processingSteps");
+            list.classList.add("hidden");
+            list.innerHTML = "";
             document.getElementById("processingOverlay").classList.remove("hidden");
         }
 
@@ -2222,43 +2323,159 @@
         });
 
         // ── SFX Web Audio Synthesizer ───────────────────────────────────────────
+        // A single shared AudioContext (recreated contexts leak and get throttled by
+        // browsers) feeding a master gain -> soft limiter so layered voices never clip.
         let sfxEnabled = localStorage.getItem("maui_forge_sfx") !== "false";
+        let _sfxCtx = null;
+        let _sfxMaster = null;
+
+        function _getSfxCtx() {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return null;
+            if (!_sfxCtx) {
+                _sfxCtx = new AudioCtx();
+                _sfxMaster = _sfxCtx.createGain();
+                _sfxMaster.gain.value = 0.9;
+                const limiter = _sfxCtx.createDynamicsCompressor();
+                limiter.threshold.value = -12;
+                limiter.knee.value = 24;
+                limiter.ratio.value = 6;
+                limiter.attack.value = 0.003;
+                limiter.release.value = 0.18;
+                _sfxMaster.connect(limiter);
+                limiter.connect(_sfxCtx.destination);
+            }
+            if (_sfxCtx.state === "suspended") { try { _sfxCtx.resume(); } catch (e) {} }
+            return _sfxCtx;
+        }
+
+        // One voice with an attack/sustain/release envelope, optional pitch glide and an
+        // optional bell-like octave shimmer layered underneath the fundamental.
+        function _sfxVoice(ctx, freq, at, dur, o) {
+            o = o || {};
+            const t0 = ctx.currentTime + at;
+            const peak = (o.gain == null ? 0.16 : o.gain);
+            const attack = (o.attack == null ? 0.008 : o.attack);
+            const release = (o.release == null ? Math.min(0.25, dur * 0.6) : o.release);
+            const sustainLevel = (o.sustain == null ? peak * 0.72 : o.sustain);
+            const dest = o.dest || _sfxMaster;
+
+            const osc = ctx.createOscillator();
+            osc.type = o.wave || "sine";
+            osc.frequency.setValueAtTime(Math.max(1, freq), t0);
+            if (o.glideTo) osc.frequency.exponentialRampToValueAtTime(Math.max(1, o.glideTo), t0 + dur);
+            if (o.detune) osc.detune.setValueAtTime(o.detune, t0);
+
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t0 + attack);
+            g.gain.exponentialRampToValueAtTime(Math.max(0.0002, sustainLevel), t0 + Math.max(attack + 0.01, dur - release));
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + 0.02);
+
+            osc.connect(g);
+            g.connect(dest);
+            osc.start(t0);
+            osc.stop(t0 + dur + 0.05);
+
+            if (o.bell) {
+                const osc2 = ctx.createOscillator();
+                osc2.type = "sine";
+                osc2.frequency.setValueAtTime(Math.max(1, freq * 2), t0);
+                const g2 = ctx.createGain();
+                g2.gain.setValueAtTime(0.0001, t0);
+                g2.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak * 0.28), t0 + attack);
+                g2.gain.exponentialRampToValueAtTime(0.0001, t0 + dur * 0.85);
+                osc2.connect(g2);
+                g2.connect(dest);
+                osc2.start(t0);
+                osc2.stop(t0 + dur);
+            }
+        }
+
+        // Filtered noise burst — used for percussive transients (thump / sparkle).
+        function _sfxNoise(ctx, at, dur, o) {
+            o = o || {};
+            const t0 = ctx.currentTime + at;
+            const frames = Math.max(1, Math.floor(ctx.sampleRate * dur));
+            const buffer = ctx.createBuffer(1, frames, ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            const pow = o.decayPow || 2;
+            for (let i = 0; i < frames; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / frames, pow);
+
+            const src = ctx.createBufferSource();
+            src.buffer = buffer;
+            const filter = ctx.createBiquadFilter();
+            filter.type = o.filterType || "lowpass";
+            filter.frequency.setValueAtTime(o.filterFreq || 900, t0);
+            if (o.filterTo) filter.frequency.exponentialRampToValueAtTime(o.filterTo, t0 + dur);
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(o.gain == null ? 0.12 : o.gain, t0);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+            src.connect(filter);
+            filter.connect(g);
+            g.connect(o.dest || _sfxMaster);
+            src.start(t0);
+            src.stop(t0 + dur + 0.02);
+        }
 
         function playAudioSfx(type) {
             if (!sfxEnabled) return;
             try {
-                const AudioCtx = window.AudioContext || window.webkitAudioContext;
-                if (!AudioCtx) return;
-                const ctx = new AudioCtx();
-                if (ctx.state === "suspended") ctx.resume();
-
-                const playTone = (freq, start, duration, toneType) => {
-                    toneType = toneType || "sine";
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = toneType;
-                    osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
-                    gain.gain.setValueAtTime(0.15, ctx.currentTime + start);
-                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration);
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start(ctx.currentTime + start);
-                    osc.stop(ctx.currentTime + start + duration);
-                };
+                const ctx = _getSfxCtx();
+                if (!ctx) return;
+                const V = (f, at, dur, o) => _sfxVoice(ctx, f, at, dur, o);
+                const N = (at, dur, o) => _sfxNoise(ctx, at, dur, o);
 
                 if (type === "start") {
-                    playTone(440, 0, 0.08, "sine");
-                    playTone(554.37, 0.07, 0.14, "triangle");
+                    // "Systems online" — soft rising triad with a shimmer tail.
+                    V(392.00, 0.00, 0.16, { wave: "triangle", gain: 0.13, bell: true });
+                    V(587.33, 0.10, 0.22, { wave: "triangle", gain: 0.14, bell: true });
+                    V(783.99, 0.20, 0.42, { wave: "sine", gain: 0.10, bell: true, release: 0.30 });
                 } else if (type === "success") {
-                    playTone(523.25, 0, 0.12, "triangle");
-                    playTone(659.25, 0.1, 0.12, "triangle");
-                    playTone(783.99, 0.2, 0.25, "sine");
+                    // Bright C-major arpeggio resolving up an octave, with sparkle.
+                    [523.25, 659.25, 783.99, 1046.50].forEach(function (f, i) {
+                        V(f, i * 0.085, 0.30, { wave: "triangle", gain: 0.15, bell: true, release: 0.22 });
+                    });
+                    V(1318.51, 0.36, 0.55, { wave: "sine", gain: 0.11, bell: true, release: 0.40 });
+                    N(0.00, 0.06, { gain: 0.05, filterFreq: 2600, filterType: "highpass" });
+                    N(0.34, 0.28, { gain: 0.04, filterFreq: 5200, filterType: "highpass", decayPow: 3 });
                 } else if (type === "failure") {
-                    playTone(329.63, 0, 0.15, "sawtooth");
-                    playTone(261.63, 0.12, 0.3, "sawtooth");
+                    // Descending minor third with a detuned growl over a muted thud.
+                    V(311.13, 0.00, 0.26, { wave: "sawtooth", gain: 0.11, glideTo: 233.08, release: 0.20 });
+                    V(155.56, 0.14, 0.42, { wave: "triangle", gain: 0.10, detune: -8, release: 0.34 });
+                    V(116.54, 0.20, 0.40, { wave: "sine", gain: 0.10, release: 0.34 });
+                    N(0.00, 0.12, { gain: 0.08, filterFreq: 500, decayPow: 2.5 });
+                } else if (type === "commit") {
+                    // Rising three-note motif — "changes staged".
+                    V(392.00, 0.00, 0.14, { wave: "sine", gain: 0.10, release: 0.12 });
+                    V(659.25, 0.04, 0.18, { wave: "triangle", gain: 0.15, bell: true, release: 0.14 });
+                    V(783.99, 0.14, 0.34, { wave: "triangle", gain: 0.15, bell: true, release: 0.26 });
+                } else if (type === "push") {
+                    // Send-off fanfare: rising run into a resolving major chord + lift whoosh.
+                    N(0.00, 0.26, { gain: 0.05, filterFreq: 400, filterTo: 3800, filterType: "bandpass", decayPow: 1.4 });
+                    [523.25, 659.25, 783.99, 1046.50].forEach(function (f, i) {
+                        V(f, 0.04 + i * 0.08, 0.24, { wave: "triangle", gain: 0.15, bell: true, release: 0.16 });
+                    });
+                    [523.25, 659.25, 783.99].forEach(function (f) {
+                        V(f, 0.40, 0.95, { wave: "triangle", gain: 0.085, release: 0.70 });
+                    });
+                    V(261.63, 0.40, 1.05, { wave: "sine", gain: 0.10, release: 0.80 });
+                    V(1046.50, 0.44, 0.85, { wave: "sine", gain: 0.11, bell: true, release: 0.65 });
+                    N(0.40, 0.40, { gain: 0.04, filterFreq: 5200, filterType: "highpass", decayPow: 3 });
                 } else if (type === "bump") {
-                    playTone(880, 0, 0.08, "sine");
-                    playTone(1046.50, 0.07, 0.15, "triangle");
+                    // Short victory jingle: kick pickup → rising run → resolving major chord.
+                    N(0.00, 0.08, { gain: 0.13, filterFreq: 220, decayPow: 3 });
+                    V(160.00, 0.00, 0.11, { wave: "sine", gain: 0.11, glideTo: 90, release: 0.09 });
+                    [587.33, 698.46, 880.00].forEach(function (f, i) {
+                        V(f, 0.04 + i * 0.10, 0.16, { wave: "triangle", gain: 0.14, bell: true, release: 0.12 });
+                    });
+                    [523.25, 659.25, 783.99].forEach(function (f) {
+                        V(f, 0.40, 0.85, { wave: "triangle", gain: 0.085, release: 0.65 });
+                    });
+                    V(261.63, 0.40, 1.00, { wave: "sine", gain: 0.10, release: 0.75 });
+                    V(1046.50, 0.44, 0.80, { wave: "sine", gain: 0.11, bell: true, release: 0.60 });
+                    N(0.40, 0.35, { gain: 0.04, filterFreq: 5200, filterType: "highpass", decayPow: 3 });
                 }
             } catch (e) {}
         }

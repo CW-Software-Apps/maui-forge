@@ -680,7 +680,7 @@ public static class WebStartup
             return Results.Ok(appEntry);
         });
 
-        app.MapPost("/api/apps/bump-push", (VersionService versions, GitService git, AppDiscoveryService discovery, StateService state, BumpPushRequest req) =>
+        app.MapPost("/api/apps/bump-push", async (VersionService versions, GitService git, AppDiscoveryService discovery, StateService state, BumpPushRequest req) =>
         {
             var st = state.Load();
             var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
@@ -691,47 +691,91 @@ public static class WebStartup
             var unitySettings = Path.Combine(dir, "ProjectSettings", "ProjectSettings.asset");
             if (File.Exists(unitySettings))
             {
+                await SendBumpProgress(dir, "read", "active", "Lendo versão atual do Unity...");
                 var currentUnity = versions.ReadUnity(req.Dir);
+                var curVerU = currentUnity?.Version ?? "1.0.0";
+                var curBldU = currentUnity?.Build ?? "1";
+                await SendBumpProgress(dir, "read", "done", $"Versão atual {curVerU} #{curBldU}");
                 st.LastVersion = new VersionSnapshot
                 {
                     AppDir = req.Dir,
-                    Version = currentUnity?.Version ?? "1.0.0",
-                    Build = currentUnity?.Build ?? "1"
+                    Version = curVerU,
+                    Build = curBldU
                 };
                 state.Save(st);
+
+                await SendBumpProgress(dir, "write", "active", "Escrevendo ProjectSettings.asset...");
                 versions.WriteUnity(req.Dir, newVersion, newBuild);
+                await SendBumpProgress(dir, "write", "done", $"ProjectSettings.asset → {newVersion} #{newBuild}");
 
                 var commitMsgU = $"chore: bump version to {newVersion} #{newBuild}";
-                var (gitSuccessU, gitOutputU) = git.Push(req.Dir, commitMsgU);
+                await SendBumpProgress(dir, "commit", "active", "Commitando alterações...");
+                var (commitOkU, _) = git.Commit(req.Dir, commitMsgU);
+                await SendBumpProgress(dir, "commit", commitOkU ? "done" : "warn",
+                    commitOkU ? "Commit criado" : "Nada novo para commitar (pode já estar commitado)");
+                if (commitOkU) SendSfx("commit");
+
+                await SendBumpProgress(dir, "push", "active", "Enviando para o remoto...");
+                var (gitSuccessU, gitOutputU) = git.PushOnly(req.Dir);
+                await SendBumpProgress(dir, "push", gitSuccessU ? "done" : "error",
+                    gitSuccessU ? "Push concluído" : TruncateForUi(gitOutputU));
+                SendSfx(gitSuccessU ? "push" : "failure");
+
                 RefreshCacheAndNotify(discovery, state, req.Dir);
                 return Results.Ok(new { Success = gitSuccessU, Output = gitOutputU, Version = newVersion, Build = newBuild });
             }
 
             // 2. Csproj
             var csproj = Directory.EnumerateFiles(req.Dir, "*.csproj").FirstOrDefault();
-            if (csproj == null) return Results.BadRequest("No .csproj found.");
+            if (csproj == null)
+            {
+                await SendBumpProgress(dir, "read", "error", "Nenhum .csproj encontrado");
+                return Results.BadRequest("No .csproj found.");
+            }
 
+            await SendBumpProgress(dir, "read", "active", "Lendo versão atual dos arquivos do projeto...");
             var currentIos = versions.ReadiOS(req.Dir);
             var currentAndroid = versions.ReadAndroid(req.Dir);
             var currentCsproj = versions.ReadCsproj(csproj) ?? versions.ReadAssemblyInfo(req.Dir);
+            var curVer = currentCsproj?.Version ?? currentIos?.Version ?? currentAndroid?.Version ?? "1.0.0";
+            var curBld = currentCsproj?.Build ?? currentIos?.Build ?? currentAndroid?.Build ?? "1";
+            await SendBumpProgress(dir, "read", "done", $"Versão atual {curVer} #{curBld}");
 
             st.LastVersion = new VersionSnapshot
             {
                 AppDir = req.Dir,
-                Version = currentCsproj?.Version ?? currentIos?.Version ?? currentAndroid?.Version ?? "1.0.0",
-                Build = currentCsproj?.Build ?? currentIos?.Build ?? currentAndroid?.Build ?? "1"
+                Version = curVer,
+                Build = curBld
             };
             state.Save(st);
 
-            if (currentIos is not null) versions.WriteiOS(req.Dir, newVersion, newBuild);
-            if (currentAndroid is not null) versions.WriteAndroid(req.Dir, newVersion, newBuild);
-            if (csproj is not null) versions.WriteCsproj(csproj, newVersion, newBuild);
+            var written = new List<string>();
+            await SendBumpProgress(dir, "write", "active", "Escrevendo arquivos de versão...");
+            if (currentIos is not null) { versions.WriteiOS(req.Dir, newVersion, newBuild); written.Add("Info.plist"); }
+            if (currentAndroid is not null) { versions.WriteAndroid(req.Dir, newVersion, newBuild); written.Add("AndroidManifest.xml"); }
+            if (csproj is not null) { versions.WriteCsproj(csproj, newVersion, newBuild); written.Add(Path.GetFileName(csproj)); }
+            var assemblyBefore = versions.ReadAssemblyInfo(req.Dir);
             versions.WriteAssemblyInfo(req.Dir, newVersion, newBuild);
+            var assemblyAfter = versions.ReadAssemblyInfo(req.Dir);
+            if (assemblyBefore is not null || assemblyAfter is not null) written.Add("AssemblyInfo.cs");
+            await SendBumpProgress(dir, "write", "done",
+                written.Count > 0
+                    ? $"{string.Join(", ", written)} → {newVersion} #{newBuild}"
+                    : "Nenhum arquivo de versão encontrado");
 
             var commitMsg = $"chore: bump version to {newVersion} #{newBuild}";
-            var (gitSuccess, gitOutput) = git.Push(req.Dir, commitMsg);
+            await SendBumpProgress(dir, "commit", "active", "Commitando alterações...");
+            var (commitOk, _) = git.Commit(req.Dir, commitMsg);
+            await SendBumpProgress(dir, "commit", commitOk ? "done" : "warn",
+                commitOk ? "Commit criado" : "Nada novo para commitar (pode já estar commitado)");
+            if (commitOk) SendSfx("commit");
 
-            TriggerBumpSfx();
+            await SendBumpProgress(dir, "push", "active", "Enviando para o remoto...");
+            var (gitSuccess, gitOutput) = git.PushOnly(req.Dir);
+            await SendBumpProgress(dir, "push", gitSuccess ? "done" : "error",
+                gitSuccess ? "Push concluído" : TruncateForUi(gitOutput));
+            SendSfx(gitSuccess ? "push" : "failure");
+
             RefreshCacheAndNotify(discovery, state, req.Dir);
             return Results.Ok(new { Success = gitSuccess, Output = gitOutput, Version = newVersion, Build = newBuild });
         });
@@ -1846,6 +1890,26 @@ public static class WebStartup
         }
     }
 
+    // Streams a bump step to every connected client so the processing overlay can render
+    // a live checklist (read → write → commit → push) instead of a generic spinner.
+    // Status is one of: active, done, warn, error.
+    private static async Task SendBumpProgress(string dir, string step, string status, string detail)
+    {
+        if (_hubContext != null)
+        {
+            await _hubContext.Clients.All.SendAsync("BumpProgress", new { dir, step, status, detail });
+        }
+    }
+
+    // Keeps a single progress detail line readable when a git command dumps a wall of output.
+    private static string TruncateForUi(string? text, int max = 160)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "Sem saída do git";
+        var firstLine = text.Replace("\r", "").Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim() ?? "";
+        if (firstLine.Length == 0) return "Sem saída do git";
+        return firstLine.Length <= max ? firstLine : firstLine[..(max - 1)] + "…";
+    }
+
     private static void WriteStepToLog(BuildRecord? record, string step)
     {
         if (record?.LogFilePath is null) return;
@@ -1914,6 +1978,16 @@ public static class WebStartup
         if (_hubContext != null)
         {
             _ = _hubContext.Clients.All.SendAsync("PlaySfx", "bump");
+        }
+    }
+
+    // Browser-only SFX for the bump pipeline steps (commit/push/failure). The TUI has no
+    // step-by-step bump flow, so the server machine stays quiet and only clients play these.
+    private static void SendSfx(string type)
+    {
+        if (_hubContext != null)
+        {
+            _ = _hubContext.Clients.All.SendAsync("PlaySfx", type);
         }
     }
 

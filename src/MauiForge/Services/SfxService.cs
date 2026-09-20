@@ -16,7 +16,9 @@ public class SfxService(StateService stateService)
         }
     }
 
-    public void PlayStart()
+    // Console.Beep is monophonic and blocking, so tunes are expressed as short
+    // note/duration sequences. On non-Windows hosts we fall back to the terminal bell.
+    private void PlayTune(params (int Freq, int Ms)[] notes)
     {
         if (!IsEnabled) return;
 
@@ -26,8 +28,11 @@ public class SfxService(StateService stateService)
             {
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
-                    Console.Beep(440, 80);
-                    Console.Beep(554, 120);
+                    foreach (var (freq, ms) in notes)
+                    {
+                        if (freq <= 0) Thread.Sleep(ms);
+                        else Console.Beep(freq, ms);
+                    }
                 }
                 else
                 {
@@ -38,70 +43,32 @@ public class SfxService(StateService stateService)
         });
     }
 
-    public void PlaySuccess()
-    {
-        if (!IsEnabled) return;
+    // Soft rising triad — "systems online".
+    public void PlayStart() => PlayTune(
+        (392, 90),
+        (523, 90),
+        (659, 150));
 
-        Task.Run(() =>
-        {
-            try
-            {
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    Console.Beep(523, 100);
-                    Console.Beep(659, 100);
-                    Console.Beep(784, 160);
-                }
-                else
-                {
-                    Console.Write("\a");
-                }
-            }
-            catch { /* audio playback fallback ignored */ }
-        });
-    }
+    // Bright major arpeggio resolving up an octave.
+    public void PlaySuccess() => PlayTune(
+        (523, 85),
+        (659, 85),
+        (784, 85),
+        (1047, 190));
 
-    public void PlayFailure()
-    {
-        if (!IsEnabled) return;
+    // Descending minor line with a low, muted landing.
+    public void PlayFailure() => PlayTune(
+        (392, 110),
+        (311, 110),
+        (233, 110),
+        (156, 260));
 
-        Task.Run(() =>
-        {
-            try
-            {
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    Console.Beep(330, 150);
-                    Console.Beep(220, 250);
-                }
-                else
-                {
-                    Console.Write("\a");
-                }
-            }
-            catch { /* audio playback fallback ignored */ }
-        });
-    }
-
-    public void PlayBump()
-    {
-        if (!IsEnabled) return;
-
-        Task.Run(() =>
-        {
-            try
-            {
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    Console.Beep(880, 80);
-                    Console.Beep(1046, 120);
-                }
-                else
-                {
-                    Console.Write("\a");
-                }
-            }
-            catch { /* audio playback fallback ignored */ }
-        });
-    }
+    // Short victory jingle: pickup, rising run, high resolution.
+    public void PlayBump() => PlayTune(
+        (165, 70),
+        (523, 70),
+        (587, 70),
+        (659, 70),
+        (784, 80),
+        (1047, 210));
 }
