@@ -178,12 +178,28 @@ public static class WebStartup
     }
 
 
-    public static void Start(string[] args, StateService stateService, AppDiscoveryService discoveryService, VersionService versionService, GitService gitService, BuildService buildService, DeviceService deviceService, SfxService sfxService,
-        bool serveMode = false, string? token = null, int port = DefaultPort, bool noOpen = false)
+    public static void Start(
+        string[] args,
+        StateService stateService,
+        AppDiscoveryService discoveryService,
+        VersionService versionService,
+        GitService gitService,
+        BuildService buildService,
+        DeviceService deviceService,
+        SfxService sfxService,
+        UnityLocatorService? unityLocator = null,
+        UnityBuildService? unityBuild = null,
+        bool serveMode = false,
+        string? token = null,
+        int port = DefaultPort,
+        bool noOpen = false)
     {
         OriginalArgs = args;
         _serveToken = serveMode ? token : null;
         _sfxService = sfxService;
+
+        unityLocator ??= new UnityLocatorService();
+        unityBuild ??= new UnityBuildService(unityLocator, deviceService);
 
         var preferRandom = !args.Contains("--port");
         port = FindAvailablePort(port, preferRandom);
@@ -214,6 +230,8 @@ public static class WebStartup
         builder.Services.AddSingleton(buildService);
         builder.Services.AddSingleton(deviceService);
         builder.Services.AddSingleton(sfxService);
+        builder.Services.AddSingleton(unityLocator);
+        builder.Services.AddSingleton(unityBuild);
 
         builder.Services.AddSignalR();
         builder.Services.AddCors(options =>
@@ -566,6 +584,25 @@ public static class WebStartup
                 };
                 state.Save(st);
                 versions.WriteUnity(req.Dir, newVersion, newBuild);
+                TriggerBumpSfx();
+                RefreshCacheAndNotify(discovery, state, req.Dir);
+                return Results.Ok(new { Success = true, Version = newVersion, Build = newBuild });
+            }
+
+            // 1.5. Unity UPM Package
+            var packageJson = Path.Combine(req.Dir, "package.json");
+            if (File.Exists(packageJson))
+            {
+                var currentPkg = versions.ReadPackageJson(req.Dir);
+                st.LastVersion = new VersionSnapshot
+                {
+                    AppDir = req.Dir,
+                    Version = currentPkg?.Version ?? "1.0.0",
+                    Build = "1"
+                };
+                state.Save(st);
+                versions.WritePackageJson(req.Dir, newVersion);
+                TriggerBumpSfx();
                 RefreshCacheAndNotify(discovery, state, req.Dir);
                 return Results.Ok(new { Success = true, Version = newVersion, Build = newBuild });
             }
@@ -602,6 +639,29 @@ public static class WebStartup
         // apart (e.g. iOS was bumped manually but Android wasn't).
         app.MapPost("/api/apps/version/sync", (VersionService versions, AppDiscoveryService discovery, StateService state, SyncRequest req) =>
         {
+            var st = state.Load();
+            var isUnity = File.Exists(Path.Combine(req.Dir, "ProjectSettings", "ProjectSettings.asset")) ||
+                          File.Exists(Path.Combine(req.Dir, "package.json"));
+            if (isUnity)
+            {
+                var unityVer = versions.ReadUnityDetailed(req.Dir);
+                if (unityVer != null)
+                {
+                    st.LastVersion = new VersionSnapshot
+                    {
+                        AppDir = req.Dir,
+                        Version = unityVer.Version,
+                        Build = unityVer.AndroidCode
+                    };
+                    state.Save(st);
+
+                    versions.WriteUnityDetailed(req.Dir, unityVer.Version, unityVer.AndroidCode);
+                    TriggerBumpSfx();
+                    RefreshCacheAndNotify(discovery, state, req.Dir);
+                    return Results.Ok(new { Success = true, Version = unityVer.Version, Build = unityVer.AndroidCode });
+                }
+            }
+
             var csproj = Directory.EnumerateFiles(req.Dir, "*.csproj").FirstOrDefault();
             if (csproj == null) return Results.BadRequest("No .csproj found.");
 
@@ -612,7 +672,6 @@ public static class WebStartup
             var currentAndroid = versions.ReadAndroid(req.Dir);
 
             // Snapshot before syncing
-            var st = state.Load();
             st.LastVersion = new VersionSnapshot
             {
                 AppDir = req.Dir,
@@ -836,8 +895,110 @@ public static class WebStartup
             }
         });
 
+        // ── Unity Endpoints ──────────────────────────────────────────────────
+
+        app.MapGet("/api/unity/editors", (UnityLocatorService locator, string? dir) =>
+        {
+            var installed = locator.GetInstalledEditors();
+            var targetVersion = !string.IsNullOrEmpty(dir) ? locator.GetProjectEditorVersion(dir) : null;
+            var recommended = !string.IsNullOrEmpty(dir) ? locator.ResolveEditorForProject(dir) : installed.FirstOrDefault();
+            return Results.Ok(new
+            {
+                installed,
+                projectVersion = targetVersion,
+                recommended
+            });
+        });
+
+        app.MapPost("/api/unity/open-editor", (UnityLocatorService locator, StateService state, UnityOpenEditorRequest req) =>
+        {
+            var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
+            var ok = locator.OpenProjectInEditor(dir, req.CustomEditorPath);
+            return Results.Ok(new { success = ok });
+        });
+
+        app.MapPost("/api/unity/build", (UnityBuildService unityBuild, VersionService versions, StateService state, UnityBuildApiRequest req) =>
+        {
+            var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
+            var record = RecordBuildStart(dir, req.Platform, "Unity", req.DeviceId, versions: versions);
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await SendLog("=========================================");
+                    await SendLog($"Starting Unity Build for platform {req.Platform}...");
+                    if (!string.IsNullOrEmpty(req.Publisher)) await SendLog($"Publisher: {req.Publisher}");
+                    if (!string.IsNullOrEmpty(req.ProfileId)) await SendLog($"Profile: {req.ProfileId}");
+                    await SendLog("=========================================");
+                    await SendLog("===STEP:INIT===");
+
+                    var options = new UnityBuildOptions(
+                        ProjectDir: dir,
+                        Platform: req.Platform,
+                        Publisher: req.Publisher,
+                        ProfileId: req.ProfileId,
+                        DevelopmentBuild: req.Development,
+                        CheatMode: req.Cheat,
+                        IsMatrix: req.IsMatrix,
+                        CustomOutputPath: req.CustomOutputPath,
+                        Version: req.Version,
+                        BuildNumber: req.BuildNumber,
+                        KeystorePath: req.KeystorePath,
+                        KeystoreAlias: req.KeystoreAlias,
+                        RunAfterBuild: req.RunAfterBuild,
+                        DeviceId: req.DeviceId,
+                        CustomEditorPath: req.CustomEditorPath
+                    );
+
+                    await SendLog("===STEP:BUILD===");
+                    int exitCode = unityBuild.ExecuteBuild(
+                        options,
+                        line => { _ = SendLog(line); },
+                        logFile: record.LogFilePath,
+                        onStart: proc => _runningBuilds[dir] = proc
+                    );
+
+                    bool completedNaturally = _runningBuilds.TryRemove(dir, out _);
+                    if (completedNaturally)
+                    {
+                        await SendLog("=========================================");
+                        await SendLog($"Unity build completed with exit code: {exitCode}");
+                        await SendLog("=========================================");
+                        if (exitCode == 0)
+                        {
+                            await SendLog("===STEP:DONE===");
+                            WriteStepToLog(record, "===STEP:DONE===");
+                        }
+                        else
+                        {
+                            await SendLog("===STEP:FAILED===");
+                            WriteStepToLog(record, "===STEP:FAILED===");
+                        }
+                        RecordBuildEnd(record, exitCode == 0 ? "Success" : "Failed", exitCode);
+                    }
+                    else
+                    {
+                        await SendLog("===STEP:FAILED===");
+                        WriteStepToLog(record, "===STEP:FAILED===");
+                        RecordBuildEnd(record, "Cancelled", -1, "Cancelled by user");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _runningBuilds.TryRemove(dir, out _);
+                    await SendLog($"[Error] Unity build failed to execute: {ex.Message}");
+                    await SendLog("===STEP:FAILED===");
+                    WriteStepToLog(record, "===STEP:FAILED===");
+                    RecordBuildEnd(record, "Failed", -1, ex.Message);
+                }
+            });
+
+            return Results.Ok(new { success = true, buildId = record.Id });
+        });
+
         // Build Endpoint
-        app.MapPost("/api/apps/build", (BuildService builder, VersionService versions, DeviceService devices, StateService state, BuildRequest req) =>
+        app.MapPost("/api/apps/build", (BuildService builder, VersionService versions, DeviceService devices, UnityBuildService unityBuild, StateService state, BuildRequest req) =>
         {
             var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
             var record = RecordBuildStart(dir, req.Platform, req.Configuration, versions: versions);
@@ -846,6 +1007,53 @@ public static class WebStartup
             {
                 try
                 {
+                    if (File.Exists(Path.Combine(dir, "ProjectSettings", "ProjectSettings.asset")))
+                    {
+                        await SendLog("=========================================");
+                        await SendLog($"Starting Unity Build for platform {req.Platform}...");
+                        await SendLog("=========================================");
+                        await SendLog("===STEP:INIT===");
+
+                        var unityOptions = new UnityBuildOptions(
+                            ProjectDir: dir,
+                            Platform: req.Platform,
+                            DevelopmentBuild: req.Configuration.Equals("Debug", StringComparison.OrdinalIgnoreCase)
+                        );
+                        await SendLog("===STEP:BUILD===");
+                        int uExitCode = unityBuild.ExecuteBuild(
+                            unityOptions,
+                            line => { _ = SendLog(line); },
+                            logFile: record.LogFilePath,
+                            onStart: proc => _runningBuilds[dir] = proc
+                        );
+
+                        bool uDone = _runningBuilds.TryRemove(dir, out _);
+                        if (uDone)
+                        {
+                            await SendLog("=========================================");
+                            await SendLog($"Unity build completed with exit code: {uExitCode}");
+                            await SendLog("=========================================");
+                            if (uExitCode == 0)
+                            {
+                                await SendLog("===STEP:DONE===");
+                                WriteStepToLog(record, "===STEP:DONE===");
+                            }
+                            else
+                            {
+                                await SendLog("===STEP:FAILED===");
+                                WriteStepToLog(record, "===STEP:FAILED===");
+                            }
+                            RecordBuildEnd(record, uExitCode == 0 ? "Success" : "Failed", uExitCode);
+                        }
+                        else
+                        {
+                            await SendLog("===STEP:FAILED===");
+                            WriteStepToLog(record, "===STEP:FAILED===");
+                            RecordBuildEnd(record, "Cancelled", -1, "Cancelled by user");
+                        }
+                        return;
+                    }
+
                     await SendLog("=========================================");
                     await SendLog($"Starting Build for platform {req.Platform}...");
                     await SendLog("=========================================");
@@ -992,7 +1200,7 @@ public static class WebStartup
         });
 
         // Run Endpoint — build + deploy num device específico
-        app.MapPost("/api/apps/run", (BuildService builder, VersionService versions, StateService state, RunRequest req) =>
+        app.MapPost("/api/apps/run", (BuildService builder, VersionService versions, UnityBuildService unityBuild, StateService state, RunRequest req) =>
         {
             var dir = PathUtils.NormalizeOrRepairPath(req.Dir, state);
             var record = RecordBuildStart(dir, req.Platform, req.Configuration, req.DeviceId, req.DeviceName, versions: versions);
@@ -1001,6 +1209,57 @@ public static class WebStartup
             {
                 try
                 {
+                    if (File.Exists(Path.Combine(dir, "ProjectSettings", "ProjectSettings.asset")))
+                    {
+                        await SendLog("=========================================");
+                        await SendLog($"Starting Unity {req.Platform} build & run...");
+                        await SendLog($"Device: {req.DeviceName} ({req.DeviceId})");
+                        await SendLog("=========================================");
+                        await SendLog("===STEP:INIT===");
+
+                        var unityOptions = new UnityBuildOptions(
+                            ProjectDir: dir,
+                            Platform: req.Platform,
+                            DevelopmentBuild: req.Configuration.Equals("Debug", StringComparison.OrdinalIgnoreCase),
+                            RunAfterBuild: true,
+                            DeviceId: req.DeviceId
+                        );
+
+                        await SendLog("===STEP:BUILD===");
+                        int uExitCode = unityBuild.ExecuteBuild(
+                            unityOptions,
+                            line => { _ = SendLog(line); },
+                            logFile: record.LogFilePath,
+                            onStart: proc => _runningBuilds[dir] = proc
+                        );
+
+                        bool uDone = _runningBuilds.TryRemove(dir, out _);
+                        if (uDone)
+                        {
+                            await SendLog("=========================================");
+                            await SendLog($"Unity build & run completed with exit code: {uExitCode}");
+                            await SendLog("=========================================");
+                            if (uExitCode == 0)
+                            {
+                                await SendLog("===STEP:DONE===");
+                                WriteStepToLog(record, "===STEP:DONE===");
+                            }
+                            else
+                            {
+                                await SendLog("===STEP:FAILED===");
+                                WriteStepToLog(record, "===STEP:FAILED===");
+                            }
+                            RecordBuildEnd(record, uExitCode == 0 ? "Success" : "Failed", uExitCode);
+                        }
+                        else
+                        {
+                            await SendLog("===STEP:FAILED===");
+                            WriteStepToLog(record, "===STEP:FAILED===");
+                            RecordBuildEnd(record, "Cancelled", -1, "Cancelled by user");
+                        }
+                        return;
+                    }
+
                     var st = state.Load();
                     var csproj = Directory.EnumerateFiles(dir, "*.csproj").FirstOrDefault();
                     if (csproj is null)
@@ -2038,3 +2297,21 @@ public record GitCheckoutRequest(string Dir, string Branch);
 public record GitCheckoutNewRequest(string Dir, string Branch);
 public record SyncRequest(string Dir);
 public record ArchiveRequest(string Dir, string Platform, string? CodesignKey);
+public record UnityOpenEditorRequest(string Dir, string? CustomEditorPath = null);
+public record UnityBuildApiRequest(
+    string Dir,
+    string Platform,
+    string? Publisher = null,
+    string? ProfileId = null,
+    bool Development = false,
+    bool Cheat = false,
+    bool IsMatrix = false,
+    string? CustomOutputPath = null,
+    string? Version = null,
+    string? BuildNumber = null,
+    string? KeystorePath = null,
+    string? KeystoreAlias = null,
+    bool RunAfterBuild = false,
+    string? DeviceId = null,
+    string? CustomEditorPath = null
+);

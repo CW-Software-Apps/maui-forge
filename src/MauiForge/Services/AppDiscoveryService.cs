@@ -2,8 +2,10 @@ using MauiForge.Models;
 
 namespace MauiForge.Services;
 
-public class AppDiscoveryService(VersionService versions, GitService git)
+public class AppDiscoveryService(VersionService versions, GitService git, UnityLocatorService? unityLocator = null)
 {
+    private readonly UnityLocatorService _unityLocator = unityLocator ?? new UnityLocatorService();
+
     public List<AppEntry> FindApps(string rootDir, int depth = 2)
     {
         return FindApps([rootDir], depth);
@@ -45,6 +47,7 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                         var statusU = git.FetchAndGetStatus(dir);
                         var iconU = GetAppIconBase64(dir);
                         var lastActivityU = MaxDate(GetLastWriteTimeUtc(projectFile), GetLastBuildOutputTime(dir));
+                        var unityInfo = GetUnityProjectInfo(dir, _unityLocator);
 
                         entries.Add(new AppEntry(
                             Name: name,
@@ -54,7 +57,43 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                             Git: statusU,
                             ProjectType: "Unity",
                             IconBase64: iconU,
-                            LastActivityAt: lastActivityU
+                            LastActivityAt: lastActivityU,
+                            UnityInfo: unityInfo
+                        ));
+                        continue;
+                    }
+
+                    if (projectFile.EndsWith("package.json", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Unity UPM Package
+                        dir = Path.GetDirectoryName(projectFile)!;
+                        if (entries.Any(e => SameDir(e.Dir, dir))) continue;
+
+                        var unityV = versions.ReadUnity(dir);
+                        if (unityV is null) continue;
+
+                        var name = Path.GetFileName(dir);
+                        var branchU = git.GetBranch(dir);
+                        var statusU = git.FetchAndGetStatus(dir);
+                        var iconU = GetAppIconBase64(dir);
+                        var lastActivityU = MaxDate(GetLastWriteTimeUtc(projectFile), GetLastBuildOutputTime(dir));
+                        var pkgInfo = new UnityProjectInfo(
+                            EditorVersion: null,
+                            HasBuildPipeline: false,
+                            IsPackage: true,
+                            PackageName: name
+                        );
+
+                        entries.Add(new AppEntry(
+                            Name: name,
+                            Dir: dir,
+                            Branch: branchU,
+                            Versions: new AppVersions(null, null, unityV),
+                            Git: statusU,
+                            ProjectType: "Unity",
+                            IconBase64: iconU,
+                            LastActivityAt: lastActivityU,
+                            UnityInfo: pkgInfo
                         ));
                         continue;
                     }
@@ -150,6 +189,7 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                 var statusU = git.FetchAndGetStatus(dir);
                 var iconU = GetAppIconBase64(dir);
                 var lastActivityU = MaxDate(GetLastWriteTimeUtc(unitySettings), GetLastBuildOutputTime(dir));
+                var unityInfo = GetUnityProjectInfo(dir, _unityLocator);
 
                 return new AppEntry(
                     Name: name,
@@ -159,8 +199,41 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                     Git: statusU,
                     ProjectType: "Unity",
                     IconBase64: iconU,
-                    LastActivityAt: lastActivityU
+                    LastActivityAt: lastActivityU,
+                    UnityInfo: unityInfo
                 );
+            }
+
+            var packageJson = Path.Combine(dir, "package.json");
+            if (File.Exists(packageJson))
+            {
+                var name = Path.GetFileName(dir);
+                var unityV = versions.ReadUnity(dir);
+                if (unityV != null)
+                {
+                    var branchU = git.GetBranch(dir);
+                    var statusU = git.FetchAndGetStatus(dir);
+                    var iconU = GetAppIconBase64(dir);
+                    var lastActivityU = MaxDate(GetLastWriteTimeUtc(packageJson), GetLastBuildOutputTime(dir));
+                    var pkgInfo = new UnityProjectInfo(
+                        EditorVersion: null,
+                        HasBuildPipeline: false,
+                        IsPackage: true,
+                        PackageName: name
+                    );
+
+                    return new AppEntry(
+                        Name: name,
+                        Dir: dir,
+                        Branch: branchU,
+                        Versions: new AppVersions(null, null, unityV),
+                        Git: statusU,
+                        ProjectType: "Unity",
+                        IconBase64: iconU,
+                        LastActivityAt: lastActivityU,
+                        UnityInfo: pkgInfo
+                    );
+                }
             }
 
             var csproj = Directory.EnumerateFiles(dir, "*.csproj").FirstOrDefault();
@@ -375,6 +448,19 @@ public class AppDiscoveryService(VersionService versions, GitService git)
                 if (File.Exists(favIco)) return ToBase64(favIco, "image/x-icon");
             }
 
+            // 8.5. Unity Project Icons (Assets/_Game/**/Icon*.png, Assets/**/Icon*.png, Assets/**/icon*.png)
+            var assetsDir = Path.Combine(dir, "Assets");
+            if (Directory.Exists(assetsDir))
+            {
+                var unityIcon = Directory.EnumerateFiles(assetsDir, "*icon*.png", SearchOption.AllDirectories)
+                    .Concat(Directory.EnumerateFiles(assetsDir, "*Icon*.png", SearchOption.AllDirectories))
+                    .Where(f => !f.Contains("Gizmos") && !f.Contains("Editor") && !f.Contains("Package") && !f.Contains("TextMesh Pro"))
+                    .OrderBy(f => f.Contains("_Game") ? 0 : 1)
+                    .ThenByDescending(f => { try { return new FileInfo(f).Length; } catch { return 0L; } })
+                    .FirstOrDefault();
+                if (unityIcon != null) return ToBase64(unityIcon, "image/png");
+            }
+
             // 9. Generic logo/icon in root directory
             var genericIcon = Directory.EnumerateFiles(dir, "*icon*.png")
                 .Concat(Directory.EnumerateFiles(dir, "*logo*.png"))
@@ -452,7 +538,7 @@ public class AppDiscoveryService(VersionService versions, GitService git)
     }
 
     private static readonly HashSet<string> SkipDirs = new(StringComparer.OrdinalIgnoreCase)
-        { "bin", "obj", ".git", ".vs", "node_modules", ".idea", "packages" };
+        { "bin", "obj", ".git", ".vs", "node_modules", ".idea", "packages", "Library", "Temp", "Logs", "Builds" };
 
     private static IEnumerable<string> FindCsprojs(string root, int depth)
     {
@@ -488,6 +574,24 @@ public class AppDiscoveryService(VersionService versions, GitService git)
         if (hasUnity)
         {
             yield return unitySettings;
+            yield break; // Não desce nos subdiretórios internos de um projeto Unity (Library, Assets, etc.)
+        }
+
+        bool hasPackage = false;
+        var pkgPath = Path.Combine(root, "package.json");
+        try
+        {
+            if (File.Exists(pkgPath))
+            {
+                var pkgText = File.ReadAllText(pkgPath);
+                hasPackage = pkgText.Contains("\"name\"") && (pkgText.Contains("\"com.") || pkgText.Contains("\"version\""));
+            }
+        }
+        catch { }
+
+        if (hasPackage)
+        {
+            yield return pkgPath;
         }
 
         if (depth == 0) yield break;
@@ -523,6 +627,153 @@ public class AppDiscoveryService(VersionService versions, GitService git)
             foreach (var f in childCsprojs)
                 yield return f;
         }
+    }
+
+    private static UnityProjectInfo GetUnityProjectInfo(string dir, UnityLocatorService? locator)
+    {
+        var editorVersion = locator?.GetProjectEditorVersion(dir);
+        var editorPath = locator?.ResolveEditorForProject(dir)?.ExecutablePath;
+        var hasBuildPipeline = false;
+        string? pipelineVersion = null;
+
+        var manifestPath = Path.Combine(dir, "Packages", "manifest.json");
+        if (File.Exists(manifestPath))
+        {
+            try
+            {
+                var text = File.ReadAllText(manifestPath);
+                if (text.Contains("com.wagenheimer.buildpipeline"))
+                {
+                    hasBuildPipeline = true;
+                    var m = System.Text.RegularExpressions.Regex.Match(text, @"""com\.wagenheimer\.buildpipeline""\s*:\s*""([^""]+)""");
+                    if (m.Success) pipelineVersion = m.Groups[1].Value;
+                }
+            }
+            catch { }
+        }
+
+        var profiles = new List<UnityPublisherProfileInfo>();
+        var assetsDir = Path.Combine(dir, "Assets");
+        if (Directory.Exists(assetsDir))
+        {
+            try
+            {
+                var pbcFile = Directory.EnumerateFiles(assetsDir, "ProjectBuildConfig.asset", SearchOption.AllDirectories).FirstOrDefault();
+                if (pbcFile != null && File.Exists(pbcFile))
+                {
+                    profiles = ParsePublisherProfiles(pbcFile);
+                }
+            }
+            catch { }
+        }
+
+        return new UnityProjectInfo(
+            EditorVersion: editorVersion,
+            EditorPath: editorPath,
+            HasBuildPipeline: hasBuildPipeline,
+            BuildPipelineVersion: pipelineVersion,
+            Profiles: profiles.Count > 0 ? profiles : null
+        );
+    }
+
+    private static List<UnityPublisherProfileInfo> ParsePublisherProfiles(string pbcPath)
+    {
+        var list = new List<UnityPublisherProfileInfo>();
+        try
+        {
+            var lines = File.ReadAllLines(pbcPath);
+            bool inPublishers = false;
+            string? curId = null;
+            string? curName = null;
+            string? curPlat = null;
+            string? curPub = null;
+            bool curDemo = false;
+            bool curFull = true;
+            string? curSubfolder = null;
+
+            void FlushCurrent()
+            {
+                if (!string.IsNullOrEmpty(curId))
+                {
+                    list.Add(new UnityPublisherProfileInfo(
+                        Id: curId,
+                        DisplayName: curName ?? curId,
+                        Platform: curPlat ?? "Windows64",
+                        Publisher: curPub,
+                        IsDemo: curDemo,
+                        IsFullGame: curFull,
+                        OutputSubfolder: curSubfolder
+                    ));
+                }
+                curId = null; curName = null; curPlat = null; curPub = null; curDemo = false; curFull = true; curSubfolder = null;
+            }
+
+            foreach (var rawLine in lines)
+            {
+                var line = rawLine.TrimEnd();
+                if (line.TrimStart().StartsWith("publishers:"))
+                {
+                    inPublishers = true;
+                    continue;
+                }
+
+                if (!inPublishers) continue;
+
+                if (!string.IsNullOrWhiteSpace(line) && !line.StartsWith(" ") && !line.StartsWith("\t") && !line.StartsWith("-"))
+                {
+                    FlushCurrent();
+                    break;
+                }
+
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("- id:") || trimmed.StartsWith("- id :"))
+                {
+                    FlushCurrent();
+                    curId = trimmed.Substring(trimmed.IndexOf(':') + 1).Trim().Trim('\'', '"');
+                }
+                else if (trimmed.StartsWith("id:") && curId == null)
+                {
+                    curId = trimmed.Substring(3).Trim().Trim('\'', '"');
+                }
+                else if (trimmed.StartsWith("displayName:"))
+                {
+                    curName = trimmed.Substring(12).Trim().Trim('\'', '"');
+                }
+                else if (trimmed.StartsWith("platform:"))
+                {
+                    var pVal = trimmed.Substring(9).Trim();
+                    curPlat = pVal switch
+                    {
+                        "0" => "Windows64",
+                        "1" => "macOS",
+                        "2" => "iOS",
+                        "3" => "Android",
+                        "4" => "WebGL",
+                        "5" => "Linux64",
+                        _ => pVal
+                    };
+                }
+                else if (trimmed.StartsWith("publisher:"))
+                {
+                    curPub = trimmed.Substring(10).Trim();
+                }
+                else if (trimmed.StartsWith("isDemo:"))
+                {
+                    curDemo = trimmed.EndsWith("1") || trimmed.EndsWith("true", StringComparison.OrdinalIgnoreCase);
+                }
+                else if (trimmed.StartsWith("isFullGame:"))
+                {
+                    curFull = trimmed.EndsWith("1") || trimmed.EndsWith("true", StringComparison.OrdinalIgnoreCase);
+                }
+                else if (trimmed.StartsWith("outputSubfolder:"))
+                {
+                    curSubfolder = trimmed.Substring(16).Trim().Trim('\'', '"');
+                }
+            }
+            FlushCurrent();
+        }
+        catch { }
+        return list;
     }
 }
 

@@ -9,5 +9,6 @@ public record AppEntry(
     string ProjectType = "MAUI",
     string? IconBase64 = null,
     DateTimeOffset? LastActivityAt = null,
-    bool IsFavorite = false
+    bool IsFavorite = false,
+    UnityProjectInfo? UnityInfo = null
 );

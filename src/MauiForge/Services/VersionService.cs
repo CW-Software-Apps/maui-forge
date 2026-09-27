@@ -298,21 +298,77 @@ public partial class VersionService
         catch { }
     }
 
+    // ── Unity & UPM Support ──────────────────────────────────────────────────
+
+    public record UnityVersionDetailed(
+        string Version,
+        string AndroidCode,
+        string? IosBuildNumber = null,
+        string? StandaloneBuildNumber = null,
+        string? GameConfigPath = null
+    );
+
     public PlatformVersion? ReadUnity(string dir)
+    {
+        var detailed = ReadUnityDetailed(dir);
+        if (detailed != null)
+        {
+            var build = !string.IsNullOrEmpty(detailed.AndroidCode) ? detailed.AndroidCode : (detailed.StandaloneBuildNumber ?? detailed.IosBuildNumber ?? "1");
+            return new(detailed.Version, build);
+        }
+
+        // Fallback for standalone UPM package
+        var pkg = ReadPackageJson(dir);
+        if (pkg != null) return pkg;
+
+        return null;
+    }
+
+    public UnityVersionDetailed? ReadUnityDetailed(string dir)
     {
         var assetPath = Path.Combine(dir, "ProjectSettings", "ProjectSettings.asset");
         if (!File.Exists(assetPath)) return null;
+
         try
         {
             var content = File.ReadAllText(assetPath, Encoding.UTF8);
-            var versionMatch = Regex.Match(content, @"bundleVersion:\s*(.+)");
-            var buildMatch = Regex.Match(content, @"AndroidBundleVersionCode:\s*(\d+)");
-            if (!buildMatch.Success) buildMatch = Regex.Match(content, @"buildNumber:\s*(.+)");
+            var versionMatch = Regex.Match(content, @"bundleVersion:\s*([^\r\n]+)");
+            var androidMatch = Regex.Match(content, @"AndroidBundleVersionCode:\s*(\d+)");
+
+            // BuildNumber block
+            string? standaloneBuild = null;
+            string? iosBuild = null;
+
+            var bnBlockMatch = Regex.Match(content, @"buildNumber:\s*(\d+)");
+            if (bnBlockMatch.Success)
+            {
+                standaloneBuild = bnBlockMatch.Groups[1].Value.Trim();
+                iosBuild = standaloneBuild;
+            }
+            else
+            {
+                var standaloneMatch = Regex.Match(content, @"buildNumber:[\s\S]*?Standalone:\s*([^\r\n]+)");
+                if (standaloneMatch.Success) standaloneBuild = standaloneMatch.Groups[1].Value.Trim();
+
+                var iosMatch = Regex.Match(content, @"buildNumber:[\s\S]*?iPhone:\s*([^\r\n]+)");
+                if (iosMatch.Success) iosBuild = iosMatch.Groups[1].Value.Trim();
+            }
 
             var version = versionMatch.Success ? versionMatch.Groups[1].Value.Trim() : null;
-            var build = buildMatch.Success ? buildMatch.Groups[1].Value.Trim() : "1";
+            var androidCode = androidMatch.Success ? androidMatch.Groups[1].Value.Trim() : "1";
 
-            if (version is not null) return new(version, build);
+            var gameConfigPath = FindGameConfig(dir);
+
+            if (version is not null)
+            {
+                return new UnityVersionDetailed(
+                    Version: version,
+                    AndroidCode: androidCode,
+                    IosBuildNumber: iosBuild ?? androidCode,
+                    StandaloneBuildNumber: standaloneBuild ?? androidCode,
+                    GameConfigPath: gameConfigPath
+                );
+            }
         }
         catch { }
         return null;
@@ -320,23 +376,193 @@ public partial class VersionService
 
     public void WriteUnity(string dir, string version, string build)
     {
+        WriteUnityDetailed(dir, version, build, build, build, DateTime.Now);
+    }
+
+    public void WriteUnityDetailed(
+        string dir,
+        string version,
+        string androidCode,
+        string? iosBuildNumber = null,
+        string? standaloneBuildNumber = null,
+        DateTime? versionDate = null)
+    {
+        var effectiveIos = iosBuildNumber ?? androidCode;
+        var effectiveStandalone = standaloneBuildNumber ?? androidCode;
+        var dt = versionDate ?? DateTime.Now;
+
+        // 1. Update ProjectSettings/ProjectSettings.asset
         var assetPath = Path.Combine(dir, "ProjectSettings", "ProjectSettings.asset");
-        if (!File.Exists(assetPath)) return;
+        if (File.Exists(assetPath))
+        {
+            try
+            {
+                var content = File.ReadAllText(assetPath, Encoding.UTF8);
+
+                // Update bundleVersion
+                content = Regex.Replace(content, @"bundleVersion:\s*[^\r\n]+", $"bundleVersion: {version}");
+
+                // Update AndroidBundleVersionCode
+                if (content.Contains("AndroidBundleVersionCode:"))
+                {
+                    content = Regex.Replace(content, @"AndroidBundleVersionCode:\s*\d+", $"AndroidBundleVersionCode: {androidCode}");
+                }
+
+                // Update buildNumber: single scalar or dictionary
+                if (Regex.IsMatch(content, @"buildNumber:\s*\d+"))
+                {
+                    content = Regex.Replace(content, @"buildNumber:\s*\d+", $"buildNumber: {effectiveStandalone}");
+                }
+                else
+                {
+                    // Standalone
+                    if (Regex.IsMatch(content, @"Standalone:\s*[^\r\n]+"))
+                    {
+                        content = Regex.Replace(content, @"(buildNumber:[\s\S]*?Standalone:\s*)[^\r\n]+", $"$1{effectiveStandalone}");
+                    }
+                    // iPhone
+                    if (Regex.IsMatch(content, @"iPhone:\s*[^\r\n]+"))
+                    {
+                        content = Regex.Replace(content, @"(buildNumber:[\s\S]*?iPhone:\s*)[^\r\n]+", $"$1{effectiveIos}");
+                    }
+                }
+
+                File.WriteAllText(assetPath, content, Encoding.UTF8);
+            }
+            catch { }
+        }
+
+        // 2. Update GameConfig asset if present
+        var gameConfig = FindGameConfig(dir);
+        if (gameConfig != null && File.Exists(gameConfig))
+        {
+            try
+            {
+                var gc = File.ReadAllText(gameConfig, Encoding.UTF8);
+
+                // Parse version parts for Major, Minor, Build
+                var parts = version.Split('.');
+                var major = parts.Length > 0 && int.TryParse(parts[0], out var ma) ? ma : 1;
+                var minor = parts.Length > 1 && int.TryParse(parts[1], out var mi) ? mi : 0;
+                var buildNum = parts.Length > 2 && int.TryParse(parts[2], out var bu) ? bu : 0;
+
+                // Update GameVersion
+                gc = Regex.Replace(gc, @"(GameVersion:\s*\r?\n\s*Major:\s*)\d+", $"$1{major}");
+                gc = Regex.Replace(gc, @"(GameVersion:[\s\S]*?Minor:\s*)\d+", $"$1{minor}");
+                gc = Regex.Replace(gc, @"(GameVersion:[\s\S]*?Build:\s*)\d+", $"$1{buildNum}");
+
+                // Update VersionDate
+                gc = Regex.Replace(gc, @"(VersionDate:\s*\r?\n\s*Day:\s*)\d+", $"$1{dt.Day}");
+                gc = Regex.Replace(gc, @"(VersionDate:[\s\S]*?Month:\s*)\d+", $"$1{dt.Month}");
+                gc = Regex.Replace(gc, @"(VersionDate:[\s\S]*?Year:\s*)\d+", $"$1{dt.Year}");
+
+                // Update AndroidBundleVersionCode & iOSBuildNumber
+                if (int.TryParse(androidCode, out var aCodeInt))
+                {
+                    gc = Regex.Replace(gc, @"AndroidBundleVersionCode:\s*\d+", $"AndroidBundleVersionCode: {aCodeInt}");
+                }
+                if (int.TryParse(effectiveIos, out var iosCodeInt))
+                {
+                    gc = Regex.Replace(gc, @"iOSBuildNumber:\s*\d+", $"iOSBuildNumber: {iosCodeInt}");
+                }
+
+                File.WriteAllText(gameConfig, gc, Encoding.UTF8);
+            }
+            catch { }
+        }
+
+        // 3. Update package.json if present
+        WritePackageJson(dir, version);
+    }
+
+    public PlatformVersion? ReadPackageJson(string dir)
+    {
+        var pkgPath = Path.Combine(dir, "package.json");
+        if (!File.Exists(pkgPath)) return null;
         try
         {
-            var content = File.ReadAllText(assetPath, Encoding.UTF8);
-            content = Regex.Replace(content, @"bundleVersion:\s*.+", $"bundleVersion: {version}");
-            
-            if (content.Contains("AndroidBundleVersionCode:"))
+            var content = File.ReadAllText(pkgPath, Encoding.UTF8);
+            var m = Regex.Match(content, @"""version""\s*:\s*""([^""]+)""");
+            if (m.Success)
             {
-                content = Regex.Replace(content, @"AndroidBundleVersionCode:\s*\d+", $"AndroidBundleVersionCode: {build}");
+                return new(m.Groups[1].Value.Trim(), "1");
             }
-            if (content.Contains("buildNumber:"))
-            {
-                content = Regex.Replace(content, @"buildNumber:\s*.+", $"buildNumber: {build}");
-            }
-            File.WriteAllText(assetPath, content, Encoding.UTF8);
         }
         catch { }
+        return null;
+    }
+
+    public void WritePackageJson(string dir, string version)
+    {
+        var pkgPath = Path.Combine(dir, "package.json");
+        if (!File.Exists(pkgPath)) return;
+        try
+        {
+            var content = File.ReadAllText(pkgPath, Encoding.UTF8);
+            content = Regex.Replace(content, @"""version""\s*:\s*""[^""]+""", $"\"version\": \"{version}\"");
+            File.WriteAllText(pkgPath, content, Encoding.UTF8);
+        }
+        catch { }
+    }
+
+    public static string? FindGameConfig(string dir)
+    {
+        try
+        {
+            var assetsDir = Path.Combine(dir, "Assets");
+            if (!Directory.Exists(assetsDir)) return null;
+
+            // Strategy A: Follow ProjectBuildConfig gameConfig GUID if found
+            var pbc = Directory.EnumerateFiles(assetsDir, "ProjectBuildConfig.asset", SearchOption.AllDirectories).FirstOrDefault();
+            if (pbc != null && File.Exists(pbc))
+            {
+                var pbcContent = File.ReadAllText(pbc, Encoding.UTF8);
+                var guidMatch = Regex.Match(pbcContent, @"gameConfig:\s*\{fileID:[^,}]+,\s*guid:\s*([a-f0-9]{32})");
+                if (guidMatch.Success)
+                {
+                    var targetGuid = guidMatch.Groups[1].Value;
+                    var meta = Directory.EnumerateFiles(assetsDir, "*.meta", SearchOption.AllDirectories)
+                        .FirstOrDefault(f =>
+                        {
+                            try
+                            {
+                                return File.ReadAllText(f).Contains($"guid: {targetGuid}");
+                            }
+                            catch { return false; }
+                        });
+                    if (meta != null)
+                    {
+                        var asset = meta.Substring(0, meta.Length - 5);
+                        if (File.Exists(asset)) return asset;
+                    }
+                }
+            }
+
+            // Strategy B: Search for any .asset file with "GameVersion:" under Assets/_Game/ or Assets/
+            var searchPaths = new[]
+            {
+                Path.Combine(assetsDir, "_Game"),
+                Path.Combine(assetsDir, "Game"),
+                assetsDir
+            };
+
+            foreach (var sp in searchPaths)
+            {
+                if (!Directory.Exists(sp)) continue;
+                var match = Directory.EnumerateFiles(sp, "*.asset", SearchOption.AllDirectories)
+                    .FirstOrDefault(f =>
+                    {
+                        try
+                        {
+                            var text = File.ReadAllText(f);
+                            return text.Contains("GameVersion:") && text.Contains("Major:");
+                        }
+                        catch { return false; }
+                    });
+                if (match != null) return match;
+            }
+        }
+        catch { }
+        return null;
     }
 }

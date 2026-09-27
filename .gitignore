@@ -7,3 +7,4 @@ dist/
 *.suo
 .DS_Store
 .claude/settings.local.json
+data/

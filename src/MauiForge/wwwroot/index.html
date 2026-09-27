@@ -702,6 +702,78 @@
         </div>
     </div>
 
+    <!-- Unity Build Modal -->
+    <div id="unityBuildModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="unityBuildModalTitle">
+        <div class="modal-panel modal-panel--md">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="badge badge-purple">Unity</span>
+                    <h3 id="unityBuildModalTitle" class="font-bold text-white">Unity Build & Export</h3>
+                </div>
+                <button onclick="closeUnityBuildModal()" class="text-slate-500 hover:text-white transition text-sm" aria-label="Close build modal" title="Close">✕</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <input type="hidden" id="unityModalAppDir">
+                
+                <div class="bg-[var(--bg)] p-3 rounded-lg border border-slate-800 flex items-center justify-between">
+                    <div class="min-w-0 pr-2">
+                        <div id="unityModalAppName" class="font-bold text-sm text-white truncate">App Name</div>
+                        <div id="unityModalAppPath" class="text-[11px] font-mono text-slate-400 truncate max-w-[280px]">K:\Games\...</div>
+                    </div>
+                    <div class="text-right flex-shrink-0">
+                        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold block">Unity Editor</span>
+                        <span id="unityModalEditorVersion" class="badge badge-slate text-[11px] font-mono">6000.0.x</span>
+                    </div>
+                </div>
+
+                <div id="unityProfileGroup" class="space-y-1.5 hidden">
+                    <label for="unityProfileSelect" class="block text-xs font-medium text-slate-400 uppercase tracking-wider">Publisher Profile (BuildPipeline)</label>
+                    <select id="unityProfileSelect" class="select w-full text-xs"></select>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label for="unityPlatformSelect" class="block text-xs font-medium text-slate-400 uppercase tracking-wider">Target Platform</label>
+                    <select id="unityPlatformSelect" class="select w-full text-xs">
+                        <option value="StandaloneWindows64">Windows 64-bit (StandaloneWindows64)</option>
+                        <option value="Android">Android (.apk / .aab)</option>
+                        <option value="StandaloneOSX">macOS (StandaloneOSX)</option>
+                        <option value="iOS">iOS (Xcode project)</option>
+                        <option value="WebGL">WebGL (Web Browser)</option>
+                    </select>
+                </div>
+
+                <div class="space-y-2 pt-2 border-t border-slate-800/80">
+                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" id="unityDevBuild" class="rounded bg-slate-800 border-slate-700 text-blue-500 focus:ring-0">
+                        <span class="text-xs text-slate-300">Development Build (Profiler & Debug symbols)</span>
+                    </label>
+
+                    <div id="unityCheatModeWrap" class="hidden">
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <input type="checkbox" id="unityCheatMode" class="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-0">
+                            <span class="text-xs text-slate-300">Enable Cheat Mode (BuildPipeline flag)</span>
+                        </label>
+                    </div>
+
+                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" id="unityRunAfterBuild" class="rounded bg-slate-800 border-slate-700 text-emerald-500 focus:ring-0">
+                        <span class="text-xs text-slate-300">Run / Deploy after build (Launch .exe or ADB install)</span>
+                    </label>
+                </div>
+
+                <div class="flex gap-3 pt-3">
+                    <button onclick="closeUnityBuildModal()" class="btn-ghost flex-1 py-2.5 text-sm font-semibold">
+                        Cancel
+                    </button>
+                    <button onclick="submitUnityBuild()" class="btn-primary flex-1 py-2.5 text-sm font-semibold gap-1.5">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        Start Build
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Processing overlay (blocks interaction during bump/push) -->
     <div id="processingOverlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-label="Processing">
         <div class="modal-panel modal-panel--sm">
@@ -1564,12 +1636,14 @@
                 var cm = document.getElementById("confirmModal");
                 var brm = document.getElementById("buildRunModal");
                 var bhm = document.getElementById("buildHistoryModal");
+                var ubm = document.getElementById("unityBuildModal");
                 if (vm && !vm.classList.contains("hidden")) closeVersionModal();
                 if (um && !um.classList.contains("hidden")) closeUpdateModal();
                 if (bm && !bm.classList.contains("hidden")) closeBumpConfirm();
                 if (cm && !cm.classList.contains("hidden")) closeConfirmModal();
                 if (brm && !brm.classList.contains("hidden")) closeBuildRunModal();
                 if (bhm && !bhm.classList.contains("hidden")) closeBuildHistory();
+                if (ubm && !ubm.classList.contains("hidden")) closeUnityBuildModal();
                 closeRowMenu();
 
             }
@@ -1663,6 +1737,13 @@
         function openRowMenu(e, dir, ver, build) {
             e.stopPropagation();
             const encDir = encodeURIComponent(dir);
+            const norm = (dir || '').replace(/\\/g, '/').toLowerCase();
+            const targetApp = (appsList || []).find(a => (a.dir || '').replace(/\\/g, '/').toLowerCase() === norm);
+            const isUnity = targetApp && targetApp.projectType === 'Unity';
+            const unityBtn = (isUnity && (!targetApp.unityInfo || !targetApp.unityInfo.isUpmPackage))
+                ? `<button onclick="openUnityEditor(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project in Unity Editor">${ICON_IDE}Unity Editor</button>`
+                : '';
+
             showGlobalMenu(e.currentTarget, "row:" + dir, `
                 <button onclick="openVersionUpdate(decodeURIComponent('${encDir}'), '${ver}', '${build}'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-t-lg transition flex items-center gap-2" title="Manually set version and build number">${ICON_HASH}Update Version</button>
                 <button onclick="quickBumpBuildOnly(decodeURIComponent('${encDir}'), '${ver}', '${build}'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Increment build number only, then push to remote">${ICON_HASH}Build # +1</button>
@@ -1670,6 +1751,7 @@
                 <button onclick="openBranchModal(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Switch to a different git branch">${ICON_BRANCH}Switch Branch</button>
                 <button onclick="openFolder(decodeURIComponent('${encDir}')); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project folder in File Explorer">${ICON_FOLDER}Open Folder</button>
                 <div class="border-t border-slate-800 my-1"></div>
+                ${unityBtn}
                 <button onclick="openIDE(decodeURIComponent('${encDir}'), 'vs'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project in Visual Studio">${ICON_IDE}Visual Studio</button>
                 <button onclick="openIDE(decodeURIComponent('${encDir}'), 'vscode'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-2" title="Open project in VS Code">${ICON_IDE}VS Code</button>
                 <button onclick="openIDE(decodeURIComponent('${encDir}'), 'rider'); closeRowMenu();" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 hover:text-white rounded-b-lg transition flex items-center gap-2" title="Open project in Rider">${ICON_IDE}Rider</button>
@@ -3464,6 +3546,23 @@ function toggleTheme() {
                     { icon: ICON_IOS, label: "iOS", value: iosVer, title: "iOS version, read from Info.plist" },
                 ];
             }
+            if (app.projectType === "Unity") {
+                if (app.unityInfo && app.unityInfo.isUpmPackage) {
+                    const pkgVer = app.versions.csproj ? app.versions.csproj.version : "N/A";
+                    return [
+                        { icon: ICON_PROJECT, label: "Package", value: pkgVer, title: "UPM package.json version" }
+                    ];
+                }
+                const bundleVer = app.versions.csproj ? app.versions.csproj.version : "N/A";
+                const buildCode = app.versions.csproj ? (app.versions.csproj.build || "0") : "0";
+                const androidCode = app.versions.android ? (app.versions.android.build || "0") : "0";
+                const editorVer = app.unityInfo?.editorVersion ? app.unityInfo.editorVersion : "Unity";
+                return [
+                    { icon: ICON_PROJECT, label: "Version", value: bundleVer, title: `Bundle Version (Editor: ${editorVer})` },
+                    { icon: ICON_HASH, label: "Build #", value: buildCode, title: "Build Number (GameConfig / Editor)" },
+                    { icon: ICON_ANDROID, label: "Code", value: androidCode, title: "Android BundleVersionCode" },
+                ];
+            }
             return [
                 { icon: ICON_PROJECT, label: "Project", value: csprojVer, title: "Project file (.csproj) version — source of truth for Bump & Push" },
             ];
@@ -3539,6 +3638,15 @@ function toggleTheme() {
                 buildButtons = `<button onclick="buildApp('${dir}', 'Windows')" class="btn-ghost ${sizeClass} gap-1.5" title="Compile Windows (Debug)">${ICON_BUILD}Compile</button>`;
             } else if (app.projectType === 'Blazor') {
                 buildButtons = `<button onclick="buildApp('${dir}', 'Web')" class="btn-ghost ${sizeClass} gap-1.5" title="Compile Web (Debug)">${ICON_BUILD}Compile</button>`;
+            } else if (app.projectType === 'Unity') {
+                if (app.unityInfo && app.unityInfo.isUpmPackage) {
+                    buildButtons = `<button onclick="openFolder('${dir}')" class="btn-ghost ${sizeClass} gap-1.5" title="Open package folder">${ICON_FOLDER}Open Folder</button>`;
+                } else {
+                    buildButtons = `
+                        <button onclick="openUnityBuildModal('${dir}')" class="btn-ghost ${sizeClass} gap-1.5" title="Build player or execute Wagenheimer BuildPipeline">${ICON_BUILD}Build</button>
+                        <button onclick="openUnityEditor('${dir}')" class="btn-ghost ${sizeClass} gap-1.5" title="Open project in Unity Editor">${ICON_IDE}Editor</button>
+                    `;
+                }
             } else {
                 buildButtons = `<button onclick="openFolder('${dir}')" class="btn-ghost ${sizeClass} gap-1.5" title="Open project folder in File Explorer">${ICON_FOLDER}Open Folder</button>`;
             }
@@ -3587,10 +3695,24 @@ function toggleTheme() {
                 return;
             }
 
-            const getTechBadge = (type) => {
+            const getTechBadge = (type, app) => {
                 if (type === "MAUI") return `<span class="badge badge-indigo" title="Technology: .NET MAUI">MAUI</span>`;
                 if (type === "Blazor") return `<span class="badge badge-amber" title="Technology: Blazor">Blazor</span>`;
-                if (type === "Unity") return `<span class="badge badge-slate" title="Technology: Unity">Unity</span>`;
+                if (type === "Unity") {
+                    let label = "Unity";
+                    if (app && app.unityInfo) {
+                        if (app.unityInfo.isUpmPackage) {
+                            label = "UPM";
+                        } else if (app.unityInfo.editorVersion) {
+                            const m = app.unityInfo.editorVersion.match(/^(\d+\.\d+)/);
+                            label = m ? `Unity ${m[1]}` : `Unity`;
+                        }
+                    }
+                    const bpBadge = (app && app.unityInfo && app.unityInfo.hasBuildPipeline)
+                        ? `<span class="badge badge-purple" title="Integrated with Wagenheimer BuildPipeline">Pipeline</span>`
+                        : "";
+                    return `<span class="badge badge-slate" title="Technology: Unity Engine">${label}</span>${bpBadge}`;
+                }
                 if (type === "WPF") return `<span class="badge badge-blue" title="Technology: WPF">WPF</span>`;
                 return `<span class="badge badge-slate" title="Technology: Class Library / Other">ClassLib</span>`;
             };
@@ -3710,7 +3832,7 @@ function toggleTheme() {
                                             <div class="flex items-center gap-2 flex-wrap">
                                                 ${favoriteStarHtml}
                                                 <h3 class="font-bold text-[var(--ink)] text-base truncate">${app.name}</h3>
-                                                ${getTechBadge(app.projectType)}
+                                                ${getTechBadge(app.projectType, app)}
                                                 <button onclick="refreshSingleApp('${app.dir.replace(/\\/g, '\\\\')}', 'ic-${idx}')" class="text-[var(--ink-muted)] hover:text-[var(--ink)] transition text-xs" aria-label="Refresh ${app.name}" title="Refresh">
                                                     <span id="ic-${idx}" class="inline-block">&#x21bb;</span>
                                                 </button>
@@ -3815,7 +3937,7 @@ function toggleTheme() {
                                         <div class="flex items-center gap-2 flex-wrap">
                                             ${favoriteStarRowHtml}
                                             <span class="font-bold text-white">${app.name}</span>
-                                            ${getTechBadge(app.projectType)}
+                                            ${getTechBadge(app.projectType, app)}
                                             <button onclick="refreshSingleApp('${app.dir.replace(/\\/g, '\\\\')}', 'il-${idx}')" class="text-slate-600 hover:text-slate-300 transition" aria-label="Refresh ${app.name}" title="Rescan this app's versions and git status">
                                                 <span id="il-${idx}" class="inline-block">&#x21bb;</span>
                                             </button>
@@ -4244,6 +4366,146 @@ function toggleTheme() {
 
         function closeBuildRunModal() {
             document.getElementById("buildRunModal").classList.add("hidden");
+        }
+
+        function openUnityBuildModal(dir) {
+            const norm = (dir || '').replace(/\\/g, '/').toLowerCase();
+            const app = (appsList || []).find(a => (a.dir || '').replace(/\\/g, '/').toLowerCase() === norm);
+            if (!app) return;
+
+            document.getElementById("unityModalAppDir").value = dir;
+            document.getElementById("unityModalAppName").textContent = app.name;
+            document.getElementById("unityModalAppPath").textContent = dir;
+
+            const editorVer = app.unityInfo?.editorVersion || "Not found";
+            document.getElementById("unityModalEditorVersion").textContent = editorVer;
+
+            // Profiles dropdown
+            const profileWrap = document.getElementById("unityProfileGroup");
+            const profileSelect = document.getElementById("unityProfileSelect");
+            profileSelect.innerHTML = "";
+
+            const hasPipeline = !!(app.unityInfo && app.unityInfo.hasBuildPipeline);
+            const profiles = (app.unityInfo && app.unityInfo.profiles) || [];
+
+            if (hasPipeline && profiles.length > 0) {
+                profileWrap.classList.remove("hidden");
+                profiles.forEach(p => {
+                    const opt = document.createElement("option");
+                    opt.value = p.name;
+                    opt.textContent = `${p.displayName || p.name} (${p.defaultPlatform || 'Default'})`;
+                    profileSelect.appendChild(opt);
+                });
+            } else {
+                profileWrap.classList.add("hidden");
+            }
+
+            // Cheat mode option
+            const cheatWrap = document.getElementById("unityCheatModeWrap");
+            if (hasPipeline) {
+                cheatWrap.classList.remove("hidden");
+            } else {
+                cheatWrap.classList.add("hidden");
+            }
+
+            // Target platform
+            const platformSelect = document.getElementById("unityPlatformSelect");
+            const targetPlatform = (app.unityInfo && app.unityInfo.targetPlatform) || "StandaloneWindows64";
+            if ([...platformSelect.options].some(o => o.value === targetPlatform)) {
+                platformSelect.value = targetPlatform;
+            } else {
+                platformSelect.value = "StandaloneWindows64";
+            }
+
+            document.getElementById("unityDevBuild").checked = false;
+            document.getElementById("unityCheatMode").checked = false;
+            document.getElementById("unityRunAfterBuild").checked = false;
+
+            document.getElementById("unityBuildModal").classList.remove("hidden");
+        }
+
+        function closeUnityBuildModal() {
+            document.getElementById("unityBuildModal").classList.add("hidden");
+        }
+
+        async function submitUnityBuild() {
+            const dir = document.getElementById("unityModalAppDir").value;
+            const platform = document.getElementById("unityPlatformSelect").value;
+            const profileGroup = document.getElementById("unityProfileGroup");
+            const profileSelect = document.getElementById("unityProfileSelect");
+            const profile = (!profileGroup.classList.contains("hidden") && profileSelect.value) ? profileSelect.value : null;
+            const developmentBuild = document.getElementById("unityDevBuild").checked;
+            const cheatMode = document.getElementById("unityCheatMode").checked;
+            const runAfterBuild = document.getElementById("unityRunAfterBuild").checked;
+
+            closeUnityBuildModal();
+
+            const norm = (dir || '').replace(/\\/g, '/').toLowerCase();
+            const app = (appsList || []).find(a => (a.dir || '').replace(/\\/g, '/').toLowerCase() === norm);
+            const appName = app ? app.name : "Unity App";
+            const ver = app?.versions?.csproj?.version || "1.0.0";
+            const buildNum = app?.versions?.csproj?.build || "1";
+
+            clearConsole();
+            openTerminal();
+            currentBuildDir = dir;
+            document.getElementById("cancelBuildBtn").classList.remove("hidden");
+
+            showBuildProgress("Unity Player", platform, developmentBuild ? "Development" : "Release", null, ver, buildNum, appName, dir);
+
+            try {
+                const res = await fetch(`${API_BASE}/api/unity/build`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        dir,
+                        platform,
+                        profile,
+                        developmentBuild,
+                        cheatMode,
+                        runAfterBuild
+                    })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.buildId) {
+                        activeBuildId = data.buildId;
+                        const buildIdEl = document.getElementById("bpBuildId");
+                        if (buildIdEl) buildIdEl.textContent = data.buildId;
+                    }
+                    if (!data.success) {
+                        showToast("Unity build failed: " + (data.error || "Unknown error"), "error");
+                    }
+                } else {
+                    const errText = await res.text();
+                    showToast("Failed to start Unity build: " + errText, "error");
+                }
+            } catch (err) {
+                console.error(err);
+                showToast("Error starting Unity build: " + err.message, "error");
+            }
+        }
+
+        async function openUnityEditor(dir) {
+            showProcessing("Opening Unity Editor...", "Launching project in Unity Hub / Editor");
+            try {
+                const res = await fetch(`${API_BASE}/api/unity/open-editor`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dir })
+                });
+                const data = await res.json();
+                hideProcessing();
+                if (data.success) {
+                    showToast("Unity Editor launched", "success");
+                } else {
+                    showToast("Failed to open Unity Editor: " + (data.error || "unknown error"), "error");
+                }
+            } catch (err) {
+                hideProcessing();
+                showToast("Error opening Unity: " + err.message, "error");
+            }
         }
 
         async function loadBuildRunData(dir, platform) {

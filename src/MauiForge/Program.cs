@@ -150,6 +150,8 @@ var services = new ServiceCollection()
     .AddSingleton<DeviceService>()
     .AddSingleton<StateService>()
     .AddSingleton<SfxService>()
+    .AddSingleton<UnityLocatorService>()
+    .AddSingleton<UnityBuildService>()
     .AddSingleton<AppDiscoveryService>()
     .AddSingleton<AiCommitService>()
     .AddSingleton<AppDetailScreen>()
@@ -366,10 +368,12 @@ void RegisterProtocol(PersistentState state)
 
 if (!runTerminal)
 {
-    var versionSvc = services.GetRequiredService<VersionService>();
-    var gitSvc     = services.GetRequiredService<GitService>();
-    var buildSvc   = services.GetRequiredService<BuildService>();
-    var sfxSvc     = services.GetRequiredService<SfxService>();
+    var versionSvc   = services.GetRequiredService<VersionService>();
+    var gitSvc       = services.GetRequiredService<GitService>();
+    var buildSvc     = services.GetRequiredService<BuildService>();
+    var sfxSvc       = services.GetRequiredService<SfxService>();
+    var unityLocator = services.GetRequiredService<UnityLocatorService>();
+    var unityBuild   = services.GetRequiredService<UnityBuildService>();
 
     var currentVer = typeof(AppListScreen).Assembly.GetName().Version;
     var verStr = currentVer is not null ? currentVer.ToString(3) : "?.?.?";
@@ -478,6 +482,7 @@ if (!runTerminal)
     }
 
     WebStartup.Start(args, stateService, discovery, versionSvc, gitSvc, buildSvc, deviceSvc, sfxSvc,
+        unityLocator: unityLocator, unityBuild: unityBuild,
         serveMode: serveMode, token: serveToken, port: servePort, noOpen: noOpen);
     return;
 }
@@ -519,11 +524,14 @@ while (true)
 
     if (result is WebInterfaceRequested)
     {
-        var versionSvc = services.GetRequiredService<VersionService>();
-        var gitSvc     = services.GetRequiredService<GitService>();
-        var buildSvc   = services.GetRequiredService<BuildService>();
-        var sfxSvc     = services.GetRequiredService<SfxService>();
-        WebStartup.Start(args, stateService, discovery, versionSvc, gitSvc, buildSvc, deviceSvc, sfxSvc);
+        var versionSvc   = services.GetRequiredService<VersionService>();
+        var gitSvc       = services.GetRequiredService<GitService>();
+        var buildSvc     = services.GetRequiredService<BuildService>();
+        var sfxSvc       = services.GetRequiredService<SfxService>();
+        var unityLocator = services.GetRequiredService<UnityLocatorService>();
+        var unityBuild   = services.GetRequiredService<UnityBuildService>();
+        WebStartup.Start(args, stateService, discovery, versionSvc, gitSvc, buildSvc, deviceSvc, sfxSvc,
+            unityLocator: unityLocator, unityBuild: unityBuild);
         return;
     }
 

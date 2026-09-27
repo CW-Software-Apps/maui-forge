@@ -11,7 +11,9 @@ public class AppDetailScreen(
     DeviceService devices,
     StateService state,
     AiCommitService aiCommit,
-    SfxService sfx)
+    SfxService sfx,
+    UnityBuildService? unityBuild = null,
+    UnityLocatorService? unityLocator = null)
 {
     private enum Act
     {
@@ -19,6 +21,7 @@ public class AppDetailScreen(
         ArchiveiOS, RuniOS,
         RunAndroid, PublishAndroid,
         HotReloadAndroid, StopHotReload,
+        BuildUnity, OpenUnityEditor,
         GitPull, GitCommit, GitPush, Clean, Undo, SetVerbosity, RepeatLast, OpenInEditor, Back
     }
 
@@ -78,23 +81,41 @@ public class AppDetailScreen(
             .AddColumn(new TableColumn("").Width(8))
             .AddColumn(new TableColumn(""));
 
-        if (v.iOS is { } ios)
-            table.AddRow(
-                "[skyblue1]iOS[/]",
-                $"[bold white]{Markup.Escape(ios.Version)}[/]",
-                $"[dim]#{Markup.Escape(ios.Build)}[/]",
-                cfg.iOSFramework is { } fw ? $"[dim]{Markup.Escape(fw)}[/]" : "[grey23]—[/]");
+        if (app.ProjectType == "Unity")
+        {
+            if (app.UnityInfo?.IsUpmPackage == true)
+            {
+                table.AddRow("[purple]Package[/]", $"[bold white]{Markup.Escape(v.Master?.Version ?? "—")}[/]", "", "[dim]package.json[/]");
+            }
+            else
+            {
+                table.AddRow("[purple]Version[/]", $"[bold white]{Markup.Escape(v.Master?.Version ?? "—")}[/]", $"[dim]#{Markup.Escape(v.Master?.Build ?? "—")}[/]", "[dim]ProjectSettings.asset[/]");
+                if (v.Android is { } and)
+                    table.AddRow("[green3]Android Code[/]", $"[bold white]{Markup.Escape(and.Build)}[/]", "", "[dim]bundleVersionCode[/]");
+                if (app.UnityInfo?.GameConfigFound == true)
+                    table.AddRow("[cyan1]GameConfig[/]", $"[bold white]{Markup.Escape(v.Master?.Version ?? "—")}[/]", $"[dim]#{Markup.Escape(v.Master?.Build ?? "—")}[/]", "[dim]GameConfig.asset[/]");
+            }
+        }
         else
-            table.AddRow("[grey23]iOS[/]", "[grey23]—[/]", "", "");
+        {
+            if (v.iOS is { } ios)
+                table.AddRow(
+                    "[skyblue1]iOS[/]",
+                    $"[bold white]{Markup.Escape(ios.Version)}[/]",
+                    $"[dim]#{Markup.Escape(ios.Build)}[/]",
+                    cfg.iOSFramework is { } fw ? $"[dim]{Markup.Escape(fw)}[/]" : "[grey23]—[/]");
+            else
+                table.AddRow("[grey23]iOS[/]", "[grey23]—[/]", "", "");
 
-        if (v.Android is { } and)
-            table.AddRow(
-                "[green3]Android[/]",
-                $"[bold white]{Markup.Escape(and.Version)}[/]",
-                $"[dim]#{Markup.Escape(and.Build)}[/]",
-                cfg.AndroidFramework is { } af ? $"[dim]{Markup.Escape(af)}[/]" : "[grey23]—[/]");
-        else
-            table.AddRow("[grey23]Android[/]", "[grey23]—[/]", "", "");
+            if (v.Android is { } and)
+                table.AddRow(
+                    "[green3]Android[/]",
+                    $"[bold white]{Markup.Escape(and.Version)}[/]",
+                    $"[dim]#{Markup.Escape(and.Build)}[/]",
+                    cfg.AndroidFramework is { } af ? $"[dim]{Markup.Escape(af)}[/]" : "[grey23]—[/]");
+            else
+                table.AddRow("[grey23]Android[/]", "[grey23]—[/]", "", "");
+        }
 
         // ── sync status ────────────────────────────────
         var syncLine = (v.iOS, v.Android) switch
@@ -137,10 +158,21 @@ public class AppDetailScreen(
 
         // ── assemble panel — two side-by-side grids ────
         var devGrid = new Grid().AddColumn(new GridColumn().Width(11)).AddColumn();
-        devGrid.AddRow("[dim]profile[/]",      buildCfg);
-        devGrid.AddRow("[dim]iOS device[/]",   iosDev);
-        devGrid.AddRow("[dim]Android device[/]", andDev);
-        devGrid.AddRow("[dim]Mac mode[/]",     macMode);
+        if (app.ProjectType == "Unity")
+        {
+            devGrid.AddRow("[dim]engine[/]", $"[purple]{Markup.Escape(app.UnityInfo?.EditorVersion ?? "Unity")}[/]");
+            devGrid.AddRow("[dim]pipeline[/]", app.UnityInfo?.HasBuildPipeline == true ? "[purple]Wagenheimer BuildPipeline[/]" : "[grey46]Standard Player[/]");
+            devGrid.AddRow("[dim]target[/]", $"[cyan1]{Markup.Escape(app.UnityInfo?.TargetPlatform ?? "StandaloneWindows64")}[/]");
+            if (app.UnityInfo?.Profiles is { Count: > 0 } profs)
+                devGrid.AddRow("[dim]profiles[/]", $"[green3]{profs.Count} profile(s)[/]");
+        }
+        else
+        {
+            devGrid.AddRow("[dim]profile[/]",      buildCfg);
+            devGrid.AddRow("[dim]iOS device[/]",   iosDev);
+            devGrid.AddRow("[dim]Android device[/]", andDev);
+            devGrid.AddRow("[dim]Mac mode[/]",     macMode);
+        }
 
         var gitGrid = new Grid().AddColumn(new GridColumn().Width(11)).AddColumn();
         gitGrid.AddRow("[dim]branch[/]", $"[{bc}]{Markup.Escape(app.Branch)}[/]");
@@ -199,36 +231,52 @@ public class AppDetailScreen(
 
         Add(Act.Back, "[black on grey70]  << Back  [/] [dim]return to dashboard[/]");
 
-        // ── Primary Actions
-        Group("Run Center");
-        var iosRunDevice = cfg.iOSDeviceName ?? (cfg.iOSDeviceId is not null ? "device configured" : "no device");
-        var iosRunCfg    = cfg.BuildConfiguration ?? "Debug";
-        Add(Act.RuniOS,
-            $"[skyblue1]ri[/]  [white]Run on iOS[/]  " +
-            H($"{iosRunDevice} • {iosRunCfg}"));
-        var androidRunDevice = cfg.AndroidDeviceName ?? cfg.AndroidDeviceSerial ?? "no device";
-        var androidRunCfg    = cfg.BuildConfiguration ?? "Debug";
-        Add(Act.RunAndroid,
-            $"[green3]ra[/]  [white]Run on Android[/]  " +
-            H($"{androidRunDevice} • {androidRunCfg}"));
-        var hrActive = build.IsHotReloadActive(app.Dir);
-        if (hrActive)
-            Add(Act.StopHotReload,
-                $"[bold yellow]■[/]  [bold yellow]Stop Hot Reload[/]  " +
-                WA("active on Android"));
-        else if (cfg.BuildConfiguration is null || cfg.BuildConfiguration.Equals("Debug", StringComparison.OrdinalIgnoreCase))
-            Add(Act.HotReloadAndroid,
-                $"[green3]hr[/]  [white]Hot Reload Android[/]  " +
-                H($"{androidRunDevice} • Debug"));
+        if (app.ProjectType == "Unity")
+        {
+            if (app.UnityInfo?.IsUpmPackage != true)
+            {
+                Group("Unity Actions");
+                Add(Act.BuildUnity,
+                    $"[purple]ub[/]  [white]Build Unity Player[/]  " +
+                    H($"{app.UnityInfo?.TargetPlatform ?? "StandaloneWindows64"} • {(app.UnityInfo?.HasBuildPipeline == true ? "BuildPipeline" : "Standard")}"));
+                Add(Act.OpenUnityEditor,
+                    $"[purple]ue[/]  [white]Open in Unity Editor[/]  " +
+                    H(app.UnityInfo?.EditorVersion ?? "Unity"));
+            }
+        }
+        else
+        {
+            // ── Primary Actions
+            Group("Run Center");
+            var iosRunDevice = cfg.iOSDeviceName ?? (cfg.iOSDeviceId is not null ? "device configured" : "no device");
+            var iosRunCfg    = cfg.BuildConfiguration ?? "Debug";
+            Add(Act.RuniOS,
+                $"[skyblue1]ri[/]  [white]Run on iOS[/]  " +
+                H($"{iosRunDevice} • {iosRunCfg}"));
+            var androidRunDevice = cfg.AndroidDeviceName ?? cfg.AndroidDeviceSerial ?? "no device";
+            var androidRunCfg    = cfg.BuildConfiguration ?? "Debug";
+            Add(Act.RunAndroid,
+                $"[green3]ra[/]  [white]Run on Android[/]  " +
+                H($"{androidRunDevice} • {androidRunCfg}"));
+            var hrActive = build.IsHotReloadActive(app.Dir);
+            if (hrActive)
+                Add(Act.StopHotReload,
+                    $"[bold yellow]■[/]  [bold yellow]Stop Hot Reload[/]  " +
+                    WA("active on Android"));
+            else if (cfg.BuildConfiguration is null || cfg.BuildConfiguration.Equals("Debug", StringComparison.OrdinalIgnoreCase))
+                Add(Act.HotReloadAndroid,
+                    $"[green3]hr[/]  [white]Hot Reload Android[/]  " +
+                    H($"{androidRunDevice} • Debug"));
 
-        // ── Release
-        Group("Release Center");
-        Add(Act.ArchiveiOS,
-            $"[skyblue1]ai[/]  [white]Create iOS Archive[/] [dim](Release)[/]  " +
-            H(cfg.iOSFramework ?? "—"));
-        Add(Act.PublishAndroid,
-            $"[green3]pa[/]  [white]Create Android Release[/] [dim](Release)[/]  " +
-            H(cfg.AndroidFramework ?? "—"));
+            // ── Release
+            Group("Release Center");
+            Add(Act.ArchiveiOS,
+                $"[skyblue1]ai[/]  [white]Create iOS Archive[/] [dim](Release)[/]  " +
+                H(cfg.iOSFramework ?? "—"));
+            Add(Act.PublishAndroid,
+                $"[green3]pa[/]  [white]Create Android Release[/] [dim](Release)[/]  " +
+                H(cfg.AndroidFramework ?? "—"));
+        }
 
         // ── Version
         Group("Version Center");
@@ -336,6 +384,8 @@ public class AppDetailScreen(
             case Act.PublishAndroid:   PublishAndroidAction(app, st, cfg);                        break;
             case Act.HotReloadAndroid: HotReloadAndroidAction(app, st, cfg);                       break;
             case Act.StopHotReload:    StopHotReloadAction(app);                                   break;
+            case Act.BuildUnity:       BuildUnityAction(app, st);                                  break;
+            case Act.OpenUnityEditor:  OpenUnityEditorAction(app);                                 break;
             case Act.GitPull:
                 AnsiConsole.WriteLine();
                 var (ok, output) = git.Pull(app.Dir);
@@ -1756,6 +1806,12 @@ public class AppDetailScreen(
 
     private void ApplyVersion(AppEntry app, string version, string bld)
     {
+        if (app.ProjectType == "Unity")
+        {
+            versions.WriteUnityDetailed(app.Dir, version, bld);
+            return;
+        }
+
         var csproj = FindCsproj(app.Dir);
         if (app.Versions.iOS     is not null) versions.WriteiOS(app.Dir, version, bld);
         if (app.Versions.Android is not null) versions.WriteAndroid(app.Dir, version, bld);
@@ -1899,8 +1955,114 @@ public class AppDetailScreen(
         return cfg;
     }
 
+    private void OpenUnityEditorAction(AppEntry app)
+    {
+        AnsiConsole.WriteLine();
+        if (unityLocator is null)
+        {
+            AnsiConsole.MarkupLine("  [red]x  Unity locator service not available.[/]");
+            Pause();
+            return;
+        }
+
+        AnsiConsole.MarkupLine("  [purple]Launching Unity Editor...[/]");
+        var ok = unityLocator.OpenProjectInEditor(app.Dir);
+        if (ok)
+            AnsiConsole.MarkupLine("  [green]ok  Unity Editor process launched.[/]");
+        else
+            AnsiConsole.MarkupLine("  [red]x  Failed to launch Unity Editor.[/]");
+        Pause();
+    }
+
+    private void BuildUnityAction(AppEntry app, PersistentState st)
+    {
+        AnsiConsole.WriteLine();
+        if (unityBuild is null)
+        {
+            AnsiConsole.MarkupLine("  [red]x  Unity build service not available.[/]");
+            Pause();
+            return;
+        }
+
+        var platforms = new[] { "StandaloneWindows64", "Android", "StandaloneOSX", "iOS", "WebGL" };
+        var platformChoices = platforms.Select(p => new ForgeMenu.ListItem<string>(p, p)).ToList();
+        var selectedPlatform = ForgeMenu.PromptList("Select Target Platform:", platformChoices) ?? "StandaloneWindows64";
+
+        string? selectedProfile = null;
+        if (app.UnityInfo?.HasBuildPipeline == true && app.UnityInfo?.Profiles is { Count: > 0 } profs)
+        {
+            var profileChoices = profs.Select(p => new ForgeMenu.ListItem<string>(p.Id, $"{p.DisplayName} ({p.Platform})")).ToList();
+            profileChoices.Insert(0, new ForgeMenu.ListItem<string>("", "(Default / None)"));
+            var chosen = ForgeMenu.PromptList("Select Publisher Profile (BuildPipeline):", profileChoices);
+            if (!string.IsNullOrEmpty(chosen)) selectedProfile = chosen;
+        }
+
+        var isDev = AnsiConsole.Confirm("  Development Build (Profiler & Debug symbols)?", defaultValue: false);
+        var cheatMode = false;
+        if (app.UnityInfo?.HasBuildPipeline == true)
+        {
+            cheatMode = AnsiConsole.Confirm("  Enable Cheat Mode?", defaultValue: false);
+        }
+        var runAfter = AnsiConsole.Confirm("  Run / Deploy after build?", defaultValue: false);
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine($"  [purple]Starting Unity Build:[/] {selectedPlatform} ({(isDev ? "Development" : "Release")})");
+
+        var opts = new UnityBuildOptions(
+            ProjectDir: app.Dir,
+            Platform: selectedPlatform,
+            ProfileId: selectedProfile,
+            DevelopmentBuild: isDev,
+            CheatMode: cheatMode,
+            RunAfterBuild: runAfter
+        );
+
+        var exitCode = unityBuild.ExecuteBuild(opts, line =>
+        {
+            if (!string.IsNullOrWhiteSpace(line))
+            {
+                if (line.Contains("error", StringComparison.OrdinalIgnoreCase))
+                    AnsiConsole.MarkupLine($"    [red]{Markup.Escape(line)}[/]");
+                else if (line.Contains("warning", StringComparison.OrdinalIgnoreCase))
+                    AnsiConsole.MarkupLine($"    [yellow]{Markup.Escape(line)}[/]");
+                else
+                    AnsiConsole.MarkupLine($"    [dim]{Markup.Escape(line)}[/]");
+            }
+        });
+
+        if (exitCode == 0)
+        {
+            AnsiConsole.MarkupLine("\n  [bold green]ok  Unity build finished successfully![/]");
+            st.LastAction = "Build Unity Player";
+            state.Save(st);
+        }
+        else
+        {
+            AnsiConsole.MarkupLine($"\n  [bold red]x  Unity build failed with exit code {exitCode}.[/]");
+        }
+        Pause();
+    }
+
     private AppEntry RefreshApp(AppEntry app)
     {
+        if (app.ProjectType == "Unity")
+        {
+            var unityVer = versions.ReadUnityDetailed(app.Dir);
+            var uCsproj = unityVer != null
+                ? new PlatformVersion(unityVer.Version, unityVer.AndroidCode)
+                : null;
+            var uAndroid = unityVer != null
+                ? new PlatformVersion(unityVer.Version, unityVer.AndroidCode)
+                : null;
+
+            return app with
+            {
+                Branch = git.GetBranch(app.Dir),
+                Versions = new AppVersions(uCsproj, uAndroid, uCsproj),
+                Git = git.GetStatus(app.Dir),
+            };
+        }
+
         var csproj = FindCsproj(app.Dir);
         var ios = versions.ReadiOS(app.Dir);
         var android = versions.ReadAndroid(app.Dir);
